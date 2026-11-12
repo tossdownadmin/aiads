@@ -13,7 +13,7 @@ export async function stageSkills(skills: Array<SkillRecord & { body: string; or
 export async function listStagedSkills(): Promise<Array<Stored & { pathname: string }>> {
   const result = await list({ prefix: PREFIX });
   const rows = await Promise.all(result.blobs.map(async blob => {
-    const response = await get(blob.pathname, { access: 'private', useCache: false });
+    const response = await get(blob.url, { access: 'private', useCache: false });
     if (!response) return null;
     const content = await new Response(response.stream).text();
     return { ...(JSON.parse(content) as Stored), pathname: blob.pathname };
@@ -23,14 +23,17 @@ export async function listStagedSkills(): Promise<Array<Stored & { pathname: str
 export async function listApprovedSkills(): Promise<Stored[]> {
   const result = await list({ prefix: APPROVED_PREFIX });
   const rows = await Promise.all(result.blobs.map(async blob => {
-    const response = await get(blob.pathname, { access: 'private', useCache: false });
+    const response = await get(blob.url, { access: 'private', useCache: false });
     return response ? JSON.parse(await new Response(response.stream).text()) as Stored : null;
   }));
   return rows.filter((row): row is Stored => row !== null);
 }
 export async function decideSkill(pathname: string, decision: 'approved' | 'rejected') {
   if (!pathname.startsWith(PREFIX) || !pathname.endsWith('.json')) throw new Error('Invalid staged skill path');
-  const response = await get(pathname, { access: 'private', useCache: false });
+  const { blobs } = await list({ prefix: pathname });
+  const file = blobs.find(blob => blob.pathname === pathname);
+  if (!file) throw new Error('Staged skill version not found');
+  const response = await get(file.url, { access: 'private', useCache: false });
   if (!response) throw new Error('Staged skill version not found');
   const skill = JSON.parse(await new Response(response.stream).text()) as Stored;
   if (decision === 'approved' && (skill.risk === 'high' || skill.status === 'reference_only')) throw new Error('High risk or unlicensed reference-only skills cannot be approved');
