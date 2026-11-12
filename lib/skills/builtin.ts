@@ -9,7 +9,7 @@ export function getBuiltinMetaAuditSkill(): SkillRecord & { body: string; origin
   return {
     name,
     description,
-    source: 'tossdown/aiads (built-in)',
+    source: 'tossdown-aiads',
     path: 'skills/meta-account-audit/SKILL.md',
     sha: createHash('sha256').update(body).digest('hex'),
     license: 'Proprietary',
