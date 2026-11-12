@@ -1,0 +1,32 @@
+sources:
+  - repo: google/skills
+    paths: [skills/ads]
+    trust_tier: 1
+    enabled: true
+  - repo: AgriciDaniel/claude-ads
+    paths: [skills/ads, skills/ads-audit, skills/ads-meta, ads]
+    trust_tier: 2
+    enabled: true
+  - repo: hoodini/ai-agents-skills
+    paths: [skills/meta-ads]
+    trust_tier: 2
+    enabled: true
+  - repo: nowork-studio/notfair-plugin
+    paths: [meta-ads]
+    trust_tier: 2
+    enabled: true
+  - repo: mvanhorn/printing-press-library
+    paths: [library/marketing/meta-ads]
+    trust_tier: 2
+    enabled: true
+  - repo: coreyhaines31/marketingskills
+    paths: [skills/paid-ads]
+    trust_tier: 2
+    enabled: true
+  - repo: kostja94/marketing-skills
+    paths: [skills/paid-ads]
+    trust_tier: 2
+    enabled: true
+discovery:
+  terms: [meta ads, facebook ads, google ads, ppc, paid ads, ads audit, creative fatigue, roas, ad budget]
+  enabled: false

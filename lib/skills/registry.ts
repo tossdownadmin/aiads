@@ -1,0 +1,3 @@
+import type { SkillRecord } from './types';
+export function buildSkillIndex(skills: SkillRecord[]) { return skills.filter(s => s.status === 'approved').map(({name,description,categories,platforms,adaptationStatus}) => ({name,description,categories,platforms,adaptationStatus})); }
+export function routeSkill(index: ReturnType<typeof buildSkillIndex>, request: string, platform = 'meta') { const q=request.toLowerCase(); return index.filter(s => (s.platforms.includes(platform as never) || s.platforms.includes('multi') || s.platforms.includes('platform_agnostic')) && s.categories.some(c => q.includes(c.replace('_',' ')) || q.includes(c))).slice(0,5); }

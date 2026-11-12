@@ -1,0 +1,12 @@
+tools:
+  ads_get_ad_accounts: ads_get_ad_accounts
+  ads_get_ad_entities: ads_get_ad_entities
+  ads_update_campaign: ads_update_campaign
+  ads_update_ad_set: ads_update_ad_set
+  ads_create_campaign: ads_create_campaign
+  ads_create_ad_set: ads_create_ad_set
+  ads_create_ad: ads_create_ad
+  ads_create_creative: ads_create_creative
+policy:
+  writes_require_confirmation: true
+  fetched_scripts_are_never_executed: true
