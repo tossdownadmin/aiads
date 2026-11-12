@@ -12,7 +12,13 @@ Add the foreign tool name and its internal equivalent to `config/tool_map.yaml`.
 
 ## Safety rules
 
-Fetched scripts are never executed. Skills containing prompt injection, credential exfiltration, hidden instructions, or unsafe remote execution are rejected. Any skill that suggests a live ad write must pass through the application's explicit confirmation flow.
+Fetched scripts are never executed. Skills containing prompt injection, credential exfiltration, hidden instructions, or unsafe remote execution are rejected. Repository-level licenses and per-skill license declarations are shown in review; unlicensed skills remain reference-only. A first-party, read-only Meta account audit skill is staged with each sync.
+
+Approving a skill only allows its audit guidance to be used. It does not grant advertising platform permissions or authorize account changes. The audit workspace reads campaign insights only; campaign writes require a separate, explicitly designed approval and execution flow.
+
+## Claude analysis
+
+The audit endpoint sends the approved skill text and the selected Meta campaign insights to Claude through Amazon Bedrock's Converse API. Configure `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `BEDROCK_MODEL_ID` in the server environment. `AWS_SESSION_TOKEN` is optional for temporary credentials. If Bedrock is not configured, deterministic Meta metrics and threshold flags still work and the workspace reports that Claude analysis is unavailable.
 
 ## Versioning
 

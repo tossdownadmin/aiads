@@ -1,5 +1,6 @@
 const GRAPH_VERSION = process.env.META_API_VERSION || 'v27.0';
 const GRAPH = `https://graph.facebook.com/${GRAPH_VERSION}`;
+export type MetaAccount = { id: string; name: string; status: number; currency: string; timezone?: string };
 function token() { const value = process.env.META_SYSTEM_USER_TOKEN; if (!value) throw new Error('Meta connection is not configured'); return value; }
 async function fetchGraph(path: string, params: Record<string,string> = {}) {
   const url = new URL(`${GRAPH}/${path}`);
@@ -8,9 +9,9 @@ async function fetchGraph(path: string, params: Record<string,string> = {}) {
   if (!response.ok) throw new Error(data?.error?.message || `Meta API returned ${response.status}`);
   return data;
 }
-export async function getAdAccounts() {
+export async function getAdAccounts(): Promise<MetaAccount[]> {
   const data = await fetchGraph('me/adaccounts', { fields:'id,name,account_status,currency,timezone_name', limit:'100' });
-  return (data.data || []).map((a: Record<string,string|number>)=>({ id:a.id, name:a.name, status:a.account_status, currency:a.currency, timezone:a.timezone_name }));
+  return (data.data || []).map((a: Record<string,string|number>)=>({ id:String(a.id), name:String(a.name), status:Number(a.account_status), currency:String(a.currency), timezone:String(a.timezone_name || '') }));
 }
 export async function getAccountInsights(accountId: string, period: 'last_7d'|'last_30d') {
   if (!/^act_\d+$/.test(accountId)) throw new Error('Invalid ad account ID');
