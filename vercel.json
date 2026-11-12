@@ -1,0 +1,1 @@
+{"crons":[{"path":"/api/skills/sync","schedule":"0 7 * * *"}]}

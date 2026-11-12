@@ -1,10 +1,10 @@
 # Skills Registry
 
-The registry is the source of truth for advertising skills used by the agent.
+The registry is the source of truth for advertising skills used by the agent. Staged skill versions are stored in a private Vercel Blob store; source text is never exposed publicly.
 
 ## Add a source
 
-Add a repository and one or more paths to `config/skill_sources.yaml`. Sources are fetched into staging, pinned to a commit SHA, parsed, classified, scanned, and held for approval. They are never automatically promoted.
+Add a repository and one or more paths to `config/skill_sources.yaml`. Sources are fetched into staging, pinned to a commit SHA, parsed, classified, scanned, and held for approval. They are never automatically promoted. The daily Vercel Cron invokes `/api/skills/sync` with `SKILLS_SYNC_CRON_SECRET`.
 
 ## Add a tool mapping
 
