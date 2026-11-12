@@ -4,7 +4,7 @@ import { loadSkillSources } from '../../../../lib/skills/config';
 import { stageSkills } from '../../../../lib/skills/store';
 export const runtime = 'nodejs';
 async function sync(request: Request) {
-  const secret = process.env.SKILLS_SYNC_CRON_SECRET;
+  const secret = process.env.CRON_SECRET;
   if (!secret || request.headers.get('authorization') !== `Bearer ${secret}`) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   try {
     const sources = await loadSkillSources();
