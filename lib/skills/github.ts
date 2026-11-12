@@ -19,7 +19,7 @@ export async function discoverConfiguredSkills(sources: Source[], token?: string
   for (const source of sources.filter(item => item.enabled)) {
     try {
       const [owner, repo] = source.repo.split('/');
-      const repository = await githubJson<{ default_branch: string }>(`${API}/repos/${owner}/${repo}`, token);
+      const repository = await githubJson<{ default_branch: string; license?: { spdx_id?: string } | null }>(`${API}/repos/${owner}/${repo}`, token);
       const tree = await githubJson<{ sha: string; tree: TreeEntry[]; truncated: boolean }>(`${API}/repos/${owner}/${repo}/git/trees/${repository.default_branch}?recursive=1`, token);
       const skillsPaths = tree.tree.filter(entry => entry.type === 'blob' && entry.path.endsWith('SKILL.md') && source.paths.some(root => entry.path === root || entry.path.startsWith(`${root}/`)));
       for (const entry of skillsPaths) {
@@ -31,7 +31,11 @@ export async function discoverConfiguredSkills(sources: Source[], token?: string
           const siblingFiles = tree.tree.filter(file => file.type === 'blob' && file.path.startsWith(entry.path.replace(/SKILL\.md$/, ''))).map(file => file.path);
           const scan = scanSkill(original, siblingFiles.filter(file => file.includes('/scripts/')).map(file => `scripts/${file}`));
           if (!classification.ads) continue;
-          const license = typeof parsed.frontmatter.license === 'string' ? parsed.frontmatter.license : undefined;
+          const documentLicense = typeof parsed.frontmatter.license === 'string' ? parsed.frontmatter.license.trim() : undefined;
+          const repositoryLicense = repository.license?.spdx_id && repository.license.spdx_id !== 'NOASSERTION'
+            ? repository.license.spdx_id
+            : undefined;
+          const license = documentLicense || repositoryLicense;
           const record: SkillRecord & { body: string; original: string; files: string[]; trustTier: number } = {
             name: parsed.frontmatter.name, description: parsed.frontmatter.description, source: source.repo, path: entry.path,
             sha: tree.sha, license, categories: classification.categories, platforms: classification.platforms,
