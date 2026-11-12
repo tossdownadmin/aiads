@@ -54,7 +54,13 @@ export async function analyzeAudit(skillBody: string, account: { id: string; nam
     }));
     const text = response.output?.message?.content?.flatMap(block => 'text' in block && block.text ? [block.text] : []).join('\n') || '';
     return { status: 'complete', ...parseAnalysis(text) };
-  } catch {
-    return { status: 'unavailable', message: 'Claude analysis could not run. Check the Bedrock API key or AWS credentials, model access, and region in Vercel.' };
+  } catch (error) {
+    const failure = error as { name?: string; $metadata?: { httpStatusCode?: number; requestId?: string } };
+    console.error('Bedrock audit analysis failed', {
+      name: failure?.name || 'UnknownError',
+      httpStatusCode: failure?.$metadata?.httpStatusCode,
+      requestId: failure?.$metadata?.requestId,
+    });
+    return { status: 'unavailable', message: 'Claude analysis failed in Amazon Bedrock. Check the Vercel Function log for the error name and HTTP status; verify the API key region, model ID, and permissions.' };
   }
 }
