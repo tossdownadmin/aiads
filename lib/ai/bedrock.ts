@@ -16,7 +16,7 @@ const systemPrompt = `You are the read-only analysis layer of an advertising aud
 let client: BedrockRuntimeClient | undefined;
 function getClient() {
   const region = process.env.AWS_REGION;
-  if (!region || !process.env.BEDROCK_MODEL_ID) return undefined;
+  if (!region || !process.env.BEDROCK_MODEL_ID || !process.env.AWS_BEARER_TOKEN_BEDROCK) return undefined;
   client ??= new BedrockRuntimeClient({ region });
   return client;
 }
@@ -41,7 +41,7 @@ function parseAnalysis(text: string): Omit<AuditAnalysis, 'status'> {
 export async function analyzeAudit(skillBody: string, account: { id: string; name: string }, period: string, insights: Insight[], thresholdFlags: DeterministicIssue[]): Promise<AuditAnalysis> {
   const bedrock = getClient();
   const modelId = process.env.BEDROCK_MODEL_ID;
-  if (!bedrock || !modelId) return { status: 'not_configured', message: 'Add AWS_REGION and BEDROCK_MODEL_ID in Vercel to enable Claude analysis.' };
+  if (!bedrock || !modelId) return { status: 'not_configured', message: 'Add AWS_REGION, BEDROCK_MODEL_ID, and AWS_BEARER_TOKEN_BEDROCK in Vercel to enable Claude analysis.' };
 
   const safeSkill = skillBody.slice(0, 16000);
   const evidence = JSON.stringify({ account, period, deterministicThresholdFlags: thresholdFlags, campaigns: insights }, null, 2).slice(0, 90000);
@@ -55,6 +55,6 @@ export async function analyzeAudit(skillBody: string, account: { id: string; nam
     const text = response.output?.message?.content?.flatMap(block => 'text' in block && block.text ? [block.text] : []).join('\n') || '';
     return { status: 'complete', ...parseAnalysis(text) };
   } catch {
-    return { status: 'unavailable', message: 'Claude analysis could not run. Check the Bedrock model access, AWS credentials, and region in Vercel.' };
+    return { status: 'unavailable', message: 'Claude analysis could not run. Check the Bedrock API key or AWS credentials, model access, and region in Vercel.' };
   }
 }

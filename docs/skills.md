@@ -18,7 +18,7 @@ Approving a skill only allows its audit guidance to be used. It does not grant a
 
 ## Claude analysis
 
-The audit endpoint sends the approved skill text and the selected Meta campaign insights to Claude through Amazon Bedrock's Converse API. Configure `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `BEDROCK_MODEL_ID` in the server environment. `AWS_SESSION_TOKEN` is optional for temporary credentials. If Bedrock is not configured, deterministic Meta metrics and threshold flags still work and the workspace reports that Claude analysis is unavailable.
+The audit endpoint sends the approved skill text and the selected Meta campaign insights to Claude through Amazon Bedrock's Converse API. For a Bedrock API key, configure `AWS_REGION`, `AWS_BEARER_TOKEN_BEDROCK`, and `BEDROCK_MODEL_ID` in the server environment. AWS also supports SDK credentials as an alternative. Long-term Bedrock API keys expire and AWS recommends short-term credentials for production; short-term keys last at most 12 hours and need an automatic refresh flow. If Bedrock is not configured, deterministic Meta metrics and threshold flags still work and the workspace reports that Claude analysis is unavailable.
 
 ## Versioning
 
