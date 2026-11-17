@@ -61,7 +61,9 @@ export async function analyzeAudit(skillBody: string, account: { id: string; nam
       httpStatusCode: failure?.$metadata?.httpStatusCode,
       requestId: failure?.$metadata?.requestId,
     });
-    return { status: 'unavailable', message: 'Claude analysis failed in Amazon Bedrock. Check the Vercel Function log for the error name and HTTP status; verify the API key region, model ID, and permissions.' };
+    return { status: 'unavailable', message: failure?.name === 'AccessDeniedException' || failure?.$metadata?.httpStatusCode === 403
+      ? 'Amazon Bedrock denied model access (HTTP 403). Check that AWS_BEARER_TOKEN_BEDROCK can use BEDROCK_MODEL_ID in AWS_REGION, and enable that model for the AWS account.'
+      : 'Claude analysis failed in Amazon Bedrock. Check the Vercel Function log for the error name and HTTP status; verify the API key region, model ID, and permissions.' };
   }
 }
 
@@ -90,6 +92,8 @@ export async function analyzeCompetitorAds(skillBody: string, search: { terms: s
       httpStatusCode: failure?.$metadata?.httpStatusCode,
       requestId: failure?.$metadata?.requestId,
     });
-    return { status: 'unavailable', message: 'Claude analysis failed in Amazon Bedrock. Check the Vercel Function log for error name and HTTP status.' };
+    return { status: 'unavailable', message: failure?.name === 'AccessDeniedException' || failure?.$metadata?.httpStatusCode === 403
+      ? 'Amazon Bedrock denied model access (HTTP 403). Check that AWS_BEARER_TOKEN_BEDROCK can use BEDROCK_MODEL_ID in AWS_REGION, and enable that model for the AWS account.'
+      : 'Claude analysis failed in Amazon Bedrock. Check the Vercel Function log for the error name and HTTP status.' };
   }
 }
