@@ -26,7 +26,6 @@ const schema = z.object({
 });
 
 export async function GET() {
-  if (!await verifyAdminSession()) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const signedIn = await verifyPaidSourceSession();
   return NextResponse.json({
     sources: {

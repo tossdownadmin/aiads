@@ -1,13 +1,8 @@
-import { SAFETY_POLICY } from '../lib/skills/policy';
+import WorkspaceShell from './workspace-shell';
 
 export default function Home() {
-  return <main className="home-shell">
-    <header className="home-header"><a className="product-brand" href="/"><span className="mark">T</span><span><strong>Tossdown</strong><small>ADS INTELLIGENCE</small></span></a><nav className="product-links"><a href="/workbench">Account audits</a><a href="/competitors">Competitor research</a><a href="/registry">Skills registry</a></nav></header>
-    <section className="home-hero"><p className="eyebrow">PAID MEDIA WORKSPACE</p><h1>Audit what you run.<br />Research what the market runs.</h1><p>One read-only workspace for campaign audits, competitor creative research, and versioned ad skills.</p></section>
-    <section className="module-grid">
-      <a className="module-card" href="/workbench"><span className="module-index">01 / ACCOUNT AUDITS</span><div className="module-icon">↗</div><h2>Review connected campaigns</h2><p>Select a Meta account, audit its active campaigns, and inspect metric evidence with an approved skill.</p><span className="module-action">Open audit workspace <b>→</b></span></a>
-      <a className="module-card accent" href="/competitors"><span className="module-index">02 / COMPETITOR RESEARCH</span><div className="module-icon">⌕</div><h2>Study competitor creative</h2><p>Search source-labeled ad-library records, review the original, then analyze selected ads for messaging patterns.</p><span className="module-action">Explore ad library <b>→</b></span></a>
-    </section>
-    <section className="home-foot"><div><span className="eyebrow">SAFETY</span><strong>{SAFETY_POLICY.readOnlyByDefault ? 'Read-only by default' : 'Review required'}</strong><p>AI explains supplied evidence. It does not change campaigns.</p></div><a href="/registry">Manage approved skills <b>→</b></a></section>
-  </main>;
+  return <WorkspaceShell active="home"><header className="craft-hero workspace-home-hero"><p className="craft-crumb">TOSSDOWN / ADS INTELLIGENCE</p><div className="craft-hero-main"><span className="craft-hero-icon" aria-hidden="true">ϟ</span><div><h1>Your ads workspace</h1><p>Review account performance, explore competitor creative, and manage analysis skills.</p></div></div></header>
+    <div className="workspace-home-grid"><a className="workspace-home-card" href="/workbench"><span className="workspace-home-icon">◎</span><span className="workspace-home-label">01 / ACCOUNT AUDITS</span><h2>Review your Meta campaigns</h2><p>Choose an account and reporting window. See campaign metrics, review flags, and evidence-backed analysis.</p><strong>Open audits →</strong></a><a className="workspace-home-card" href="/competitors"><span className="workspace-home-icon">↻</span><span className="workspace-home-label">02 / COMPETITOR RESEARCH</span><h2>Find competitor ads</h2><p>Select a client brand, verify the advertisers, and inspect the creative returned by Foreplay or Meta.</p><strong>Open research →</strong></a><a className="workspace-home-card" href="/registry"><span className="workspace-home-icon">▦</span><span className="workspace-home-label">03 / SKILLS REGISTRY</span><h2>Manage analysis skills</h2><p>Sync sources, review scanned versions, and approve skills for the other workspaces.</p><strong>Open registry →</strong></a></div>
+    <section className="workspace-card workspace-home-note"><strong>Read-only by default</strong><p>Audits and research retrieve evidence. They do not change campaigns or ad accounts.</p></section>
+  </WorkspaceShell>;
 }

@@ -30,6 +30,7 @@ type InsightRow = {
 
 export async function POST(request: Request) {
   if (!await verifyAdminSession()) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!process.env.META_SYSTEM_USER_TOKEN) return NextResponse.json({ error: 'Add META_SYSTEM_USER_TOKEN in Vercel to run account audits.' }, { status: 503 });
   const input = schema.safeParse(await request.json().catch(() => null));
   if (!input.success) return NextResponse.json({ error: 'Invalid audit request' }, { status: 400 });
 
@@ -72,7 +73,8 @@ export async function POST(request: Request) {
       analysis,
       notice: 'This audit lists currently active campaigns and joins campaign-level Meta insights for the selected period. It does not inspect ad-set/ad delivery or reconciled analytics and does not write to the account.',
     });
-  } catch {
-    return NextResponse.json({ error: 'The audit could not complete. Check the Meta connection and try again.' }, { status: 400 });
+  } catch (error) {
+    console.error('Meta audit failed', error instanceof Error ? error.name : 'Unknown error');
+    return NextResponse.json({ error: 'The audit could not complete. Check Meta account permissions and the Vercel Function log.' }, { status: 502 });
   }
 }

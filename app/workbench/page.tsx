@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { signIn } from 'next-auth/react';
+import WorkspaceShell from '../workspace-shell';
 
 type Skill = { name: string; description: string; categories: string[]; platforms: string[]; status: string; license?: string; sha: string };
 type Account = { id: string; name: string; status: number; currency: string; timezone?: string };
@@ -33,6 +35,8 @@ export default function Workbench() {
   const [result, setResult] = useState<AuditResult | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [signInRequired, setSignInRequired] = useState(false);
+  const [accountQuery, setAccountQuery] = useState('');
   const headers = useMemo(() => ({ 'Content-Type': 'application/json' }), []);
 
   async function connect() {
@@ -43,12 +47,14 @@ export default function Workbench() {
         fetch('/api/skills/approved', { cache: 'no-store' }),
         fetch('/api/meta/accounts', { cache: 'no-store' }),
       ]);
+      if (skillsResponse.status === 401 || accountsResponse.status === 401) { setSignInRequired(true); return; }
       const skillsData = await skillsResponse.json();
       const accountsData = await accountsResponse.json();
       if (!skillsResponse.ok) throw new Error(skillsData.error || 'Could not load skills');
       if (!accountsResponse.ok) throw new Error(accountsData.error || 'Could not load Meta accounts');
       setSkills(skillsData.skills);
       setAccounts(accountsData.accounts);
+      setSkill(current => current || skillsData.skills[0]?.name || '');
       setConnected(true);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Connection failed');
@@ -70,6 +76,7 @@ export default function Workbench() {
         body: JSON.stringify({ skillName: skill, accountId: account, period }),
       });
       const data = await response.json();
+      if (response.status === 401) { setSignInRequired(true); setConnected(false); throw new Error('Your session expired. Sign in again to run an audit.'); }
       if (!response.ok) throw new Error(data.error || 'Audit failed');
       setResult(data as AuditResult);
     } catch (cause) {
@@ -79,26 +86,14 @@ export default function Workbench() {
     }
   }
 
-  return <main className="workbench">
-    <nav className="product-nav">
-      <a className="product-brand" href="/"><span className="mark">T</span><span><strong>Tossdown</strong><small>ADS INTELLIGENCE</small></span></a>
-      <div className="product-links"><a className="active" href="/workbench">Account audits</a><a href="/competitors">Competitor research</a><a href="/registry">Skills registry</a></div>
-    </nav>
-    <header>
-      <a className="back" href="/">← Registry</a>
-      <div>
-        <p className="eyebrow">AUDIT WORKSPACE</p>
-        <h1>Run an account audit</h1>
-        <p className="muted">Choose an approved skill and Meta account to review every active campaign in the selected reporting window.</p>
-      </div>
-      <span className="badge">READ ONLY</span>
-    </header>
+  return <WorkspaceShell active="workbench" status={connected ? 'Connected' : signInRequired ? 'Sign-in required' : 'Connecting…'}>
+    <div className="workspace-audit">
+    <header className="craft-hero"><p className="craft-crumb">WORKSPACE / ACCOUNT AUDITS</p><div className="craft-hero-main"><span className="craft-hero-icon" aria-hidden="true">◎</span><div><h1>Audit your Meta campaigns</h1><p>Choose an account and reporting window, then review the evidence.</p></div></div><ol className="craft-steps" aria-label="Audit steps"><li className="active"><span>1</span> Choose account</li><li className={busy || result ? 'active' : ''}><span>2</span> Read campaigns</li><li className={result ? 'active' : ''}><span>3</span> Review findings</li></ol></header>
 
-    {!connected ? <section className="connect-card">
-      <div className="step">CONNECTING</div>
-      <h2>Loading audit workspace</h2>
-      <p>{error || 'Loading approved skills and Meta accounts…'}</p>
-      {error && <button onClick={() => void connect()}>Retry</button>}
+    {!connected ? <section className="connect-card workspace-card">
+      <h2>{signInRequired ? 'Sign in to run audits' : 'Loading audit workspace'}</h2>
+      <p>{signInRequired ? 'Use your approved Google account to review Meta campaigns.' : error || 'Loading approved skills and Meta accounts…'}</p>
+      {signInRequired ? <button onClick={() => void signIn('google', { callbackUrl: '/workbench' })}>Sign in with Google</button> : error && <button onClick={() => void connect()}>Retry</button>}
     </section> : <>
       <section className="selector-grid">
         <article><label>1. Audit skill
@@ -109,11 +104,12 @@ export default function Workbench() {
           <small>{skills.find(item => item.name === skill)?.description || `${skills.length} approved skills available`}</small>
         </label></article>
         <article><label>2. Ad account
+          <input value={accountQuery} onChange={event => setAccountQuery(event.target.value)} placeholder="Filter accounts by name or ID" aria-label="Filter Meta ad accounts" />
           <select value={account} onChange={event => setAccount(event.target.value)}>
             <option value="">Choose a Meta ad account</option>
-            {accounts.map(item => <option key={item.id} value={item.id}>{item.name} · {item.currency}</option>)}
+            {accounts.filter(item => `${item.name} ${item.id}`.toLowerCase().includes(accountQuery.toLowerCase())).map(item => <option key={item.id} value={item.id}>{item.name} · {item.currency} · {item.id}</option>)}
           </select>
-          <small>{accounts.length} accounts available to this Meta token</small>
+          <small>{account ? `${accounts.find(item => item.id === account)?.name} · ${account}` : `${accounts.length} accounts available to this Meta token`}</small>
         </label></article>
         <article><label>3. Reporting window
           <select value={period} onChange={event => setPeriod(event.target.value as 'last_7d' | 'last_30d')}>
@@ -126,6 +122,7 @@ export default function Workbench() {
       <button className="run-button" onClick={runAudit} disabled={!skill || !account || busy}>
         {busy ? 'Running audit…' : 'Run audit →'}
       </button>
+      {!account && <p className="workspace-help">Select a Meta account to enable the audit.</p>}
       {error && <p className="error">{error}</p>}
       {skills.length === 0 && <p className="empty">No approved skills yet. Sync sources, then approve a skill in the Registry.</p>}
       {result && <section className="results">
@@ -162,5 +159,6 @@ export default function Workbench() {
         <p className="muted footnote">{result.notice}</p>
       </section>}
     </>}
-  </main>;
+    </div>
+  </WorkspaceShell>;
 }

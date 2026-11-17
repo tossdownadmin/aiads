@@ -1,4 +1,62 @@
 'use client';
+
 import { useEffect, useState } from 'react';
-type Row={name:string;description:string;source:string;license?:string;status:string;risk:string;findings:string[];categories:string[];platforms:string[];pathname:string;sha:string};
-export default function Registry(){const [rows,setRows]=useState<Row[]>([]);const [message,setMessage]=useState('');const [busy,setBusy]=useState(false);const headers={'Content-Type':'application/json'};async function load(){const r=await fetch('/api/skills/staging',{cache:'no-store'});const d=await r.json();if(!r.ok)throw Error(d.error||'Unable to load staged skills');setRows(d.skills)}useEffect(()=>{void load().catch(e=>setMessage(e.message))},[]);async function sync(){setBusy(true);setMessage('Syncing configured GitHub sources…');try{const r=await fetch('/api/skills/sync',{method:'POST',headers});const d=await r.json();if(!r.ok)throw Error(d.error||'Sync failed');await load();setMessage(`Sync complete: ${d.summary.found} relevant skills found; ${d.errors.length} source or file issues.`)}catch(e){setMessage(e instanceof Error?e.message:'Sync failed')}finally{setBusy(false)}}async function review(row:Row,decision:'approved'|'rejected'){setBusy(true);try{const r=await fetch('/api/skills/review',{method:'POST',headers,body:JSON.stringify({pathname:row.pathname,decision})});const d=await r.json();if(!r.ok)throw Error(d.error||'Review failed');await load();setMessage(`${d.name} ${decision}.`)}catch(e){setMessage(e instanceof Error?e.message:'Review failed')}finally{setBusy(false)}}return <main className="workbench"><header><a className="back" href="/">← Home</a><div><p className="eyebrow">SKILL REGISTRY</p><h1>Review staged skills</h1><p className="muted">Sync sources, inspect scan results, and approve skills for the audit workspace.</p></div><a className="badge" href="/workbench">AUDIT WORKSPACE →</a></header><section className="connect-card"><div className="review-actions"><button disabled={busy} onClick={sync}>Sync sources</button><button className="secondary" disabled={busy} onClick={()=>load().then(()=>setMessage('Staging list refreshed.')).catch(e=>setMessage(e.message))}>Refresh list</button></div>{message&&<p className="status-message">{message}</p>}</section><section className="review-list">{rows.map(row=><article className="review-card" key={row.pathname}><div className="review-title"><div><h2>{row.name}</h2><p>{row.description}</p></div><span className={`risk ${row.risk}`}>{row.risk} risk</span></div><div className="tag-row">{row.categories.map(x=><span key={x}>{x}</span>)}{row.platforms.map(x=><span key={x}>{x}</span>)}<span>{row.license||'No license · reference only'}</span></div><small className="muted">{row.source} · {row.sha.slice(0,10)}</small>{row.findings?.length>0&&<ul>{row.findings.map(x=><li key={x}>{x}</li>)}</ul>}<div className="review-actions"><button disabled={busy||row.risk==='high'||row.status==='reference_only'} onClick={()=>review(row,'approved')}>Approve for audits</button><button className="danger" disabled={busy} onClick={()=>review(row,'rejected')}>Reject</button></div></article>)}{rows.length===0&&<p className="empty">No staged skills yet. Sync configured sources to begin.</p>}</section></main>}
+import { signIn } from 'next-auth/react';
+import WorkspaceShell from '../workspace-shell';
+
+type Row = { name: string; description: string; source: string; license?: string; status: string; risk: string; findings: string[]; categories: string[]; platforms: string[]; pathname: string; sha: string };
+type Approved = { name: string; description: string; source: string; categories: string[]; sha: string };
+
+export default function Registry() {
+  const [rows, setRows] = useState<Row[]>([]);
+  const [approved, setApproved] = useState<Approved[]>([]);
+  const [message, setMessage] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [signInRequired, setSignInRequired] = useState(false);
+  const headers = { 'Content-Type': 'application/json' };
+
+  async function load() {
+    const [stagedResponse, approvedResponse] = await Promise.all([fetch('/api/skills/staging', { cache: 'no-store' }), fetch('/api/skills/approved', { cache: 'no-store' })]);
+    if (stagedResponse.status === 401 || approvedResponse.status === 401) { setSignInRequired(true); return; }
+    const [staged, active] = await Promise.all([stagedResponse.json(), approvedResponse.json()]);
+    if (!stagedResponse.ok) throw new Error(staged.error || 'Unable to load staged skills');
+    if (!approvedResponse.ok) throw new Error(active.error || 'Unable to load approved skills');
+    const activeRows = (active.skills || []) as Approved[];
+    setApproved(activeRows);
+    setRows(((staged.skills || []) as Row[]).filter(row => !activeRows.some(item => item.name === row.name && item.source === row.source && item.sha === row.sha)));
+  }
+  useEffect(() => { void load().catch(error => setMessage(error.message)); }, []);
+
+  async function sync() {
+    setBusy(true); setMessage('Syncing configured skill sources…');
+    try {
+      const response = await fetch('/api/skills/sync', { method: 'POST', headers });
+      if (response.status === 401) { setSignInRequired(true); return; }
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Sync failed');
+      await load();
+      setMessage(`Sync complete: ${data.summary.found} relevant skills found; ${data.errors.length} source or file issues.`);
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'Sync failed'); }
+    finally { setBusy(false); }
+  }
+  async function review(row: Row, decision: 'approved' | 'rejected') {
+    setBusy(true); setMessage('');
+    try {
+      const response = await fetch('/api/skills/review', { method: 'POST', headers, body: JSON.stringify({ pathname: row.pathname, decision }) });
+      if (response.status === 401) { setSignInRequired(true); return; }
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Review failed');
+      await load(); setMessage(`${data.name} ${decision}.`);
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'Review failed'); }
+    finally { setBusy(false); }
+  }
+
+  return <WorkspaceShell active="registry" status={signInRequired ? 'Sign-in required' : 'Skills workspace'}>
+    <header className="craft-hero"><p className="craft-crumb">WORKSPACE / SKILLS REGISTRY</p><div className="craft-hero-main"><span className="craft-hero-icon" aria-hidden="true">▦</span><div><h1>Review analysis skills</h1><p>Sync sources, review the findings, and approve a version for audits or research.</p></div></div><ol className="craft-steps" aria-label="Skill review steps"><li className="active"><span>1</span> Sync sources</li><li className={rows.length ? 'active' : ''}><span>2</span> Review versions</li><li className={approved.length ? 'active' : ''}><span>3</span> Use approved skills</li></ol></header>
+    {signInRequired ? <section className="workspace-card workspace-access"><h2>Sign in to manage skills</h2><p>Use your approved Tossdown Google account.</p><button onClick={() => void signIn('google', { callbackUrl: '/registry' })}>Sign in with Google</button></section> : <>
+      <section className="workspace-card"><div className="workspace-card-heading"><div><h2>Skill sources</h2><p>Sync the configured GitHub sources and built-in skills.</p></div><div className="workspace-actions"><button disabled={busy} onClick={() => void sync()}>{busy ? 'Working…' : 'Sync sources'}</button><button className="workspace-secondary" disabled={busy} onClick={() => void load().then(() => setMessage('Skill list refreshed.')).catch(error => setMessage(error.message))}>Refresh</button></div></div>{message && <p className="workspace-hint" role="status">{message}</p>}</section>
+      <div className="workspace-two-column"><section className="workspace-card"><div className="workspace-card-heading"><div><h2>Ready for review</h2><p>{rows.length} staged version{rows.length === 1 ? '' : 's'}</p></div></div><div className="workspace-review-list">{rows.map(row => <article className="workspace-review" key={row.pathname}><div className="workspace-review-head"><div><h3>{row.name}</h3><p>{row.description}</p></div><span className={`risk ${row.risk}`}>{row.risk} risk</span></div><div className="workspace-tags">{row.categories.map(item => <span key={item}>{item}</span>)}{row.platforms.map(item => <span key={item}>{item}</span>)}</div><p className="workspace-meta">{row.source} · version {row.sha.slice(0, 10)} · {row.license || 'No license; reference only'}</p>{row.findings?.length > 0 && <ul>{row.findings.map(item => <li key={item}>{item}</li>)}</ul>}<div className="workspace-actions"><button disabled={busy || row.risk === 'high' || row.status === 'reference_only'} onClick={() => void review(row, 'approved')}>Approve for use</button><button className="workspace-secondary" disabled={busy} onClick={() => void review(row, 'rejected')}>Reject</button></div></article>)}{!rows.length && <p className="workspace-hint">Nothing pending. Sync sources to check for new versions.</p>}</div></section>
+        <aside className="workspace-card"><h2>Approved for use</h2><p className="workspace-muted">These versions are available to the audit and research workspaces.</p><div className="workspace-approved">{approved.map(item => <div key={`${item.source}-${item.name}-${item.sha}`}><strong>{item.name}</strong><small>{item.source} · {item.sha.slice(0, 10)}</small></div>)}{!approved.length && <p className="workspace-hint">No approved skills yet.</p>}</div><div className="workspace-actions"><a className="workspace-link-button" href="/workbench">Open audits →</a><a className="workspace-link-button" href="/competitors">Open research →</a></div></aside></div>
+    </>}
+  </WorkspaceShell>;
+}
