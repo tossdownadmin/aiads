@@ -36,7 +36,7 @@ export async function POST(request: Request) {
 
   try {
     const [skills, accounts] = await Promise.all([listApprovedSkills(), getAdAccounts()]);
-    const skill = skills.find(item => item.name === input.data.skillName);
+    const skill = skills.find(item => item.name === input.data.skillName && item.categories.includes('analysis') && item.platforms.includes('meta') && !item.categories.includes('competitor_intel'));
     if (!skill) return NextResponse.json({ error: 'Choose an approved skill' }, { status: 404 });
     const account = accounts.find(item => item.id === input.data.accountId);
     if (!account) return NextResponse.json({ error: 'That ad account is not available to the connected Meta token' }, { status: 403 });

@@ -52,9 +52,10 @@ export default function Workbench() {
       const accountsData = await accountsResponse.json();
       if (!skillsResponse.ok) throw new Error(skillsData.error || 'Could not load skills');
       if (!accountsResponse.ok) throw new Error(accountsData.error || 'Could not load Meta accounts');
-      setSkills(skillsData.skills);
+      const auditSkills = (skillsData.skills as Skill[]).filter(item => item.categories?.includes('analysis') && item.platforms?.includes('meta') && !item.categories?.includes('competitor_intel'));
+      setSkills(auditSkills);
       setAccounts(accountsData.accounts);
-      setSkill(current => current || skillsData.skills[0]?.name || '');
+      setSkill(current => auditSkills.some(item => item.name === current) ? current : auditSkills.find(item => item.name === 'meta-account-audit')?.name || auditSkills[0]?.name || '');
       setConnected(true);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Connection failed');
@@ -88,7 +89,7 @@ export default function Workbench() {
 
   return <WorkspaceShell active="workbench" status={connected ? 'Connected' : signInRequired ? 'Sign-in required' : 'Connecting…'}>
     <div className="workspace-audit">
-    <header className="craft-hero"><p className="craft-crumb">WORKSPACE / ACCOUNT AUDITS</p><div className="craft-hero-main"><span className="craft-hero-icon" aria-hidden="true">◎</span><div><h1>Audit your Meta campaigns</h1><p>Choose an account and reporting window, then review the evidence.</p></div></div><ol className="craft-steps" aria-label="Audit steps"><li className="active"><span>1</span> Choose account</li><li className={busy || result ? 'active' : ''}><span>2</span> Read campaigns</li><li className={result ? 'active' : ''}><span>3</span> Review findings</li></ol></header>
+    <header className="craft-hero"><p className="craft-crumb">WORKSPACE / ACCOUNT AUDITS</p><div className="craft-hero-main"><span className="craft-hero-icon" aria-hidden="true">◎</span><div><h1>Audit your Meta campaigns</h1><p>Choose an account and reporting window, then review the evidence.</p></div></div><ol className="craft-steps" aria-label="Audit steps"><li className="active"><span>1</span> Choose account</li><li className={connected && (busy || result) ? 'active' : ''}><span>2</span> Read campaigns</li><li className={result ? 'active' : ''}><span>3</span> Review findings</li></ol></header>
 
     {!connected ? <section className="connect-card workspace-card">
       <h2>{signInRequired ? 'Sign in to run audits' : 'Loading audit workspace'}</h2>
