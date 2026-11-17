@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { analyzeAudit } from '../../../../lib/ai/bedrock';
-import { getAccountInsights, getAdAccounts } from '../../../../lib/meta/read';
+import { getAccountInsights, getActiveCampaigns, getAdAccounts } from '../../../../lib/meta/read';
 import { listApprovedSkills } from '../../../../lib/skills/store';
 import { verifyAdminSession } from '../../../../lib/auth';
 
@@ -13,10 +13,19 @@ const schema = z.object({
 });
 type InsightRow = {
   campaign_name: string;
+  campaign_id: string;
   account_currency?: string;
   spend?: string;
+  impressions?: string;
+  reach?: string;
+  clicks?: string;
+  cpc?: string;
   frequency?: string;
   ctr?: string;
+  objective?: string;
+  actions?: unknown;
+  action_values?: unknown;
+  purchase_roas?: unknown;
 };
 
 export async function POST(request: Request) {
@@ -31,8 +40,14 @@ export async function POST(request: Request) {
     const account = accounts.find(item => item.id === input.data.accountId);
     if (!account) return NextResponse.json({ error: 'That ad account is not available to the connected Meta token' }, { status: 403 });
 
-    const result = await getAccountInsights(account.id, input.data.period);
-    const rows = result.data as InsightRow[];
+    const [activeCampaigns, result] = await Promise.all([
+      getActiveCampaigns(account.id),
+      getAccountInsights(account.id, input.data.period),
+    ]);
+    const activeIds = new Set(activeCampaigns.map(campaign => campaign.id));
+    const rows = (result.data as InsightRow[]).filter(row => activeIds.has(String(row.campaign_id)));
+    const rowsByCampaign = new Map(rows.map(row => [String(row.campaign_id), row]));
+    const campaigns = activeCampaigns.map(campaign => ({ ...campaign, ...(rowsByCampaign.get(campaign.id) || {}) }));
     const totalSpend = rows.reduce((sum, row) => sum + Number(row.spend || 0), 0);
     const issues = rows.map(row => ({
       campaign: row.campaign_name,
@@ -44,16 +59,18 @@ export async function POST(request: Request) {
       ...(row.ctr > 0 && row.ctr < 0.5 ? ['CTR below 0.5%'] : []),
     ].map(title => ({ title, ...row })));
 
-    const analysis = await analyzeAudit(skill.body, { id: account.id, name: account.name }, input.data.period, rows as Array<Record<string, unknown>>, issues);
+    const analysis = activeCampaigns.length
+      ? await analyzeAudit(skill.body, { id: account.id, name: account.name }, input.data.period, campaigns as Array<Record<string, unknown>>, issues)
+      : { status: 'complete' as const, summary: 'No currently active campaigns were returned for this ad account.', findings: [], dataGaps: [] };
     return NextResponse.json({
       skill: { name: skill.name, description: skill.description, sha: skill.sha },
       account: { id: account.id, name: account.name, currency: account.currency, timezone: account.timezone },
       period: input.data.period,
-      summary: { campaigns: rows.length, totalSpend, currency: rows[0]?.account_currency || account.currency || null },
-      campaigns: rows,
+      summary: { campaigns: activeCampaigns.length, totalSpend, currency: rows[0]?.account_currency || account.currency || null },
+      campaigns,
       issues,
       analysis,
-      notice: 'This audit reads Meta campaign insights only. It does not write to or change the ad account.',
+      notice: 'This audit lists currently active campaigns and joins campaign-level Meta insights for the selected period. It does not inspect ad-set/ad delivery or reconciled analytics and does not write to the account.',
     });
   } catch {
     return NextResponse.json({ error: 'The audit could not complete. Check the Meta connection and try again.' }, { status: 400 });

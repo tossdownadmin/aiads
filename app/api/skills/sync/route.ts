@@ -3,7 +3,7 @@ import { discoverConfiguredSkills } from '../../../../lib/skills/github';
 import { loadSkillSources } from '../../../../lib/skills/config';
 import { stageSkills } from '../../../../lib/skills/store';
 import { verifyAdminSession } from '../../../../lib/auth';
-import { getBuiltinMetaAuditSkill } from '../../../../lib/skills/builtin';
+import { getBuiltinCompetitorSkill, getBuiltinMetaAuditSkill } from '../../../../lib/skills/builtin';
 export const runtime = 'nodejs';
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
@@ -18,7 +18,7 @@ async function runSync() {
   try {
     const sources = await loadSkillSources();
     const result = await discoverConfiguredSkills(sources, process.env.GITHUB_TOKEN);
-    const skills = [...result.skills, getBuiltinMetaAuditSkill()];
+    const skills = [...result.skills, getBuiltinMetaAuditSkill(), getBuiltinCompetitorSkill()];
     await stageSkills(skills);
     return NextResponse.json({ fetchedAt: new Date().toISOString(), staged: skills, errors: result.errors, summary: { found: skills.length, highRisk: skills.filter(skill => skill.risk === 'high').length, referenceOnly: skills.filter(skill => skill.status === 'reference_only').length } });
   } catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : 'Sync failed' }, { status: 500 }); }

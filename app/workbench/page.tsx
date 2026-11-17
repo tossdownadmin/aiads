@@ -5,16 +5,23 @@ import { useEffect, useMemo, useState } from 'react';
 type Skill = { name: string; description: string; categories: string[]; platforms: string[]; status: string; license?: string; sha: string };
 type Account = { id: string; name: string; status: number; currency: string; timezone?: string };
 type Finding = { title: string; severity: 'high' | 'medium' | 'low' | 'info'; evidence: string; recommendation: string };
+type Campaign = { id: string; name: string; effective_status: string; objective?: string; spend?: string; impressions?: string; reach?: string; clicks?: string; ctr?: string; cpc?: string; frequency?: string; daily_budget?: string; lifetime_budget?: string };
 type AuditResult = {
   skill: { name: string; description: string; sha: string };
   account: { id: string; name: string; currency: string; timezone?: string };
   period: 'last_7d' | 'last_30d';
   summary: { campaigns: number; totalSpend: number; currency: string | null };
-  campaigns: unknown[];
+  campaigns: Campaign[];
   issues: Array<{ title: string; campaign: string; spend: number; frequency: number; ctr: number }>;
   analysis: { status: 'complete' | 'not_configured' | 'unavailable'; summary?: string; findings?: Finding[]; dataGaps?: string[]; message?: string };
   notice: string;
 };
+
+function metric(value?: string, digits = 2) {
+  if (value === undefined || value === '') return '—';
+  const number = Number(value);
+  return Number.isFinite(number) ? number.toLocaleString(undefined, { maximumFractionDigits: digits }) : '—';
+}
 
 export default function Workbench() {
   const [connected, setConnected] = useState(false);
@@ -73,12 +80,16 @@ export default function Workbench() {
   }
 
   return <main className="workbench">
+    <nav className="product-nav">
+      <a className="product-brand" href="/"><span className="mark">T</span><span><strong>Tossdown</strong><small>ADS INTELLIGENCE</small></span></a>
+      <div className="product-links"><a className="active" href="/workbench">Account audits</a><a href="/competitors">Competitor research</a><a href="/registry">Skills registry</a></div>
+    </nav>
     <header>
       <a className="back" href="/">← Registry</a>
       <div>
         <p className="eyebrow">AUDIT WORKSPACE</p>
         <h1>Run an account audit</h1>
-        <p className="muted">Choose an approved skill, connect to your Meta accounts, and inspect evidence-backed results.</p>
+        <p className="muted">Choose an approved skill and Meta account to review every active campaign in the selected reporting window.</p>
       </div>
       <span className="badge">READ ONLY</span>
     </header>
@@ -124,7 +135,7 @@ export default function Workbench() {
             <h2>{result.skill.name}</h2>
             <p className="muted">{result.account.name} · {result.period === 'last_7d' ? 'Last 7 days' : 'Last 30 days'} · skill version {result.skill.sha.slice(0, 8)}</p>
           </div>
-          <span className="badge">{result.summary.campaigns} CAMPAIGNS</span>
+          <span className="badge">{result.summary.campaigns} ACTIVE CAMPAIGNS</span>
         </div>
         <div className="metric-row">
           <div><small>Total spend</small><strong>{result.summary.currency || ''} {Number(result.summary.totalSpend).toLocaleString(undefined, { maximumFractionDigits: 2 })}</strong></div>
@@ -145,7 +156,9 @@ export default function Workbench() {
           <strong>{issue.title}</strong><span>{issue.campaign}</span>
           <small>Spend {issue.spend.toFixed(2)} · CTR {issue.ctr}% · frequency {issue.frequency}</small>
         </div>) : <p className="empty">No threshold flags for this period. Review campaign metrics below.</p>}
-        <details><summary>Campaign evidence</summary><pre>{JSON.stringify(result.campaigns, null, 2)}</pre></details>
+        <h3>Active campaign review</h3>
+        {result.campaigns.length ? <div className="campaign-table-wrap"><table className="campaign-table"><thead><tr><th>Campaign</th><th>Objective</th><th>Spend</th><th>Impressions</th><th>Reach</th><th>CTR</th><th>Frequency</th><th>Status</th></tr></thead><tbody>{result.campaigns.map(campaign => <tr key={campaign.id}><td><strong>{campaign.name}</strong><small>{campaign.id}</small></td><td>{campaign.objective || '—'}</td><td>{metric(campaign.spend)}</td><td>{metric(campaign.impressions, 0)}</td><td>{metric(campaign.reach, 0)}</td><td>{metric(campaign.ctr, 3)}{campaign.ctr ? '%' : ''}</td><td>{metric(campaign.frequency, 2)}</td><td><span className="campaign-status">{campaign.effective_status}</span></td></tr>)}</tbody></table></div> : <p className="empty">No active campaigns were returned for this account.</p>}
+        <details><summary>Raw campaign evidence</summary><pre>{JSON.stringify(result.campaigns, null, 2)}</pre></details>
         <p className="muted footnote">{result.notice}</p>
       </section>}
     </>}

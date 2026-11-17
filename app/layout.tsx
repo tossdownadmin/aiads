@@ -1,3 +1,4 @@
 import './globals.css';
-export const metadata = { title: 'AI Ads Skills Registry', description: 'Reviewable, evidence-first advertising skills.' };
+import './ads-styles.css';
+export const metadata = { title: 'Tossdown Ads Intelligence', description: 'Evidence-first advertising audits and competitor creative research.' };
 export default function RootLayout({children}:{children:React.ReactNode}) { return <html lang="en"><body>{children}</body></html>; }

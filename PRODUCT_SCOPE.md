@@ -1,84 +1,48 @@
-# Independent Ads Intelligence System
+# Tossdown Ads Intelligence
 
-Status: **Planning draft — review before implementation**  
-Date: 12 November 2026
+Status: **Build in progress — read-only V1**
+Product owner: Tossdown
 
-## 1. Product intent
+## Product intent
 
-Build an independent, multi-client advertising intelligence system that connects to authorized ad accounts, collects performance data, runs evidence-based audits and optimization analyses, produces client reports, and sends useful Slack notifications.
+One workspace for Tossdown operators to audit connected advertising accounts and research competitor ads. The Resilia material is a workflow and UI reference only; this product uses Tossdown naming, styling, data, and integrations.
 
-The first release is an **audit and recommendation system**. It must not silently change live advertising accounts. Any future write capability is a separate, approval-gated phase.
+## V1 work areas
 
-## 2. User request translated into product requirements
+### 1. Account audits
 
-1. Support multiple clients, each with isolated organizations, users, brands, accounts, credentials, reports, and notification destinations.
-2. Monitor and audit ad accounts using modular, updateable skills.
-3. Use Claude through AWS Bedrock from a server-side orchestration layer.
-4. Keep skills current through a versioned registry, review workflow, evaluation suite, and scheduled update checks.
-5. Connect Slack for alerts, report delivery, and controlled human approvals.
+- Select a connected Meta ad account and reporting window.
+- Discover the account's currently active campaigns and collect campaign insights with pagination.
+- Show campaign evidence and deterministic review flags before AI interpretation.
+- Use an approved audit skill with Claude through AWS Bedrock for evidence-bound narrative and recommendations.
+- Clearly label missing metrics and attribution limits. Read-only; no campaign writes.
 
-## 3. Scope for the first build
+### 2. Competitor research
 
-### In scope
+- For each client brand, maintain a reviewed list of five to ten competitor domains and verified Foreplay brand IDs; fetch their active ads with optional format and platform filters.
+- Keep Meta's separate phrase, country, platform, delivery status, media type, and advertiser Page search for its supported markets.
+- Display ad creative/copy, advertiser, platforms, delivery dates, source, and a link to the original ad record.
+- Allow selecting saved search results for a skill-guided creative-pattern analysis.
+- Do not claim competitor spend, conversions, ROAS, or winning performance unless the source explicitly provides it.
+- Use a provider adapter so Meta's Ad Library API and a licensed data provider can be selected without rebuilding the UI.
 
-- Organization/client tenancy and account registry.
-- Meta-first account connection and read-only data ingestion.
-- Account health checks and inaccessible-account reporting.
-- 7-day and 30-day performance windows.
-- Campaign/ad-set/ad-level normalized metrics.
-- Audit skills for pacing, efficiency, CTR, frequency, ROAS/CPA, creative fatigue, tracking/data quality, and budget allocation.
-- Evidence-backed findings with source, period, confidence, and thresholds.
-- Per-client dashboard/report output.
-- Slack notifications with deduplication and severity levels.
-- Skill registry, versioning, validation, rollback, and evaluation records.
+## Data-source boundary
 
-### Explicitly out of scope for the first build
+Meta's official Ad Library API supports ads delivered to the UK/EU within its documented window and political/issue ads globally. It does not supply general commercial ads delivered only in most non-EU markets. Those searches need a separately licensed provider such as Foreplay, or a manual public-library link workflow. The ad-library record is not performance data.
 
-- Automatic campaign activation, budget changes, or creative publishing.
-- Unbounded competitor scraping or claims about competitor performance that cannot be observed.
-- Invented offers, benchmarks, conversion counts, or business facts.
-- Putting provider credentials or Claude credentials in browser code.
-- Treating an LLM response as a source of truth without structured evidence.
+The current branch includes the Meta source and a staged Foreplay brand ads adapter. Foreplay requires a Tossdown-owned API key and authenticated app users before paid requests can be enabled. Its brand ads endpoint does not document a delivery-country filter.
 
-## 4. Safety posture
+## Current repo baseline and gaps
 
-- Read-only by default.
-- Live writes disabled in development and absent from the initial release.
-- Recommendations are proposals, not actions.
-- Any later write path must create paused objects, require explicit approval, be idempotent, log every stage, and read back the resulting state.
-- Every finding must distinguish observed data, calculated metrics, modeled assumptions, and human-entered client facts.
-- Tenant isolation and least-privilege credentials are mandatory, not later hardening.
+Already present: skill registry/staging, server-side Meta token, a basic campaign-level 7/30-day audit, Bedrock request path, Vercel Blob skill storage, and a read-only UI.
 
-## 5. Initial skill catalog
+Still missing for production completeness: real authentication and client tenancy, per-client provider connections, persistent audit/search history, full account and campaign pagination, ad-set/ad-level audit depth, live competitor source credentials and source entitlements, Slack delivery, retention/deletion policy, and production operational limits. The current `verifyAdminSession` is a placeholder that accepts every request; do not treat the deployed prototype as a secured multi-client product.
 
-The attachment contains these reusable skill concepts:
+## V1 acceptance
 
-- `account-health`: connection, billing, permissions, delivery, and data freshness.
-- `performance-audit`: spend, impressions, reach, frequency, CTR, CPC, CPA/CPP, ROAS, and objective-aware flags.
-- `budget-optimizer`: pacing, efficiency ranking, and bounded reallocation recommendations.
-- `ad-creative-monitor`: CTR decay, frequency creep, CPC inflation, fatigue, and refresh recommendations.
-- `ad-copy-generator`: evidence-informed copy variants tied to a supplied creative and brand memory.
-- `competitive-ads-extractor`: ad-library observation for messaging and format inspiration, with false-positive and non-performance caveats.
-- `ads-plan`: objectives, economics, channel/campaign architecture, audiences, budget, creative, measurement, experiments, and governance.
-- `report-builder`: fixed client report schema and transparent source notes.
-
-The duplicate files in `Skills.zip` should be consolidated into canonical skill packages before implementation.
-
-## 6. Core product principles
-
-- Evidence before synthesis.
-- Scale campaigns before fragmenting structure.
-- Guardrails are always visible.
-- Recommendations are forward-looking and tied to a decision.
-- Major-event advice is included only when a genuine event is documented.
-- Competitor research is inspiration, not proof of competitor results.
-- No invented offers, facts, or metrics.
-
-## 7. Success criteria for the first release
-
-- A client can connect an authorized Meta account without exposing tokens to the browser.
-- A scheduled run can collect both 7-day and 30-day data and explain missing accounts or data.
-- Every generated finding links to normalized evidence and the rule/skill that produced it.
-- Slack alerts are actionable, deduplicated, and tenant-scoped.
-- A reviewer can compare skill versions, approve an update, roll it back, and see evaluation results.
-- No live ad mutation occurs without an explicit future approval flow.
+- Account audit includes all active campaigns returned by Meta, not only the first page or currently delivering campaigns.
+- Each finding cites the campaign and period/evidence it used; rules are labeled as review signals.
+- Competitor results identify their source and show coverage/data limitations inline.
+- A search without source access fails clearly and does not display fabricated sample ads as live results.
+- AI analysis cannot alter ad accounts and cannot invent performance data absent from the source.
+- No vendor API key is enabled on the public deployment before the paid-source access boundary is resolved.
