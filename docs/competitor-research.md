@@ -26,7 +26,10 @@
 - The API key belongs to Tossdown and stays server-side. Brand lookup is one credit per successful call; returned ads are one credit each.
 - Foreplay's API addendum permits API data in a product for authenticated users. The current placeholder session check is insufficient, so paid routes stay disabled until real sign-in is implemented.
 - Cache returned text and metadata for at most 30 days. Link media directly to Foreplay-provided URLs and do not copy it to Tossdown storage.
-- The current browser-saved competitor list is a prototype. Production lists need client-scoped persistence and access rules.
+- The seven starter client brands and four research candidates each live in `lib/competitors/catalog.ts`. These are editorial suggestions, not verified Foreplay advertiser records or evidence of active ads.
+- The `/competitors` screen resolves each candidate domain through Foreplay after Google sign-in, asks the user to confirm the matching advertiser, and stores chosen advertiser IDs per client in private Vercel Blob. Confirmed lists are shared across allowlisted users.
+- Google sign-in requires `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL`, and `AUTH_ALLOWED_EMAILS`. Use a Google OAuth Web application with redirect URI `https://aiads-lac.vercel.app/api/auth/callback/google`. Set `AUTH_ALLOWED_EMAILS` to the approved operator email in Vercel. The Foreplay key stays server-side.
+- The Foreplay search endpoint accepts only advertiser IDs already saved for the selected client brand. Foreplay's brand ads API has no country filter, so observed ads may be from outside the client's market.
 
 ## Normalized ad record
 

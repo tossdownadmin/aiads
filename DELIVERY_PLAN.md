@@ -6,13 +6,13 @@
 - Expanded account audit ingestion to page through ad accounts, active campaigns, and campaign insights.
 - Added a Meta Ad Library API adapter, source coverage disclosures, ad search UI, and selected-ad skill analysis.
 - Live Meta Ad Library results still require Meta API access and `META_AD_LIBRARY_TOKEN` in the server environment.
-- Foreplay has been selected for competitor research. The brand-domain lookup and brand-ID ads adapter are staged; paid calls remain disabled until real sign-in exists.
+- Foreplay has been selected for competitor research. Paid routes now require Google sign-in with an allowlisted email; credentials and a production sign-in test are still needed. Seven researched client shortlists are ready for advertiser review.
 - No paid provider key may be enabled while this app's auth check remains a placeholder.
 
 ## Remaining work to ship a useful V1
 
 1. Add Meta Ad Library API access/token and verify live searches in an eligible market.
-2. Activate a Tossdown-owned Foreplay API key after sign-in is in place. Verify the first 5–10 competitor domains and brand matches, then run a live brand-ads request.
+2. Add Google OAuth credentials, `NEXTAUTH_SECRET`, `NEXTAUTH_URL`, and `AUTH_ALLOWED_EMAILS` in Vercel. Verify sign-in, then confirm Foreplay matches for the seven client brands and run a live brand-ads request.
 3. Replace the placeholder session gate with real user and tenant authorization before connecting additional client accounts or paid data services.
 4. Add a database for tenant-scoped account connections, audit runs, saved ads, and skill-analysis history.
 5. Extend audit depth to ad sets and individual ads, add billing/connection diagnostics, and then connect Slack with client-scoped routing.

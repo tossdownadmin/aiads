@@ -19,7 +19,7 @@ One workspace for Tossdown operators to audit connected advertising accounts and
 
 ### 2. Competitor research
 
-- For each client brand, maintain a reviewed list of five to ten competitor domains and verified Foreplay brand IDs; fetch their active ads with optional format and platform filters.
+- For each client brand, start with four researched competitor domains, confirm Foreplay advertiser matches, and maintain up to ten saved advertiser IDs; fetch their active ads with optional format and platform filters.
 - Keep Meta's separate phrase, country, platform, delivery status, media type, and advertiser Page search for its supported markets.
 - Display ad creative/copy, advertiser, platforms, delivery dates, source, and a link to the original ad record.
 - Allow selecting saved search results for a skill-guided creative-pattern analysis.
@@ -30,13 +30,13 @@ One workspace for Tossdown operators to audit connected advertising accounts and
 
 Meta's official Ad Library API supports ads delivered to the UK/EU within its documented window and political/issue ads globally. It does not supply general commercial ads delivered only in most non-EU markets. Those searches need a separately licensed provider such as Foreplay, or a manual public-library link workflow. The ad-library record is not performance data.
 
-The current branch includes the Meta source and a staged Foreplay brand ads adapter. Foreplay requires a Tossdown-owned API key and authenticated app users before paid requests can be enabled. Its brand ads endpoint does not document a delivery-country filter.
+The current branch includes the Meta source and a Foreplay brand ads adapter behind Google sign-in and an email allowlist. Foreplay also requires a Tossdown-owned API key. Its brand ads endpoint does not document a delivery-country filter. The seven researched client shortlists are candidates, and no Foreplay advertiser or active ad has been verified live yet.
 
 ## Current repo baseline and gaps
 
 Already present: skill registry/staging, server-side Meta token, a basic campaign-level 7/30-day audit, Bedrock request path, Vercel Blob skill storage, and a read-only UI.
 
-Still missing for production completeness: real authentication and client tenancy, per-client provider connections, persistent audit/search history, full account and campaign pagination, ad-set/ad-level audit depth, live competitor source credentials and source entitlements, Slack delivery, retention/deletion policy, and production operational limits. The current `verifyAdminSession` is a placeholder that accepts every request; do not treat the deployed prototype as a secured multi-client product.
+Still missing for production completeness: app-wide authentication and client tenancy, per-client provider connections, persistent audit/search history, full account and campaign pagination, ad-set/ad-level audit depth, live competitor source verification, Slack delivery, retention/deletion policy, and production operational limits. The current `verifyAdminSession` is a placeholder that accepts every request outside the protected Foreplay routes; do not treat the deployed prototype as a secured multi-client product.
 
 ## V1 acceptance
 

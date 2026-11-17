@@ -4,11 +4,14 @@ import { searchMetaAdLibrary } from '../../../../lib/meta/ad-library';
 import { verifyAdminSession } from '../../../../lib/auth';
 import { searchForeplay } from '../../../../lib/competitors/foreplay';
 import { verifyPaidSourceSession } from '../../../../lib/competitors/access';
+import { clientCatalog } from '../../../../lib/competitors/catalog';
+import { readCompetitors } from '../../../../lib/competitors/store';
 
 export const runtime = 'nodejs';
 
 const schema = z.object({
   source: z.enum(['meta', 'foreplay']).default('meta'),
+  clientId: z.string().max(80).optional(),
   brandIds: z.array(z.string().min(1).max(100)).max(10).default([]),
   searchTerms: z.string().trim().max(100).default(''),
   country: z.string().regex(/^[A-Z]{2}$/),
@@ -24,10 +27,11 @@ const schema = z.object({
 
 export async function GET() {
   if (!await verifyAdminSession()) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const signedIn = await verifyPaidSourceSession();
   return NextResponse.json({
     sources: {
       meta: { configured: Boolean(process.env.META_AD_LIBRARY_TOKEN), ready: Boolean(process.env.META_AD_LIBRARY_TOKEN) },
-      foreplay: { configured: Boolean(process.env.FOREPLAY_API_KEY), ready: false, reason: 'Authenticated user sessions are required before Foreplay API data can be displayed.' },
+      foreplay: { configured: Boolean(process.env.FOREPLAY_API_KEY), ready: Boolean(process.env.FOREPLAY_API_KEY && signedIn), signedIn, authConfigured: Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.NEXTAUTH_SECRET && process.env.AUTH_ALLOWED_EMAILS) },
     },
   }, { headers: { 'Cache-Control': 'no-store, max-age=0' } });
 }
@@ -37,9 +41,12 @@ export async function POST(request: Request) {
   const parsed = schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message || 'Invalid search' }, { status: 400 });
   if (parsed.data.source === 'foreplay') {
-    if (!await verifyPaidSourceSession()) return NextResponse.json({ error: 'Foreplay search requires an authenticated user session. The current app does not have one yet.', code: 'SIGN_IN_REQUIRED' }, { status: 403 });
+    if (!await verifyPaidSourceSession()) return NextResponse.json({ error: 'Sign in with an approved Google account to search Foreplay.', code: 'SIGN_IN_REQUIRED' }, { status: 403 });
     if (!process.env.FOREPLAY_API_KEY) return NextResponse.json({ error: 'Add FOREPLAY_API_KEY in Vercel to enable Foreplay search.', code: 'SOURCE_NOT_CONFIGURED' }, { status: 503 });
     try {
+      if (!parsed.data.clientId || !clientCatalog.some(item => item.id === parsed.data.clientId)) return NextResponse.json({ error: 'Choose a client brand.' }, { status: 400 });
+      const saved = await readCompetitors(parsed.data.clientId);
+      if (!parsed.data.brandIds.every(id => saved.some(item => item.id === id))) return NextResponse.json({ error: 'Confirm and save each advertiser before searching.' }, { status: 400 });
       const result = await searchForeplay({
         brandIds: parsed.data.brandIds,
         live: parsed.data.activeStatus,
@@ -51,7 +58,8 @@ export async function POST(request: Request) {
     } catch (error) {
       const status = (error as { httpStatus?: number }).httpStatus;
       console.error('Foreplay search failed', { httpStatus: status });
-      return NextResponse.json({ error: status === 402 ? 'Foreplay API credits are exhausted.' : 'Foreplay search failed. Check API access and Vercel Function logs.', code: 'PROVIDER_ERROR' }, { status: status === 402 ? 402 : 502 });
+      const message = status === 401 ? 'Foreplay rejected the API key. Check FOREPLAY_API_KEY in Vercel.' : status === 402 ? 'Foreplay API credits are exhausted.' : status === 403 ? 'This Foreplay plan cannot access brand ads.' : 'Foreplay search failed. Check the Vercel Function log.';
+      return NextResponse.json({ error: message, code: 'PROVIDER_ERROR' }, { status: status === 402 ? 402 : 502 });
     }
   }
   if (!process.env.META_AD_LIBRARY_TOKEN) {

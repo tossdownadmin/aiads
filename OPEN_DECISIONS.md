@@ -1,7 +1,7 @@
 # Open Decisions
 
 1. Foreplay is the selected competitor source. What monthly API credit ceiling should Tossdown set?
-2. Which five to ten competitor domains should be verified for the first client brand?
+2. Which advertiser matches from Foreplay should be confirmed for each of the seven researched client brands? The app presents four candidates per brand for review.
 3. Meta Ad Library API requires its own access flow/token; should the app retain UK/EU commercial and global political/issue searches as a second source?
 4. What authentication and organization model should replace the current open prototype before connecting multiple clients or enabling any paid provider key?
 5. Which Meta connection method is authorized for production: OAuth, system-user tokens, or an existing official connector?

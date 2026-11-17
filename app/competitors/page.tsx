@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { signIn, signOut } from 'next-auth/react';
+import { clientCatalog } from '../../lib/competitors/catalog';
 
 type Skill = { name: string; description: string; categories: string[]; sha: string };
 type Ad = {
@@ -20,6 +22,8 @@ type Ad = {
 };
 type SearchResult = { ads: Ad[]; after: string | null; source: string; retrievedAt: string; coverageNote: string };
 type BrandCandidate = { id: string; name: string; domain: string; website?: string };
+type SourceStatus = { configured: boolean; ready: boolean; signedIn?: boolean; authConfigured?: boolean };
+type BrandLookup = { status: 'loading' | 'done' | 'error'; candidates: BrandCandidate[]; error?: string };
 type Analysis = { status: 'complete' | 'not_configured' | 'unavailable'; summary?: string; findings?: Array<{ title: string; severity: string; evidence: string; recommendation: string }>; dataGaps?: string[]; message?: string };
 
 const countries = [
@@ -29,13 +33,16 @@ const countries = [
 ];
 
 export default function CompetitorResearch() {
-  const [sources, setSources] = useState<Record<string, { configured: boolean; ready: boolean }>>({});
+  const [sources, setSources] = useState<Record<string, SourceStatus>>({});
   const [source, setSource] = useState<'meta' | 'foreplay'>('foreplay');
-  const [brandName, setBrandName] = useState('Tossdown');
+  const [clientId, setClientId] = useState(clientCatalog[0].id);
+  const clientBrand = clientCatalog.find(item => item.id === clientId) || clientCatalog[0];
   const [domain, setDomain] = useState('');
   const [candidates, setCandidates] = useState<BrandCandidate[]>([]);
+  const [lookups, setLookups] = useState<Record<string, BrandLookup>>({});
   const [competitors, setCompetitors] = useState<BrandCandidate[]>([]);
   const [lookingUp, setLookingUp] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [skills, setSkills] = useState<Skill[]>([]);
   const [skillName, setSkillName] = useState('');
   const [terms, setTerms] = useState('');
@@ -67,15 +74,46 @@ export default function CompetitorResearch() {
   }, []);
 
   useEffect(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem(`aiads:competitors:${brandName.trim().toLowerCase()}`) || '[]');
-      setCompetitors(Array.isArray(saved) ? saved.filter((item: BrandCandidate) => item && typeof item.id === 'string').slice(0, 10) : []);
-    } catch { setCompetitors([]); }
-  }, [brandName]);
+    setCountry(clientBrand.country);
+    setCompetitors([]);
+    setLookups({});
+    setCandidates([]);
+    setResult(null);
+    setAnalysis(null);
+    if (!sources.foreplay?.signedIn) return;
+    let active = true;
+    void fetch(`/api/competitors/selection?clientId=${encodeURIComponent(clientId)}`, { cache: 'no-store' })
+      .then(async response => { if (!response.ok) throw new Error('Could not load saved advertisers.'); return response.json(); })
+      .then(data => { if (active) setCompetitors(data.competitors || []); })
+      .catch(cause => { if (active) setError(cause instanceof Error ? cause.message : 'Could not load saved advertisers.'); });
+    return () => { active = false; };
+  }, [clientId, sources.foreplay?.signedIn]);
 
-  function saveCompetitors(next: BrandCandidate[]) {
-    setCompetitors(next);
-    localStorage.setItem(`aiads:competitors:${brandName.trim().toLowerCase()}`, JSON.stringify(next));
+  async function saveCompetitors(next: BrandCandidate[]) {
+    setSaving(true); setError('');
+    try {
+      const response = await fetch('/api/competitors/selection', { method: 'PUT', headers, body: JSON.stringify({ clientId, competitors: next }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not save advertisers.');
+      setCompetitors(data.competitors || []);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not save advertisers.'); }
+    finally { setSaving(false); }
+  }
+
+  async function lookupSuggested() {
+    setLookingUp(true); setError('');
+    for (const suggestion of clientBrand.competitors) {
+      setLookups(current => ({ ...current, [suggestion.domain]: { status: 'loading', candidates: [] } }));
+      try {
+        const response = await fetch('/api/competitors/brands', { method: 'POST', headers, body: JSON.stringify({ domain: suggestion.domain, name: suggestion.name }) });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Lookup failed');
+        setLookups(current => ({ ...current, [suggestion.domain]: { status: 'done', candidates: data.candidates || [] } }));
+      } catch (cause) {
+        setLookups(current => ({ ...current, [suggestion.domain]: { status: 'error', candidates: [], error: cause instanceof Error ? cause.message : 'Lookup failed' } }));
+      }
+    }
+    setLookingUp(false);
   }
 
   async function lookupDomain() {
@@ -96,7 +134,7 @@ export default function CompetitorResearch() {
     try {
       const response = await fetch('/api/competitors/search', {
         method: 'POST', headers,
-        body: JSON.stringify({ source, brandIds: source === 'foreplay' ? competitors.map(item => item.id) : [], searchTerms: terms.trim(), pageIds: source === 'meta' ? pageIds.split(',').map(value => value.trim()).filter(Boolean) : [], country, activeStatus, searchType, mediaType, ...(platform ? { platform } : {}), ...(after ? { after } : {}) }),
+        body: JSON.stringify({ source, clientId, brandIds: source === 'foreplay' ? competitors.map(item => item.id) : [], searchTerms: terms.trim(), pageIds: source === 'meta' ? pageIds.split(',').map(value => value.trim()).filter(Boolean) : [], country, activeStatus, searchType, mediaType, ...(platform ? { platform } : {}), ...(after ? { after } : {}) }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Search failed');
@@ -144,9 +182,29 @@ export default function CompetitorResearch() {
     <section className="research-form">
       <div className="research-form-head"><div><span className="number-dot">01</span><div><h2>Find competitor ads</h2><p>Choose a source and what to look for.</p></div></div><span className="source-chip">{source === 'foreplay' ? 'FOREPLAY BRAND ADS' : 'META AD LIBRARY API'}</span></div>
       <div className="source-picker"><button type="button" className={source === 'foreplay' ? 'active' : ''} onClick={() => { setSource('foreplay'); setResult(null); setAnalysis(null); }}>Foreplay Brand Ads</button><button type="button" className={source === 'meta' ? 'active' : ''} onClick={() => { setSource('meta'); setResult(null); setAnalysis(null); }}>Meta Ad Library API</button></div>
-      {source === 'foreplay' && <div className="source-setup"><strong>Foreplay connection is staged.</strong><span>Foreplay’s terms require authenticated users. Paid search is paused while this app has no sign-in. After that is resolved, add <code>FOREPLAY_API_KEY</code> in Vercel. The brand ads endpoint does not offer a delivery-country filter.</span><a href="https://www.foreplay.co/page/api-terms" target="_blank" rel="noreferrer">Foreplay API terms ↗</a></div>}
+      {source === 'foreplay' && !sources.foreplay?.ready && <div className="source-setup"><strong>{!sources.foreplay?.authConfigured ? 'Google sign-in needs setup' : !sources.foreplay?.signedIn ? 'Sign in to use Foreplay' : 'Foreplay API key is missing'}</strong><span>{!sources.foreplay?.authConfigured ? 'Add the Google OAuth client ID and secret, NEXTAUTH_URL, NEXTAUTH_SECRET, and AUTH_ALLOWED_EMAILS in Vercel. Then redeploy.' : !sources.foreplay?.signedIn ? 'Use an approved Google account to review and save advertiser matches. The Foreplay key stays on the server.' : 'Add FOREPLAY_API_KEY to the Vercel project and redeploy.'}</span>{sources.foreplay?.authConfigured && !sources.foreplay?.signedIn && <button type="button" className="secondary-button" onClick={() => void signIn('google', { callbackUrl: '/competitors' })}>Sign in with Google</button>}</div>}
+      {source === 'foreplay' && sources.foreplay?.signedIn && <div className="signed-in-note">Signed in for paid research <button type="button" onClick={() => void signOut({ callbackUrl: '/competitors' })}>Sign out</button></div>}
       {source === 'meta' && !sources.meta?.configured && <div className="source-setup"><strong>Meta Ad Library API is not connected yet.</strong><span>Add <code>META_AD_LIBRARY_TOKEN</code> in Vercel after enabling API access for the Tossdown Meta developer app. Keep it server-side.</span><a href="https://www.facebook.com/ads/library/api/" target="_blank" rel="noreferrer">Open Meta API access steps ↗</a></div>}
-      {source === 'foreplay' && <div className="competitor-setup"><h3>Competitors for this brand</h3><p>Keep a reviewed list of up to 10 competitors. Enter each website domain, check Foreplay’s matching brand, then add it to the list. This draft list is saved in this browser.</p><label className="field"><span>Your brand</span><input value={brandName} onChange={event => setBrandName(event.target.value)} placeholder="Client brand name" /></label><div className="domain-row"><label className="field"><span>Competitor website</span><input value={domain} onChange={event => setDomain(event.target.value)} placeholder="competitor.com" /></label><button type="button" className="secondary-button" disabled={!sources.foreplay?.ready || !domain.trim() || lookingUp || competitors.length >= 10} onClick={() => void lookupDomain()}>{lookingUp ? 'Looking up…' : 'Find brand'}</button></div>{candidates.length > 0 && <div className="candidate-list"><strong>Confirm the matching advertiser</strong>{candidates.map(candidate => <button type="button" key={candidate.id} disabled={competitors.some(item => item.id === candidate.id) || competitors.length >= 10} onClick={() => { saveCompetitors([...competitors, candidate]); setCandidates([]); setDomain(''); }}>{candidate.name} · {candidate.domain} <small>Brand ID {candidate.id}</small></button>)}</div>}<div className="selected-brands">{competitors.map(item => <span key={item.id}>{item.name} <small>{item.domain}</small><button type="button" aria-label={`Remove ${item.name}`} onClick={() => saveCompetitors(competitors.filter(brand => brand.id !== item.id))}>×</button></span>)}{!competitors.length && <small>No competitors added yet.</small>}</div></div>}
+      {source === 'foreplay' && <div className="competitor-setup">
+        <h3>Choose a client brand</h3>
+        <p>Each list contains four researched competitors in the same market or product category. Review every Foreplay advertiser match before saving it. Lookup uses one credit per website, plus one more if a name search is needed.</p>
+        <label className="field"><span>Client brand</span><select value={clientId} onChange={event => setClientId(event.target.value)}>{clientCatalog.map(item => <option key={item.id} value={item.id}>{item.name} · {item.market}</option>)}</select></label>
+        <p className="client-evidence">Brand identity: <a href={clientBrand.evidence} target="_blank" rel="noreferrer">source ↗</a></p>
+        <button type="button" className="secondary-button" disabled={!sources.foreplay?.ready || lookingUp} onClick={() => void lookupSuggested()}>{lookingUp ? 'Checking advertisers…' : 'Find these 4 advertisers in Foreplay'}</button>
+        <div className="suggestion-grid">{clientBrand.competitors.map(suggestion => {
+          const lookup = lookups[suggestion.domain];
+          return <article className="suggestion-card" key={suggestion.domain}>
+            <strong>{suggestion.name}</strong><small>{suggestion.domain}</small><a href={suggestion.evidence} target="_blank" rel="noreferrer">Why this competitor ↗</a>
+            {lookup?.status === 'loading' && <p>Checking Foreplay…</p>}
+            {lookup?.status === 'error' && <p className="lookup-error">{lookup.error}</p>}
+            {lookup?.status === 'done' && !lookup.candidates.length && <p>No advertiser match. This is still a research candidate.</p>}
+            {lookup?.candidates.map(candidate => <button type="button" key={candidate.id} className="match-button" disabled={saving || competitors.some(item => item.id === candidate.id) || competitors.length >= 10} onClick={() => void saveCompetitors([...competitors, candidate])}>{competitors.some(item => item.id === candidate.id) ? 'Saved' : 'Confirm advertiser'}: {candidate.name} <small>{candidate.website || 'Website unlisted'} · ID {candidate.id}</small></button>)}
+          </article>;
+        })}</div>
+        <div className="domain-row"><label className="field"><span>Additional competitor domain</span><input value={domain} onChange={event => setDomain(event.target.value)} placeholder="competitor.com" /></label><button type="button" className="secondary-button" disabled={!sources.foreplay?.ready || !domain.trim() || lookingUp || competitors.length >= 10} onClick={() => void lookupDomain()}>Find advertiser</button></div>
+        {candidates.length > 0 && <div className="candidate-list"><strong>Confirm the matching advertiser</strong>{candidates.map(candidate => <button type="button" key={candidate.id} disabled={saving || competitors.some(item => item.id === candidate.id) || competitors.length >= 10} onClick={() => { void saveCompetitors([...competitors, candidate]); setCandidates([]); setDomain(''); }}>{candidate.name} · {candidate.domain} <small>Brand ID {candidate.id}</small></button>)}</div>}
+        <h3>Confirmed advertisers</h3><div className="selected-brands">{competitors.map(item => <span key={item.id}>{item.name} <small>{item.domain}</small><button type="button" disabled={saving} aria-label={`Remove ${item.name}`} onClick={() => void saveCompetitors(competitors.filter(brand => brand.id !== item.id))}>×</button></span>)}{!competitors.length && <small>No advertisers confirmed yet.</small>}</div>
+      </div>}
       <form onSubmit={event => { event.preventDefault(); void search(); }}>
         {source === 'meta' && <label className="field wide"><span>Brand, product, or ad-text search</span><input maxLength={100} value={terms} onChange={event => setTerms(event.target.value)} placeholder="e.g. meal delivery, franchise opportunities" /><small>Meta searches ad text; use Page IDs for advertiser-specific matching.</small></label>}
         {source === 'meta' && <label className="field wide"><span>Facebook Page IDs <small>(optional, up to 10)</small></span><input value={pageIds} onChange={event => setPageIds(event.target.value)} placeholder="Comma-separated Page IDs" /></label>}
