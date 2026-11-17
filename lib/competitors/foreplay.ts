@@ -95,25 +95,3 @@ export async function findForeplayBrandsByDomain(domain: string) {
   })).filter(brand => brand.id);
 }
 
-export async function findForeplayBrandsByName(name: string, domain: string) {
-  const key = process.env.FOREPLAY_API_KEY;
-  if (!key) throw new Error('Foreplay API key is not configured');
-  const url = new URL('https://public.api.foreplay.co/api/discovery/brands');
-  url.searchParams.set('query', name);
-  url.searchParams.set('limit', '5');
-  const response = await fetch(url, { cache: 'no-store', headers: { Authorization: key } });
-  const payload = await response.json().catch(() => ({})) as { data?: ForeplayAd[] };
-  if (response.status === 404) return [];
-  if (!response.ok) {
-    const failure = new Error('Foreplay name lookup failed') as Error & { httpStatus?: number };
-    failure.httpStatus = response.status;
-    throw failure;
-  }
-  return (Array.isArray(payload.data) ? payload.data : []).slice(0, 5).map(brand => ({
-    id: String(brand.id || ''),
-    name: string(brand.name) || 'Unnamed brand',
-    domain,
-    website: publicUrl(brand.url),
-    activeAdsCount: typeof brand.active_ads_count === 'number' ? brand.active_ads_count : undefined,
-  })).filter(brand => brand.id);
-}

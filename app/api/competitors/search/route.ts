@@ -46,7 +46,7 @@ export async function POST(request: Request) {
     try {
       if (!parsed.data.clientId || !clientCatalog.some(item => item.id === parsed.data.clientId)) return NextResponse.json({ error: 'Choose a client brand.' }, { status: 400 });
       const saved = await readCompetitors(parsed.data.clientId);
-      if (!parsed.data.brandIds.every(id => saved.some(item => item.id === id))) return NextResponse.json({ error: 'Confirm and save each advertiser before searching.' }, { status: 400 });
+      if (!parsed.data.brandIds.every(id => saved.some(item => item.id === id && item.reviewed === true))) return NextResponse.json({ error: 'Review and confirm each advertiser again before searching.' }, { status: 400 });
       const result = await searchForeplay({
         brandIds: parsed.data.brandIds,
         live: parsed.data.activeStatus,

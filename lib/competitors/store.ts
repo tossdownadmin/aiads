@@ -1,6 +1,6 @@
 import { get, list, put } from '@vercel/blob';
 
-export type ConfirmedCompetitor = { id: string; name: string; domain: string; website?: string };
+export type ConfirmedCompetitor = { id: string; name: string; domain: string; website?: string; reviewed?: boolean };
 const prefix = 'competitors/brand-maps/';
 
 export async function readCompetitors(clientId: string): Promise<ConfirmedCompetitor[]> {

@@ -5,7 +5,7 @@ import { clientCatalog } from '../../../../lib/competitors/catalog';
 import { readCompetitors, writeCompetitors } from '../../../../lib/competitors/store';
 
 export const runtime = 'nodejs';
-const competitor = z.object({ id: z.string().min(1).max(100), name: z.string().min(1).max(200), domain: z.string().regex(/^(?:[a-z0-9-]+\.)+[a-z]{2,}$/i).max(200), website: z.string().url().optional() });
+const competitor = z.object({ id: z.string().min(1).max(100), name: z.string().min(1).max(200), domain: z.string().regex(/^(?:[a-z0-9-]+\.)+[a-z]{2,}$/i).max(200), website: z.string().url().optional(), reviewed: z.literal(true) });
 const input = z.object({ clientId: z.string().max(80), competitors: z.array(competitor).max(10) });
 
 export async function GET(request: Request) {
