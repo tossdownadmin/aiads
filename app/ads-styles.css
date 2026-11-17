@@ -111,6 +111,7 @@
 .setup-title{padding:22px 24px 12px}
 .setup-title h3,.lookup-head h3,.confirmed-head h3{margin:4px 0 3px;font-size:19px;letter-spacing:-.03em;color:#173039}
 .competitor-setup .setup-title p:not(.section-kicker),.competitor-setup .lookup-head p:not(.section-kicker){margin:0;color:#708086;font-size:12px}
+.competitor-setup .lookup-head .capacity-note{margin-top:6px!important;color:#986b24!important;font-weight:750}
 .setup-title>a{font-size:12px;font-weight:750;color:#126b66;text-decoration:none;white-space:nowrap}
 .competitor-setup .client-picker{max-width:600px;margin:0 24px 24px}
 .competitor-shell .field{font-size:11px;text-transform:none;color:#465a62}
@@ -150,6 +151,18 @@
 .selected-brand small{font-size:10px;color:#62857c}
 .selected-brand button{padding:4px 6px;background:none;color:#1f6b60;font-size:10px;font-weight:750}
 .selection-empty{grid-column:1/-1;margin:0!important;padding:14px;border:1px dashed #c9d9d5;border-radius:9px;color:#7b8b8d!important;background:#fff;font-size:12px!important}
+.legacy-review{margin:0 24px 24px;border:1px solid #eddfbd;border-radius:10px;background:#fffaf0;overflow:hidden}
+.legacy-review summary{margin:0;padding:12px 14px;color:#765623;font-size:12px;font-weight:800}
+.legacy-review>p{margin:0!important;padding:0 14px 10px;color:#796e59!important;font-size:11px!important}
+.legacy-list{display:grid;gap:0;padding:0 14px 12px;max-height:390px;overflow:auto}
+.legacy-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-top:1px solid #eee2c6}
+.legacy-row>div:first-child{display:grid;gap:3px;min-width:0}
+.legacy-row strong{font-size:12px;color:#2f4242}
+.legacy-row small{font-size:10px;color:#788684;overflow-wrap:anywhere}
+.legacy-row>div:last-child{display:flex;gap:6px;flex:none}
+.legacy-row button{padding:7px 9px;border:1px solid #cdded6;background:#e9f5ed;color:#236253;border-radius:7px;font-size:10px;font-weight:800}
+.legacy-row button:last-child{background:#fff;border-color:#e2d8c5;color:#866439}
+.legacy-row button:disabled{opacity:.5;cursor:not-allowed}
 .competitor-shell .research-form form{grid-template-columns:repeat(3,minmax(0,1fr));padding-top:19px;border-top:1px solid #e5ebe9}
 .competitor-shell .search-actions{justify-content:space-between;margin-top:2px}
 .competitor-shell .run-button{background:#176e66;border-radius:9px;font-size:13px;box-shadow:none}
@@ -178,5 +191,5 @@
 .competitor-shell .provider-next{margin-top:0;padding:17px 6px;background:transparent;border:0;box-shadow:none}
 .competitor-shell .provider-next p:not(.section-kicker){max-width:840px;margin:5px 0 0;font-size:11px}
 @media(max-width:900px){.competitor-shell .ad-grid{grid-template-columns:1fr}}
-@media(max-width:700px){.competitor-heading{align-items:flex-start;flex-direction:column;padding:28px 0 20px}.competitor-shell .research-form,.competitor-shell .ad-results,.competitor-shell .analysis-panel{padding:18px;border-radius:15px}.suggestion-list,.selected-brands{grid-template-columns:1fr}.competitor-shell .research-form form{grid-template-columns:1fr}.competitor-shell .research-form-head{align-items:flex-start;flex-direction:column;gap:10px}.setup-title,.lookup-head,.confirmed-head{align-items:flex-start;flex-direction:column}.competitor-shell .ad-results-head{align-items:flex-start;flex-direction:column}.competitor-shell .result-actions{width:100%}.competitor-shell .field.compact,.competitor-shell .field.compact select{width:100%;min-width:0}}
+@media(max-width:700px){.competitor-heading{align-items:flex-start;flex-direction:column;padding:28px 0 20px}.competitor-shell .research-form,.competitor-shell .ad-results,.competitor-shell .analysis-panel{padding:18px;border-radius:15px}.suggestion-list,.selected-brands{grid-template-columns:1fr}.competitor-shell .research-form form{grid-template-columns:1fr}.competitor-shell .research-form-head{align-items:flex-start;flex-direction:column;gap:10px}.setup-title,.lookup-head,.confirmed-head{align-items:flex-start;flex-direction:column}.competitor-shell .ad-results-head{align-items:flex-start;flex-direction:column}.competitor-shell .result-actions{width:100%}.competitor-shell .field.compact,.competitor-shell .field.compact select{width:100%;min-width:0}.legacy-row{align-items:flex-start;flex-direction:column}}
 @media(max-width:430px){.ad-card-main{grid-template-columns:112px minmax(0,1fr)}.ad-media,.ad-media .ad-thumbnail{min-height:160px}.ad-card-foot{align-items:flex-start;flex-direction:column}.suggestion-detail{padding-left:0}.competitor-shell .source-picker{width:100%}.competitor-shell .source-picker button{flex:1;padding:10px 8px;font-size:11px}}

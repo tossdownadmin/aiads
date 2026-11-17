@@ -41,7 +41,7 @@ export default function CompetitorResearch() {
   const [candidates, setCandidates] = useState<BrandCandidate[]>([]);
   const [lookups, setLookups] = useState<Record<string, BrandLookup>>({});
   const [competitors, setCompetitors] = useState<BrandCandidate[]>([]);
-  const [previousMatches, setPreviousMatches] = useState(0);
+  const [legacyMatches, setLegacyMatches] = useState<BrandCandidate[]>([]);
   const [lookingUp, setLookingUp] = useState(false);
   const [saving, setSaving] = useState(false);
   const [skills, setSkills] = useState<Skill[]>([]);
@@ -77,7 +77,7 @@ export default function CompetitorResearch() {
   useEffect(() => {
     setCountry(clientBrand.country);
     setCompetitors([]);
-    setPreviousMatches(0);
+    setLegacyMatches([]);
     setLookups({});
     setCandidates([]);
     setResult(null);
@@ -86,19 +86,20 @@ export default function CompetitorResearch() {
     let active = true;
     void fetch(`/api/competitors/selection?clientId=${encodeURIComponent(clientId)}`, { cache: 'no-store' })
       .then(async response => { if (!response.ok) throw new Error('Could not load saved advertisers.'); return response.json(); })
-      .then(data => { if (active) { const saved = (data.competitors || []) as BrandCandidate[]; setCompetitors(saved.filter(item => item.reviewed === true)); setPreviousMatches(saved.filter(item => item.reviewed !== true).length); } })
+      .then(data => { if (active) { const saved = (data.competitors || []) as BrandCandidate[]; setCompetitors(saved.filter(item => item.reviewed === true)); setLegacyMatches(saved.filter(item => item.reviewed !== true)); } })
       .catch(cause => { if (active) setError(cause instanceof Error ? cause.message : 'Could not load saved advertisers.'); });
     return () => { active = false; };
   }, [clientId, sources.foreplay?.signedIn]);
 
-  async function saveCompetitors(next: BrandCandidate[]) {
+  async function saveCompetitors(next: BrandCandidate[], legacy = legacyMatches.filter(item => !next.some(competitor => competitor.id === item.id))) {
     setSaving(true); setError('');
     try {
-      const response = await fetch('/api/competitors/selection', { method: 'PUT', headers, body: JSON.stringify({ clientId, competitors: next }) });
+      const response = await fetch('/api/competitors/selection', { method: 'PUT', headers, body: JSON.stringify({ clientId, competitors: [...next, ...legacy] }) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Could not save advertisers.');
-      setCompetitors(data.competitors || []);
-      setPreviousMatches(0);
+      const saved = (data.competitors || []) as BrandCandidate[];
+      setCompetitors(saved.filter(item => item.reviewed === true));
+      setLegacyMatches(saved.filter(item => item.reviewed !== true));
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not save advertisers.'); }
     finally { setSaving(false); }
   }
@@ -190,7 +191,7 @@ export default function CompetitorResearch() {
       {source === 'foreplay' && <div className="competitor-setup">
         <div className="setup-title"><div><p className="section-kicker">STEP 1 / CLIENT</p><h3>Choose the brand</h3><p>Start with a researched shortlist for the same market or category.</p></div><a href={clientBrand.evidence} target="_blank" rel="noreferrer">View brand source ↗</a></div>
         <label className="field client-picker"><span>Client brand</span><select value={clientId} onChange={event => { setClientId(event.target.value); setDomain(''); }}>{clientCatalog.map(item => <option key={item.id} value={item.id}>{item.name} · {item.market}</option>)}</select></label>
-        <div className="lookup-head"><div><p className="section-kicker">STEP 2 / ADVERTISERS</p><h3>Research shortlist</h3><p>Lookup is by website domain. Review the advertiser name before adding it.</p></div><button type="button" className="secondary-button lookup-all" disabled={!sources.foreplay?.ready || lookingUp} onClick={() => void lookupSuggested()}>{lookingUp ? 'Looking up…' : 'Look up all 4'}</button></div>
+        <div className="lookup-head"><div><p className="section-kicker">STEP 2 / ADVERTISERS</p><h3>Research shortlist</h3><p>Lookup is by website domain. Review the advertiser name before adding it.</p>{competitors.length + legacyMatches.length >= 10 && <p className="capacity-note">Review or discard earlier selections to free a slot.</p>}</div><button type="button" className="secondary-button lookup-all" disabled={!sources.foreplay?.ready || lookingUp || competitors.length + legacyMatches.length >= 10} onClick={() => void lookupSuggested()}>{lookingUp ? 'Looking up…' : 'Look up all 4'}</button></div>
         <div className="suggestion-list">{clientBrand.competitors.map(suggestion => {
           const lookup = lookups[suggestion.domain];
           return <article className="suggestion-card" key={suggestion.domain}>
@@ -199,14 +200,15 @@ export default function CompetitorResearch() {
               {lookup?.status === 'loading' && <span className="lookup-status">Checking Foreplay…</span>}
               {lookup?.status === 'error' && <span className="lookup-error">{lookup.error}</span>}
               {lookup?.status === 'done' && !lookup.candidates.length && <span className="lookup-status">No domain match found</span>}
-              {lookup?.candidates.map(candidate => <div className="match-row" key={candidate.id}><span><strong>{candidate.name}</strong><small>{candidate.website || 'Website not listed'} · ID {candidate.id}</small></span><button type="button" className="match-button" disabled={saving || competitors.some(item => item.id === candidate.id) || competitors.length >= 10} onClick={() => void saveCompetitors([...competitors, { ...candidate, reviewed: true }])}>{competitors.some(item => item.id === candidate.id) ? 'Added' : 'Add advertiser'}</button></div>)}
+              {lookup?.candidates.map(candidate => <div className="match-row" key={candidate.id}><span><strong>{candidate.name}</strong><small>{candidate.website || 'Website not listed'} · ID {candidate.id}</small></span><button type="button" className="match-button" disabled={saving || competitors.some(item => item.id === candidate.id) || competitors.length + legacyMatches.length >= 10} onClick={() => void saveCompetitors([...competitors, { ...candidate, reviewed: true }])}>{competitors.some(item => item.id === candidate.id) ? 'Added' : 'Add advertiser'}</button></div>)}
             </div>
           </article>;
         })}</div>
-        <div className="domain-row"><label className="field"><span>Look up another website</span><input value={domain} onChange={event => setDomain(event.target.value)} placeholder="competitor.com" /></label><button type="button" className="secondary-button" disabled={!sources.foreplay?.ready || !domain.trim() || lookingUp || competitors.length >= 10} onClick={() => void lookupDomain()}>Look up</button></div>
-        {candidates.length > 0 && <div className="candidate-list"><strong>Review domain results</strong>{candidates.map(candidate => <div className="match-row" key={candidate.id}><span><strong>{candidate.name}</strong><small>{candidate.website || 'Website not listed'} · ID {candidate.id}</small></span><button type="button" className="match-button" disabled={saving || competitors.some(item => item.id === candidate.id) || competitors.length >= 10} onClick={() => { void saveCompetitors([...competitors, { ...candidate, reviewed: true }]); setCandidates([]); setDomain(''); }}>{competitors.some(item => item.id === candidate.id) ? 'Added' : 'Add advertiser'}</button></div>)}</div>}
-        <div className="confirmed-head"><div><p className="section-kicker">STEP 3 / READY TO SEARCH</p><h3>Selected advertisers <span>{competitors.length}</span></h3></div>{previousMatches > 0 && <p className="review-warning">{previousMatches} older selections need review and are excluded from searches.</p>}</div>
+        <div className="domain-row"><label className="field"><span>Look up another website</span><input value={domain} onChange={event => setDomain(event.target.value)} placeholder="competitor.com" /></label><button type="button" className="secondary-button" disabled={!sources.foreplay?.ready || !domain.trim() || lookingUp || competitors.length + legacyMatches.length >= 10} onClick={() => void lookupDomain()}>Look up</button></div>
+        {candidates.length > 0 && <div className="candidate-list"><strong>Review domain results</strong>{candidates.map(candidate => <div className="match-row" key={candidate.id}><span><strong>{candidate.name}</strong><small>{candidate.website || 'Website not listed'} · ID {candidate.id}</small></span><button type="button" className="match-button" disabled={saving || competitors.some(item => item.id === candidate.id) || competitors.length + legacyMatches.length >= 10} onClick={() => { void saveCompetitors([...competitors, { ...candidate, reviewed: true }]); setCandidates([]); setDomain(''); }}>{competitors.some(item => item.id === candidate.id) ? 'Added' : 'Add advertiser'}</button></div>)}</div>}
+        <div className="confirmed-head"><div><p className="section-kicker">STEP 3 / READY TO SEARCH</p><h3>Selected advertisers <span>{competitors.length}</span></h3></div>{legacyMatches.length > 0 && <p className="review-warning">{legacyMatches.length} older selections need review and are excluded from searches.</p>}</div>
         <div className="selected-brands">{competitors.map(item => <div className="selected-brand" key={item.id}><span><strong>{item.name}</strong><small>{item.domain}</small></span><button type="button" disabled={saving} aria-label={`Remove ${item.name}`} onClick={() => void saveCompetitors(competitors.filter(brand => brand.id !== item.id))}>Remove</button></div>)}{!competitors.length && <p className="selection-empty">No advertisers selected. Look up a website and add the correct match.</p>}</div>
+        {legacyMatches.length > 0 && <details className="legacy-review"><summary>Review {legacyMatches.length} earlier selections</summary><p>These were saved before the lookup was tightened. Keep only advertisers that clearly match the intended competitor. Reviewing them uses no lookup credits.</p><div className="legacy-list">{legacyMatches.map(item => <div className="legacy-row" key={item.id}><div><strong>{item.name}</strong><small>{item.domain} · {item.website || 'Website unlisted'} · ID {item.id}</small></div><div><button type="button" disabled={saving} onClick={() => void saveCompetitors([...competitors, { ...item, reviewed: true }], legacyMatches.filter(old => old.id !== item.id))}>Keep</button><button type="button" disabled={saving} onClick={() => void saveCompetitors(competitors, legacyMatches.filter(old => old.id !== item.id))}>Discard</button></div></div>)}</div></details>}
       </div>}
       <form onSubmit={event => { event.preventDefault(); void search(); }}>
         {source === 'meta' && <label className="field wide"><span>Brand, product, or ad-text search</span><input maxLength={100} value={terms} onChange={event => setTerms(event.target.value)} placeholder="e.g. meal delivery, franchise opportunities" /><small>Meta searches ad text; use Page IDs for advertiser-specific matching.</small></label>}
