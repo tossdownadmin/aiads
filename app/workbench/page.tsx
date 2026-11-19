@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { signIn } from 'next-auth/react';
 import WorkspaceShell from '../workspace-shell';
 
-type Skill = { name: string; description: string; categories: string[]; platforms: string[]; status: string; license?: string; sha: string };
+type Skill = { name: string; description: string; source: string; categories: string[]; platforms: string[]; status: string; license?: string; sha: string };
 type Account = { id: string; name: string; status: number; currency: string; timezone?: string };
 type Finding = { title: string; severity: 'high' | 'medium' | 'low' | 'info'; evidence: string; recommendation: string };
 type Campaign = { id: string; name: string; effective_status: string; objective?: string; spend?: string; impressions?: string; reach?: string; clicks?: string; ctr?: string; cpc?: string; frequency?: string; daily_budget?: string; lifetime_budget?: string };
@@ -97,13 +97,7 @@ export default function Workbench() {
       {signInRequired ? <button onClick={() => void signIn('google', { callbackUrl: '/workbench' })}>Sign in with Google</button> : error && <button onClick={() => void connect()}>Retry</button>}
     </section> : <>
       <section className="selector-grid">
-        <article><label>1. Audit skill
-          <select value={skill} onChange={event => setSkill(event.target.value)}>
-            <option value="">Choose an approved skill</option>
-            {skills.map(item => <option key={`${item.name}-${item.sha}`} value={item.name}>{item.name} · {item.categories?.[0] || 'ads'}</option>)}
-          </select>
-          <small>{skills.find(item => item.name === skill)?.description || `${skills.length} approved skills available`}</small>
-        </label></article>
+        <article className="audit-methods"><fieldset><legend>1. Choose a review method</legend><p className="audit-method-intro">Each method reads the same connected Meta campaign evidence and answers a different question.</p><div className="audit-method-list">{skills.filter(item => item.source === 'tossdown-aiads').map(item => <label className={`audit-method ${skill === item.name ? 'selected' : ''}`} key={`${item.name}-${item.sha}`}><input type="radio" name="audit-method" checked={skill === item.name} onChange={() => setSkill(item.name)} /><span><strong>{item.name.split('-').map(word => word[0].toUpperCase() + word.slice(1)).join(' ')}</strong><small>{item.description}</small></span></label>)}</div>{skills.some(item => item.source !== 'tossdown-aiads') && <label className="audit-other-methods">Other approved methods<select value={skills.find(item => item.name === skill && item.source !== 'tossdown-aiads')?.name || ''} onChange={event => setSkill(event.target.value || 'meta-account-audit')}><option value="">Select another method</option>{skills.filter(item => item.source !== 'tossdown-aiads').map(item => <option key={`${item.source}-${item.name}-${item.sha}`} value={item.name}>{item.name} · {item.source}</option>)}</select></label>}</fieldset></article>
         <article><label>2. Ad account
           <input value={accountQuery} onChange={event => setAccountQuery(event.target.value)} placeholder="Filter accounts by name or ID" aria-label="Filter Meta ad accounts" />
           <select value={account} onChange={event => setAccount(event.target.value)}>
@@ -117,7 +111,7 @@ export default function Workbench() {
             <option value="last_7d">Last 7 days</option>
             <option value="last_30d">Last 30 days</option>
           </select>
-          <small>Campaign-level insights</small>
+          <small>Currently active campaigns; campaign-level insights only</small>
         </label></article>
       </section>
       <button className="run-button" onClick={runAudit} disabled={!skill || !account || busy}>
@@ -125,7 +119,7 @@ export default function Workbench() {
       </button>
       {!account && <p className="workspace-help">Select a Meta account to enable the audit.</p>}
       {error && <p className="error">{error}</p>}
-      {skills.length === 0 && <p className="empty">No approved skills yet. Sync sources, then approve a skill in the Registry.</p>}
+      {skills.length === 0 && <p className="empty">No audit methods are available. Check the Skills registry.</p>}
       {result && <section className="results">
         <div className="result-head">
           <div>

@@ -1,6 +1,6 @@
 # Skills Registry
 
-The registry is the source of truth for advertising skills used by the agent. Staged skill versions are stored in a private Vercel Blob store; source text is never exposed publicly.
+The registry shows first-party Tossdown methods and reviewed external skills. First-party methods are versioned with the application in `lib/skills/builtin.ts`; external staged and approved versions are stored in private Vercel Blob. Skill source text is never exposed publicly. See [first-party skills](first-party-skills.md) for current capabilities and limits.
 
 ## Add a source
 
@@ -12,7 +12,7 @@ Add the foreign tool name and its internal equivalent to `config/tool_map.yaml`.
 
 ## Safety rules
 
-Fetched scripts are never executed. Skills containing prompt injection, credential exfiltration, hidden instructions, or unsafe remote execution are rejected. Repository-level licenses and per-skill license declarations are shown in review; unlicensed skills remain reference-only. A first-party, read-only Meta account audit skill is staged with each sync.
+Fetched scripts are never executed. Skills containing prompt injection, credential exfiltration, hidden instructions, or unsafe remote execution are rejected. Repository-level licenses and per-skill license declarations are shown in review; unlicensed skills remain reference-only. First-party read-only methods ship with the app and do not enter the external review queue.
 
 Approving a skill only allows its audit guidance to be used. It does not grant advertising platform permissions or authorize account changes. The audit workspace reads campaign insights only; campaign writes require a separate, explicitly designed approval and execution flow.
 
