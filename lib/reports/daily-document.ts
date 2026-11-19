@@ -1,3 +1,4 @@
+import { detailBody, detailStyles } from './detail-view';
 import type { MetaAccount } from '../meta/read';
 import { dailyWindows, shiftDay, type Report, type Snapshot } from './model';
 import { dailyStyles } from './daily-style';
@@ -44,7 +45,9 @@ function campaignTable(p: Snapshot, currency: string, set: ColumnSet) {
       suffix[set][1]=suffix[set][1]===dash?price:suffix[set][1]+' · '+price;
     }
     const status=c.status==='ACTIVE'?'active':c.status==='PAUSED'?'paused':'issue';
-    return '<tr><td class="campaign-name" title="'+escape(c.name)+'">'+escape(c.name)+'</td><td><span class="status-pill status-'+status+'" title="Current status at retrieval">'+escape(statusText(c.status))+'</span></td><td title="'+escape(c.settings?.goals.join(', ')||'')+'">'+escape(objective)+'</td>'+cells([cash(c.spend,currency),count(c.impressions),count(c.reach),count(c.frequency),percent(c.ctr),cash(c.cpc,currency),...suffix[set]])+'</tr>';
+    const drill=p.details?.[c.id];
+    const label=drill?'<details class="rep-toggle"><summary>'+escape(c.name)+'</summary></details>':escape(c.name);
+    return '<tr><td class="campaign-name" title="'+escape(c.name)+'">'+label+'</td><td><span class="status-pill status-'+status+'" title="Current status at retrieval">'+escape(statusText(c.status))+'</span></td><td title="'+escape(c.settings?.goals.join(', ')||'')+'">'+escape(objective)+'</td>'+cells([cash(c.spend,currency),count(c.impressions),count(c.reach),count(c.frequency),percent(c.ctr),cash(c.cpc,currency),...suffix[set]])+'</tr>'+(drill?'<tr class="rep-detail-row"><td colspan="'+heads.length+'">'+detailBody(drill,currency)+'</td></tr>':'');
   }).join('')+'</tbody></table></div>';
 }
 function accountView(entry: Entry,p:Snapshot,layout:ClientLayout|undefined,i:number) {
@@ -172,7 +175,7 @@ export function renderDailyDocument(entries:Entry[],end:string,presentation:Dail
   const valid=entries.filter(e=>e.report?.periods.length===2);
   const periods=windows.map((_,i)=>valid.map(e=>accountView(e,e.report!.periods[i],presentation.layouts?.[e.account.id],i)));
   const both=(fn:(i:number)=>string)=>periods.map((_,i)=>'<div data-period="'+i+'"'+(i?' hidden':'')+'>'+fn(i)+'</div>').join('');
-  return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Meta Ads — Daily Report</title><style>'+dailyStyles+'.group-heading{background:var(--surface2);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}</style></head><body>'+
+  return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Meta Ads — Daily Report</title><style>'+dailyStyles+detailStyles+'.group-heading{background:var(--surface2);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}</style></head><body>'+
     '<header class="header"><div class="header-inner"><div class="logo-area">'+headerLogo+'<div><div class="header-title">Meta Ads — Daily Report</div><div class="header-subtitle">'+both(i=>escape(names[i]+' · '+ranges[i]))+'</div></div></div><div class="header-meta"><div class="period" role="group" aria-label="Date range"><button data-window="0" class="on" aria-pressed="true">Last 7 days</button><button data-window="1" aria-pressed="false">Last 30 days</button></div>'+badge(valid.length+' Accounts')+badge('Generated '+day(generated,true),'green')+'</div></div></header>'+
     '<div class="tabs-bar">'+both(i=>'<nav class="tabs" aria-label="Report accounts"><button class="tab active" data-key="overview" data-open="overview">Overview</button>'+periods[i].map((v,n)=>'<button class="tab" data-key="'+escape(v.account.id)+'" data-open="'+n+'">'+escape(v.name)+(v.tone==='ok'?'':'<span class="flag-dot '+v.tone+'"></span>')+'</button>').join('')+'</nav>')+'</div>'+
     '<main class="main">'+both(i=>'<h2 class="print-only">'+escape(names[i]+' · '+ranges[i])+'</h2><section class="tab-panel" data-panel="overview">'+overview(periods[i],exclusions,names[i])+'</section>'+periods[i].map((v,n)=>'<section class="tab-panel" data-panel="'+n+'" hidden>'+detail(v,names[i])+'</section>').join(''))+'</main>'+

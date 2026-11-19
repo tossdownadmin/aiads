@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { readDetails, budget } from '../../../../lib/meta/campaign-detail';
 import { z } from 'zod';
 import { analyzeAudit } from '../../../../lib/ai/bedrock';
 import { getAccountInsights, getActiveCampaigns, getAdAccounts } from '../../../../lib/meta/read';
@@ -6,6 +7,7 @@ import { listApprovedSkills } from '../../../../lib/skills/store';
 import { verifyAdminSession } from '../../../../lib/auth';
 
 export const runtime = 'nodejs';
+export const maxDuration = 300;
 const schema = z.object({
   accountId: z.string().regex(/^act_\d+$/),
   skillName: z.string().min(1),
@@ -60,18 +62,24 @@ export async function POST(request: Request) {
       ...(row.ctr > 0 && row.ctr < 0.5 ? ['CTR below 0.5%'] : []),
     ].map(title => ({ title, ...row })));
 
+    const [details] = await readDetails(account.id, account.currency, [...activeIds], [input.data.period], true);
+    const evidence = campaigns.map(c => {
+      const { daily_budget, lifetime_budget, ...campaign } = c;
+      const ads = details[c.id].sets.flatMap(s => s.ads.map(a => ({id:a.id,adSet:s.name,name:a.name,creativeId:a.creative.id,spend:a.stats?.spend,ctr:a.stats?.ctr,thruplays:a.stats?.thruplays,leads:a.stats?.leads,purchases:a.stats?.purchases,days:a.days}))).sort((a,b)=>(b.spend??0)-(a.spend??0));
+      return {...campaign,configuredDailyBudget:budget(daily_budget,account.currency),configuredLifetimeBudget:budget(lifetime_budget,account.currency),adsInInventory:ads.length,highestSpendAds:ads.slice(0,5),detailGaps:details[c.id].notes};
+    });
     const analysis = activeCampaigns.length
-      ? await analyzeAudit(skill.body, { id: account.id, name: account.name }, input.data.period, campaigns as Array<Record<string, unknown>>, issues)
+      ? await analyzeAudit(skill.body, { id: account.id, name: account.name }, input.data.period, evidence, issues)
       : { status: 'complete' as const, summary: 'No currently active campaigns were returned for this ad account.', findings: [], dataGaps: [] };
     return NextResponse.json({
       skill: { name: skill.name, description: skill.description, sha: skill.sha },
       account: { id: account.id, name: account.name, currency: account.currency, timezone: account.timezone },
       period: input.data.period,
       summary: { campaigns: activeCampaigns.length, totalSpend, currency: rows[0]?.account_currency || account.currency || null },
-      campaigns,
+      campaigns, details,
       issues,
       analysis,
-      notice: 'This audit lists currently active campaigns and joins campaign-level Meta insights for the selected period. It does not inspect ad-set/ad delivery or reconciled analytics and does not write to the account.',
+      notice: 'Open a campaign for its ad sets, ads and creative. Metrics cover the selected dates. Settings and media references reflect the time of the audit.',
     });
   } catch (error) {
     console.error('Meta audit failed', error instanceof Error ? error.name : 'Unknown error');

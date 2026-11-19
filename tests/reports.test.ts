@@ -46,7 +46,7 @@ describe('Meta report reader', () => {
       return Response.json({data,paging:{cursors:{after:'last'}}});
     });
     const [report]=await readReportWindows({id:'act_1',name:'A',currency:'USD',status:1},[{since:'2026-11-01',until:'2026-11-10'}]);
-    expect(calls).toHaveLength(4);expect(report.totals?.reach).toBe(11);expect(report.campaigns[0].status).toBe('PAUSED');
+    expect(calls).toHaveLength(8);expect(report.details?.a).toBeDefined();expect(report.totals?.reach).toBe(11);expect(report.campaigns[0].status).toBe('PAUSED');
   });
   it('distinguishes inaccessible datasets from an empty visible list', async () => {
     vi.stubEnv('META_SYSTEM_USER_TOKEN','unit-test');vi.stubGlobal('fetch',async()=>Response.json({error:{message:'Denied'}},{status:403}));

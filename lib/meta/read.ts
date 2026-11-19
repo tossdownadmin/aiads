@@ -2,7 +2,7 @@ const GRAPH_VERSION = process.env.META_API_VERSION || 'v27.0';
 const GRAPH = `https://graph.facebook.com/${GRAPH_VERSION}`;
 export type MetaAccount = { id: string; name: string; status: number; currency: string; timezone?: string };
 function token() { const value = process.env.META_SYSTEM_USER_TOKEN; if (!value) throw new Error('Meta connection is not configured'); return value; }
-async function fetchGraph(path: string, params: Record<string,string> = {}) {
+export async function fetchGraph(path: string, params: Record<string,string> = {}) {
   const url = new URL(`${GRAPH}/${path}`);
   Object.entries(params).forEach(([key,value])=>url.searchParams.set(key,value));
   let response = await fetch(url, { cache: 'no-store', headers: { Authorization: `Bearer ${token()}` } });
@@ -11,7 +11,7 @@ async function fetchGraph(path: string, params: Record<string,string> = {}) {
     response = await fetch(url, { cache: 'no-store', headers: { Authorization: `Bearer ${token()}` } });
   }
   const data = await response.json();
-  if (!response.ok) throw new Error(data?.error?.message || `Meta API returned ${response.status}`);
+  if (!response.ok) throw Object.assign(new Error(data?.error?.message || `Meta API returned ${response.status}`), { code: data?.error?.code, status: response.status });
   return data;
 }
 export async function fetchAllPages<T>(path: string, params: Record<string,string>) {

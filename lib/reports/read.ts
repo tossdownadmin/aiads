@@ -1,3 +1,4 @@
+import { readDetails } from '../meta/campaign-detail';
 import { fetchAllPages, getCampaigns, type MetaAccount } from '../meta/read';
 import { joinCampaigns, metrics, type Row, type DeliverySettings, type Snapshot, type Tracking, type Window } from './model';
 
@@ -17,7 +18,7 @@ export async function readReportWindows(account: MetaAccount, windows: Window[])
     if (set.bid_strategy && !item.bids.includes(set.bid_strategy)) item.bids.push(set.bid_strategy);
     settings.set(set.campaign_id, item);
   }
-  return Promise.all(windows.map(async window => {
+  const snapshots = await Promise.all(windows.map(async window => {
     const params = { time_range: JSON.stringify({ since: window.since, until: window.until }), use_unified_attribution_setting: 'true', limit: '200' };
     let limited = false;
     const readInsights = async (level: 'campaign' | 'account') => {
@@ -41,6 +42,9 @@ export async function readReportWindows(account: MetaAccount, windows: Window[])
     if (accountRows && !accountRows.length) notes.push('Meta returned no account-level insight row for this period.');
     return { window, inventory: inventory ? { total: inventory.length, active: inventory.filter(c => c.effective_status === 'ACTIVE').length } : undefined, totals: accountRows?.[0] ? metrics(accountRows[0]) : null, campaigns: joinCampaigns(inventory ?? [], rows, window, settings), notes };
   }));
+  const ids = [...new Set(snapshots.flatMap(p => p.campaigns.map(c => c.id)))];
+  const details = await readDetails(account.id, account.currency, ids, windows);
+  return snapshots.map((p,i) => ({...p, details:details[i]}));
 }
 
 export async function readTracking(accountId: string): Promise<Tracking> {
