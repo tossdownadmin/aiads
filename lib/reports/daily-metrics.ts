@@ -12,7 +12,10 @@ export const percent = (n: number | null | undefined) => n == null ? dash : (n >
 export const ratio = (n: number | null | undefined) => n == null ? dash : n.toFixed(2) + '×';
 export function cash(n: number | null | undefined, currency: string) {
   if (n == null) return dash;
-  if (currency==='PKR') return '₨'+n.toLocaleString('en-US',{maximumFractionDigits:0});
+  if (currency==='PKR') {
+    const digits=n>0 && n<100 ? 2 : 0;
+    return '₨'+n.toLocaleString('en-US',{minimumFractionDigits:digits,maximumFractionDigits:digits});
+  }
   if (currency==='CAD' || currency==='USD') return '$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
   return money(n,currency);
 }
