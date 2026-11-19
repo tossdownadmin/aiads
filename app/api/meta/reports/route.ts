@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { verifyAdminSession } from '../../../../lib/auth';
-import { clientCatalog } from '../../../../lib/competitors/catalog';
-import { readClientBoard, readCompetitors } from '../../../../lib/competitors/store';
-import { searchForeplay } from '../../../../lib/competitors/foreplay';
+import { clientIdSchema } from '../../../../lib/competitors/library';
+import { readClientBoard, readCompetitors, readClientCatalog } from '../../../../lib/competitors/store';
+import { searchForeplay, searchSavedCompetitors } from '../../../../lib/competitors/foreplay';
 import { getAdAccounts } from '../../../../lib/meta/read';
 import { comparisonWindow, accountToday, dailyWindows, planningWindow, type Report } from '../../../../lib/reports/model';
 import { draftPlan } from '../../../../lib/reports/plan';
@@ -16,7 +16,7 @@ const cap = z.number().positive().max(100000000000).optional();
 const inputs = z.object({ cap, previousCap: cap, brief: z.string().trim().max(4000), competitors: z.string().trim().max(4000), event: z.string().trim().max(2000) });
 const schema = z.discriminatedUnion('mode', [
   z.object({ mode: z.literal('daily'), accountId, end: z.string().length(10) }),
-  z.object({ mode: z.literal('plan'), accountId, month: z.string().length(7), researchClient: z.enum(clientCatalog.map(c => c.id) as [string, ...string[]]).optional(), inputs, draft: z.boolean().default(true) }),
+  z.object({ mode: z.literal('plan'), accountId, month: z.string().length(7), researchClient: clientIdSchema.optional(), inputs, draft: z.boolean().default(true) }),
 ]);
 const json = (body: unknown, status = 200) => NextResponse.json(body, { status, headers: { 'Cache-Control': 'private, no-store' } });
 export async function POST(request: Request) {
@@ -43,13 +43,14 @@ export async function POST(request: Request) {
     ]);
     const report: Report = { account, generated: now.toISOString(), periods, tracking, comparison };
     if (data.mode === 'plan' && data.researchClient) {
-      const client = clientCatalog.find(c => c.id === data.researchClient)!;
+      const client = (await readClientCatalog()).value.clients.find(c => c.id === data.researchClient);
+      if(!client)return json({error:'Choose a client from the current competitor library.'},400);
       const evidence: NonNullable<Report['competitorEvidence']> = { client: client.name, checkedAt: now.toISOString(), coverage: '', ads: [] };
       try {
         const board=await readClientBoard(client.id);
         const saved = board ? [] : (await readCompetitors(client.id)).filter(c => c.reviewed === true).slice(0,10);
         if (saved.length || board) {
-          const result = await searchForeplay({ boardId:board?.id, boardAdvertisers:!!board, brandIds: saved.map(c => c.id), live: 'ACTIVE', format: 'ALL' });
+          const result = board ? await searchForeplay({ boardId:board.id, boardAdvertisers:true, brandIds:[], live:'ACTIVE',format:'ALL' }) : await searchSavedCompetitors(saved,{live:'ACTIVE',format:'ALL'});
           evidence.coverage = (board?board.name+' · ':'')+result.coverageNote;
           evidence.ads = result.ads.map(a => ({ id: a.id, advertiser: a.page_name || 'Unlisted', text: (a.ad_creative_bodies[0] || '').slice(0,400), url: a.ad_snapshot_url, format:a.display_format, cta:a.ad_creative_link_descriptions[0], transcript:a.transcript_excerpt }));
         } else evidence.coverage = 'No reviewed advertiser matches saved for this client.';

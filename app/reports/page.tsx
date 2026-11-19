@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { signIn } from 'next-auth/react';
 import WorkspaceShell from '../workspace-shell';
-import { clientCatalog } from '../../lib/competitors/catalog';
+import { clientCatalog, type ClientSeed } from '../../lib/competitors/catalog';
 import type { MetaAccount } from '../../lib/meta/read';
 import { accountToday, shiftDay, type PlanInputs } from '../../lib/reports/model';
 import {galleryScript} from '../../lib/reports/detail-view';
@@ -22,6 +22,7 @@ export default function Reports() {
   const [query,setQuery] = useState('');
   const [selected,setSelected] = useState<string[]>([]);
   const [monthlyId,setMonthlyId] = useState('');
+  const [researchClients,setResearchClients] = useState<ClientSeed[]>(clientCatalog);
   const [researchClient,setResearchClient] = useState('');
   const [end,setEnd] = useState('');
   const [month,setMonth] = useState('');
@@ -111,6 +112,7 @@ export default function Reports() {
   useEffect(() => {
     if(new URLSearchParams(window.location.search).get('view')==='monthly') setMode('plan');
     void connect();void openDaily();
+    void fetch('/api/competitors/clients',{cache:'no-store'}).then(async response=>{if(response.ok)setResearchClients((await response.json()).clients);}).catch(()=>{});
   },[]);
   const chosen = accounts.filter(a => mode === 'daily' ? selected.includes(a.id) : a.id === monthlyId);
   const matches = accounts.filter(a => (a.name + a.currency + a.id).toLowerCase().includes(query.toLowerCase().trim()));
@@ -163,7 +165,7 @@ export default function Reports() {
         <div className="rep-accounts">{matches.map(a=><label key={a.id}><input type="checkbox" checked={selected.includes(a.id)} onChange={e=>setSelected(e.target.checked?[...selected,a.id]:selected.filter(id=>id!==a.id))}/><span>{a.name}<small>{a.currency} · {a.id}</small></span></label>)}{!matches.length && <p>No matching account</p>}</div></> :
       <><div className="rep-inputs"><label>Ad account<select required value={monthlyId} onChange={e=>{setMonthlyId(e.target.value);setResearchClient('');setInputs(emptyInputs);setRun(null);}}><option value="">Choose account</option>{accounts.map(a=><option key={a.id} value={a.id}>{a.name} · {a.currency} · {a.id}</option>)}</select></label><label>Plan month<input type="month" name="month" required defaultValue={month} onInput={e=>{setMonth(e.currentTarget.value);setInputs(emptyInputs);setRun(null);}}/></label></div>
       <div className="rep-inputs"><label>Approved plan month cap {chosen[0]?.currency}<input type="number" min="0.01" max="100000000000" step="any" placeholder="Optional" value={inputs.cap ?? ''} onChange={e=>setInputs({...inputs,cap:e.target.value ? Number(e.target.value) : undefined})}/></label><label>Previous month cap {chosen[0]?.currency}<input type="number" min="0.01" max="100000000000" step="any" placeholder="Optional" value={inputs.previousCap ?? ''} onChange={e=>setInputs({...inputs,previousCap:e.target.value ? Number(e.target.value) : undefined})}/></label></div>
-      <label>Fetch current competitor ads from Foreplay<select value={researchClient} onChange={e=>setResearchClient(e.target.value)}><option value="">Skip paid lookup</option>{clientCatalog.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select><small>Uses up to ten advertisers from the linked board (one lookup credit), or the client’s confirmed advertisers. Up to 20 ads at one credit per returned ad.</small></label>
+      <label>Fetch current competitor ads from Foreplay<select value={researchClient} onChange={e=>setResearchClient(e.target.value)}><option value="">Skip paid lookup</option>{researchClients.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select><small>Uses up to ten advertisers from the linked board (one lookup credit), or the client’s confirmed advertisers. Up to 20 ads at one credit per returned ad.</small></label>
       <label>Client brief<textarea value={inputs.brief} maxLength={4000} placeholder="Goals, market, approved offers and brand voice" onChange={e=>setInputs({...inputs,brief:e.target.value})}/></label>
       <div className="rep-inputs"><label>Competitor evidence<textarea maxLength={4000} value={inputs.competitors} placeholder="Observed ad, source link and date" onChange={e=>setInputs({...inputs,competitors:e.target.value})}/><a href="/competitors" target="_blank" rel="noreferrer">Open competitor research ↗</a></label>
       <label>Market event<textarea maxLength={2000} value={inputs.event} placeholder="Event, date, market and source" onChange={e=>setInputs({...inputs,event:e.target.value})}/></label></div></>}

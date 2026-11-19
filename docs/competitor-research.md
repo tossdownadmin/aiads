@@ -3,7 +3,7 @@
 ## User flow
 
 1. Open **Competitor research** from the Tossdown Ads Intelligence home.
-2. For Foreplay, name the client brand, look up 5–10 competitor domains, verify each returned advertiser, and save its Foreplay brand ID. Fetch active ads for the selected IDs. Meta's separate source remains a keyword/Page ID search.
+2. For Foreplay, choose or add a client, then use **Saved competitors** or **Discover advertisers & ads**. Find advertisers by name or website, discover ad text by product/keyword, or query a numeric Facebook Page ID. Review the business identity before saving. Select all or individual competitors to fetch ads. Meta remains a separate source.
 3. Review source-labeled cards and open the original ad-library record.
 4. Select ads and request a skill-guided analysis of hooks, claims, offer framing, formats, CTA, landing-page cues, and repeated creative patterns.
 5. Treat the analysis as creative research. It is not an estimate of competitor spend or conversion performance.
@@ -24,13 +24,13 @@
 - Use `/api/brand/getBrandsByDomain` to return candidate advertisers; require a human to confirm the match because Foreplay says domain results are not guaranteed associations.
 - Use `/api/brand/getAdsByBrandId` with the confirmed IDs, `live=true`, and cursor pagination. Limit each page to 20 ads. The endpoint does not document a delivery-country filter; do not label an ad as Canadian on that basis alone.
 - The API key belongs to Tossdown and stays server-side. Brand lookup is one credit per successful call; returned ads are one credit each.
-- Foreplay's API addendum permits API data in a product for authenticated users. The current placeholder session check is insufficient, so paid routes stay disabled until real sign-in is implemented.
+- Paid search and library edits require an approved Google session. The operator allowlist is rechecked on each request.
 - Cache returned text and metadata for at most 30 days. Link media directly to Foreplay-provided URLs and do not copy it to Tossdown storage.
 - The seven starter client brands and four research candidates each live in `lib/competitors/catalog.ts`. These are editorial suggestions, not verified Foreplay advertiser records or evidence of active ads.
 - The `/competitors` screen resolves each candidate domain through Foreplay after Google sign-in, asks the user to confirm the matching advertiser, and stores chosen advertiser IDs per client in private Vercel Blob. Confirmed lists are shared across allowlisted users.
 - Domain lookup no longer falls back to a broad name search when Foreplay has no domain match. Previously saved matches lack a review marker; the UI excludes them from new searches until the operator reviews each one. The operator can keep or discard those existing matches without another paid lookup.
 - Google sign-in requires `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL`, and `AUTH_ALLOWED_EMAILS`. Use a Google OAuth Web application with redirect URI `https://aiads-lac.vercel.app/api/auth/callback/google`. Set `AUTH_ALLOWED_EMAILS` to the approved operator email in Vercel. The Foreplay key stays server-side.
-- The Foreplay search endpoint accepts only advertiser IDs already saved for the selected client brand. Foreplay's brand ads API has no country filter, so observed ads may be from outside the client's market.
+- Saved-library searches accept confirmed rows for the selected client. Discovery searches may query a name, website, keyword, or one Page ID without saving. Discovery never marks a business as confirmed automatically.
 
 ## Normalized ad record
 
@@ -52,3 +52,16 @@ Fields absent from a source remain null. Never synthesize impressions, spend, co
 - Bound query terms, page IDs, and number of ads sent to the model.
 - Show source, retrieval time, date scope, coverage note, and API error category.
 - Persisted history and saved ads require tenant-scoped authorization and a defined retention policy.
+
+## Shared library and discovery
+
+- The seven catalog clients remain initial seeds; authenticated users can add/edit client metadata. Shared client metadata lives in private Blob `competitors/clients-v1.json`. Existing client IDs cannot be removed through this endpoint.
+- Each client library keeps its existing path `competitors/brand-maps/{clientId}.json`. Old records remain readable; missing `searches` defaults to an empty list. Edits require the loaded version and use Blob conditional writes. Stale or racing updates return 409 without replacing another editor's work.
+- One competitor can have up to five Foreplay brand IDs and five numeric Facebook Page IDs. When Pages are present, ad queries use those Pages; otherwise they use the saved Foreplay brand IDs. Old rows without explicit arrays retain their original brand ID. Limits: ten competitor rows and twenty named searches per client.
+- Names and website matches use `/api/discovery/brands` and `/api/brand/getBrandsByDomain`, respectively. `ad_library_id` becomes a Page ID only when numeric. A creative title is not treated as an advertiser name.
+- Product/keyword discovery uses `/api/discovery/ads`; direct Page lookup uses `/api/brand/getAdsByPageId`. A saved query stores its label and terms, not its results. Opening it performs a new paid lookup.
+- Explicit **Collect latest ads** requests `collect=true` and `force=true` for one selected competitor. This is a best-effort collector, can take about 30 seconds per Page, and can return empty/partial data. Normal fetches use the index. No periodic collection or Spyder subscription is created.
+- Multi-Page and multi-competitor searches use a bounded round-robin cursor with separate provider cursors. The page has at most twenty records and ten upstream calls. Changing the saved identities or filters invalidates the old cursor. If a later Page fails, successful results remain visible and pagination resumes the remaining Pages.
+- Monthly planning reads the same editable catalog and confirmed library. A linked Foreplay board retains precedence for that client, as the monthly UI states.
+- The public API currently supports reading boards/Spyder data, but does not document creating boards or tracking subscriptions. Configure those in Foreplay, then link the board in Tossdown. This implementation does not write to Foreplay.
+- Team members must already be approved by `AUTH_ALLOWED_EMAILS`; creating a client or competitor does not grant access. Foreplay returns indexed public creatives, without private competitor ad-account access or delivery-country filtering.
