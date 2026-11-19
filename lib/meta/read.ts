@@ -35,7 +35,7 @@ export async function getAdAccounts(): Promise<MetaAccount[]> {
 }
 export async function getAccountInsights(accountId: string, period: 'last_7d'|'last_30d') {
   if (!/^act_\d+$/.test(accountId)) throw new Error('Invalid ad account ID');
-  const fields='campaign_name,campaign_id,objective,account_currency,spend,impressions,reach,frequency,clicks,ctr,cpc,actions,action_values,purchase_roas';
+  const fields='campaign_name,campaign_id,objective,account_currency,spend,impressions,reach,frequency,clicks,ctr,cpc,actions,action_values,purchase_roas,video_thruplay_watched_actions';
   const params={level:'campaign',date_preset:period,limit:'500'};
   let data;
   try {
