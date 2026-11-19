@@ -1,5 +1,5 @@
 export type CompetitorSeed = { name: string; domain: string; evidence: string };
-export type ClientSeed = { id: string; name: string; market: string; country: string; evidence: string; competitors: CompetitorSeed[] };
+export type ClientSeed = { id: string; name: string; market: string; country: string; evidence: string; competitors: CompetitorSeed[]; metaAccountId?: string; currency?: string };
 
 // Research candidates only. An advertiser must be confirmed against Foreplay before its ads are queried.
 export const clientCatalog: ClientSeed[] = [

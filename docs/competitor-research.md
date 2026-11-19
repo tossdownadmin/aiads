@@ -65,3 +65,11 @@ Fields absent from a source remain null. Never synthesize impressions, spend, co
 - Monthly planning reads the same editable catalog and confirmed library. A linked Foreplay board retains precedence for that client, as the monthly UI states.
 - The public API currently supports reading boards/Spyder data, but does not document creating boards or tracking subscriptions. Configure those in Foreplay, then link the board in Tossdown. This implementation does not write to Foreplay.
 - Team members must already be approved by `AUTH_ALLOWED_EMAILS`; creating a client or competitor does not grant access. Foreplay returns indexed public creatives, without private competitor ad-account access or delivery-country filtering.
+
+## Meta account client selection
+
+- **Select client** loads the same `/api/meta/accounts` list used by audits/reports. Operators search and choose an account; names and IDs are not typed. POST rechecks access to that account before saving.
+- New research client IDs are derived from the Meta ad-account ID and store an explicit `metaAccountId` plus the account name and currency. Website, country and market are optional; currency is not used to guess business location.
+- The operator may explicitly attach the selected account to an unlinked existing client. This keeps that client's original storage ID, saved competitors, named searches and board link. Existing libraries are not matched by guessed names.
+- Accounts already linked open their saved library without creating duplicates. PUT edits only existing metadata; it cannot create a manual client or change an account association.
+- Monthly planning excludes libraries linked to other accounts and checks the association server-side before reading insights or buying competitor evidence. Selecting an account does not enable paid Foreplay lookups automatically.

@@ -103,7 +103,7 @@ export default function CompetitorResearch() {
   }, []);
 
   useEffect(() => {
-    setCountry(clientBrand.country);
+    setCountry(clientBrand.country || "US");
     setResult(null);
     setSelected([]);
     setAnalysis(null);

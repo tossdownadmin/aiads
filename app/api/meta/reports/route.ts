@@ -28,6 +28,9 @@ export async function POST(request: Request) {
   try {
     const account = (await getAdAccounts()).find(a => a.id === data.accountId);
     if (!account) return json({ error: 'The account is unavailable to this connection.' }, 403);
+    const researchClient=data.mode==='plan'&&data.researchClient?(await readClientCatalog()).value.clients.find(c=>c.id===data.researchClient):undefined;
+    if(data.mode==='plan'&&data.researchClient&&!researchClient)return json({error:'Choose a client from the current competitor library.'},400);
+    if(researchClient?.metaAccountId&&researchClient.metaAccountId!==account.id)return json({error:'The competitor library belongs to a different Meta ad account.'},400);
     const now = new Date();
     const today = accountToday(account.timezone, now);
     let windows;
@@ -43,7 +46,7 @@ export async function POST(request: Request) {
     ]);
     const report: Report = { account, generated: now.toISOString(), periods, tracking, comparison };
     if (data.mode === 'plan' && data.researchClient) {
-      const client = (await readClientCatalog()).value.clients.find(c => c.id === data.researchClient);
+      const client = researchClient;
       if(!client)return json({error:'Choose a client from the current competitor library.'},400);
       const evidence: NonNullable<Report['competitorEvidence']> = { client: client.name, checkedAt: now.toISOString(), coverage: '', ads: [] };
       try {

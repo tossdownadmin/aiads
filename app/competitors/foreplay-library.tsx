@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import BoardPicker from "./client-board";
+import ClientPicker from "./client-picker";
 import type { ClientSeed } from "../../lib/competitors/catalog";
 import {
   advertiserIds,
@@ -91,6 +92,7 @@ export default function ForeplayLibrary({
     [pagesText, setPagesText] = useState("");
   const [confirmed, setConfirmed] = useState(false),
     [searchName, setSearchName] = useState("");
+  const [clientPicking, setClientPicking] = useState(false);
   const [clientEdit, setClientEdit] = useState<ClientSeed | null>(null);
   const editor = useRef<HTMLDialogElement>(null),
     clientEditor = useRef<HTMLDialogElement>(null);
@@ -249,7 +251,7 @@ export default function ForeplayLibrary({
           body: JSON.stringify({
             source: "foreplay",
             clientId: client.id,
-            country: client.country,
+            country: client.country || "US",
             ...input,
             activeStatus: status,
             mediaType: format,
@@ -467,7 +469,12 @@ export default function ForeplayLibrary({
           >
             {clients.map((c) => (
               <option key={c.id} value={c.id}>
-                {c.name} · {c.market}
+                {c.name}
+                {c.metaAccountId
+                  ? " · " + c.metaAccountId
+                  : c.market
+                    ? " · " + c.market
+                    : ""}
               </option>
             ))}
           </select>
@@ -489,17 +496,10 @@ export default function ForeplayLibrary({
           disabled={!catalogLoaded || saving}
           onClick={() => {
             setError("");
-            setClientEdit({
-              id: crypto.randomUUID(),
-              name: "",
-              market: "",
-              country: "CA",
-              evidence: "",
-              competitors: [],
-            });
+            setClientPicking(true);
           }}
         >
-          Add client
+          Select client
         </button>
       </div>
       <nav className="fp-tabs" aria-label="Foreplay workspace">
@@ -1133,6 +1133,19 @@ export default function ForeplayLibrary({
           </form>
         </dialog>
       )}
+      {clientPicking && (
+        <ClientPicker
+          clients={clients}
+          version={catalogVersion}
+          onClose={() => setClientPicking(false)}
+          onSaved={(next, nextVersion, id) => {
+            onClients(next);
+            setCatalogVersion(nextVersion);
+            setClientPicking(false);
+            onClient(id);
+          }}
+        />
+      )}
       {clientEdit && (
         <dialog
           ref={clientEditor}
@@ -1149,11 +1162,7 @@ export default function ForeplayLibrary({
             }}
           >
             <header>
-              <h3>
-                {clients.some((c) => c.id === clientEdit.id)
-                  ? "Edit client"
-                  : "Add client"}
-              </h3>
+              <h3>Edit client details</h3>
               <button
                 type="button"
                 aria-label="Close client editor"
@@ -1164,19 +1173,21 @@ export default function ForeplayLibrary({
             </header>
             <label className="field">
               Client name
-              <input
-                required
-                maxLength={200}
-                value={clientEdit.name}
-                onChange={(e) =>
-                  setClientEdit({ ...clientEdit, name: e.target.value })
-                }
-              />
+              <input readOnly value={clientEdit.name} />
             </label>
+            {clientEdit.metaAccountId ? (
+              <p>
+                Meta account: {clientEdit.metaAccountId} · {clientEdit.currency}
+              </p>
+            ) : (
+              <p>
+                Use Select client to link this research library to its Meta ad
+                account.
+              </p>
+            )}
             <label className="field">
-              Website
+              Website (optional)
               <input
-                required
                 value={clientEdit.evidence}
                 onChange={(e) =>
                   setClientEdit({ ...clientEdit, evidence: e.target.value })
@@ -1184,9 +1195,8 @@ export default function ForeplayLibrary({
               />
             </label>
             <label className="field">
-              Market or location
+              Market or location (optional)
               <input
-                required
                 maxLength={200}
                 value={clientEdit.market}
                 onChange={(e) =>
@@ -1202,6 +1212,7 @@ export default function ForeplayLibrary({
                   setClientEdit({ ...clientEdit, country: e.target.value })
                 }
               >
+                <option value="">Not specified</option>
                 {[
                   ["CA", "Canada"],
                   ["US", "United States"],
