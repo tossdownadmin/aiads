@@ -39,7 +39,7 @@ export async function POST(request: Request) {
     const skill = skills.find(item => item.name === parsed.data.skillName && item.categories.includes('competitor_intel'));
     if (!skill) return NextResponse.json({ error: 'Approve a competitor-intelligence skill in the registry before analysis.' }, { status: 403 });
     const source = parsed.data.source === 'foreplay' ? 'Foreplay Brand Ads API' : 'Meta Ad Library API';
-    const analysis = await analyzeCompetitorAds(skill.body, { terms: parsed.data.terms, country: parsed.data.country, source }, parsed.data.ads);
+    const analysis = await analyzeCompetitorAds(skill.body, { terms: parsed.data.terms, country: parsed.data.source === 'foreplay' ? 'Not filtered by delivery country' : parsed.data.country, source }, parsed.data.ads);
     return NextResponse.json({ skill: { name: skill.name, sha: skill.sha }, source, analysis }, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch {
     return NextResponse.json({ error: 'Competitor analysis could not complete. Check the skill registry and Bedrock configuration.' }, { status: 500 });
