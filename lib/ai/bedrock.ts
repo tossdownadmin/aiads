@@ -113,3 +113,22 @@ export async function analyzeCompetitorAds(skillBody: string, search: { terms: s
     return { status: 'unavailable', message: describeBedrockFailure(error) };
   }
 }
+
+export async function invokeReportModel(instructions: string, evidence: string): Promise<unknown> {
+  const bedrock = getClient();
+  const modelId = process.env.BEDROCK_MODEL_ID;
+  if (!bedrock || !modelId) throw new Error('Monthly plan analysis is not configured.');
+  try {
+    const response = await bedrock.send(new ConverseCommand({
+      modelId, system: [{ text: instructions }], messages: [{ role: 'user', content: [{ text: evidence }] }],
+      inferenceConfig: { maxTokens: 3500, temperature: 0.2 },
+    }));
+    const output = response.output?.message?.content?.map(block => block.text || '').join('') || '';
+    const start = output.indexOf('{'), end = output.lastIndexOf('}');
+    if (start < 0 || end < start) throw new Error('Missing plan JSON');
+    return JSON.parse(output.slice(start, end + 1));
+  } catch (error) {
+    logBedrockFailure('monthly plan', error);
+    throw new Error(describeBedrockFailure(error));
+  }
+}

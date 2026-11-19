@@ -2,10 +2,11 @@
 
 import { useState, type ReactNode } from 'react';
 
-type Page = 'home' | 'workbench' | 'competitors' | 'registry';
+type Page = 'reports' | 'home' | 'workbench' | 'competitors' | 'registry';
 const pages: Array<{ id: Page; href: string; label: string; icon: string; detail?: string }> = [
   { id: 'home', href: '/', label: 'Home', icon: '⌂' },
   { id: 'workbench', href: '/workbench', label: 'Account audits', icon: '▤', detail: 'Review Meta campaigns' },
+  { id: 'reports', href: '/reports', label: 'Client reports', icon: '▥', detail: 'Daily reports and monthly plans' },
   { id: 'competitors', href: '/competitors', label: 'Competitor research', icon: '↻', detail: 'Find and study public ads' },
   { id: 'registry', href: '/registry', label: 'Skills registry', icon: '▦', detail: 'Review analysis skills' },
 ];

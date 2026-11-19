@@ -14,7 +14,7 @@ async function fetchGraph(path: string, params: Record<string,string> = {}) {
   if (!response.ok) throw new Error(data?.error?.message || `Meta API returned ${response.status}`);
   return data;
 }
-async function fetchAllPages<T>(path: string, params: Record<string,string>) {
+export async function fetchAllPages<T>(path: string, params: Record<string,string>) {
   const records: T[] = [];
   const cursors = new Set<string>();
   let after: string | undefined;
@@ -22,11 +22,12 @@ async function fetchAllPages<T>(path: string, params: Record<string,string>) {
     const data = await fetchGraph(path, { ...params, ...(after ? { after } : {}) });
     records.push(...((data.data || []) as T[]));
     const next = data.paging?.cursors?.after as string | undefined;
-    if (!next || cursors.has(next)) break;
+    if (!data.paging?.next) return records;
+    if (!next || cursors.has(next)) throw new Error('Incomplete Meta pagination');
     cursors.add(next);
     after = next;
   }
-  return records;
+  throw new Error('Meta pagination limit reached');
 }
 export async function getAdAccounts(): Promise<MetaAccount[]> {
   const rows = await fetchAllPages<Record<string,string|number>>('me/adaccounts', { fields:'id,name,account_status,currency,timezone_name', limit:'100' });
@@ -39,14 +40,18 @@ export async function getAccountInsights(accountId: string, period: 'last_7d'|'l
 }
 
 export type MetaCampaign = { id: string; name: string; status: string; effective_status: string; objective?: string; daily_budget?: string; lifetime_budget?: string; start_time?: string; stop_time?: string };
-export async function getActiveCampaigns(accountId: string): Promise<MetaCampaign[]> {
+export async function getCampaigns(accountId: string): Promise<MetaCampaign[]> {
   if (!/^act_\d+$/.test(accountId)) throw new Error('Invalid ad account ID');
   const rows = await fetchAllPages<Record<string, string>>(`${accountId}/campaigns`, {
     fields:'id,name,status,effective_status,objective,daily_budget,lifetime_budget,start_time,stop_time',
     limit:'200',
   });
-  return rows.filter(row => row.effective_status === 'ACTIVE').map(row => ({
+  return rows.map(row => ({
     id: String(row.id), name: String(row.name), status: String(row.status || ''), effective_status: String(row.effective_status || ''),
     objective: row.objective, daily_budget: row.daily_budget, lifetime_budget: row.lifetime_budget, start_time: row.start_time, stop_time: row.stop_time,
   }));
+}
+
+export async function getActiveCampaigns(accountId: string): Promise<MetaCampaign[]> {
+  return (await getCampaigns(accountId)).filter(row => row.effective_status === 'ACTIVE');
 }

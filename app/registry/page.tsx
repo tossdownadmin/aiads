@@ -9,7 +9,6 @@ type Approved = { name: string; description: string; source: string; categories:
 const nextWorkflows = [
   { name: 'Ad-level creative monitor', need: 'Needs daily ad insights and creative IDs before fatigue can be measured.' },
   { name: 'Ad copy drafts', need: 'Needs brand briefs, asset previews, and a draft review screen.' },
-  { name: 'Paid media plan', need: 'Needs goals, economics, geography, conversion definitions, and a planning workspace.' },
   { name: 'Ad upload', need: 'Needs a separate Meta write integration with dry run, approval, paused creation, and readback.' },
 ];
 
