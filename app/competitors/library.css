@@ -395,3 +395,28 @@
   height: 100%;
   object-fit: contain;
 }
+
+.craft-shell .fp-workspace {
+  padding: 0 26px 24px;
+}
+.craft-shell .research-form .fp-discover {
+  grid-template-columns: 190px minmax(0, 1fr) auto;
+  padding: 0;
+  gap: 12px;
+}
+.craft-shell .research-form .fp-dialog form {
+  grid-template-columns: minmax(0, 1fr);
+  padding: 26px;
+  gap: 16px;
+}
+@media (max-width: 720px) {
+  .craft-shell .fp-workspace {
+    padding: 0 17px 20px;
+  }
+  .craft-shell .research-form .fp-discover {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .craft-shell .research-form .fp-dialog form {
+    padding: 20px;
+  }
+}
