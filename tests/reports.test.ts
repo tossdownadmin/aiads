@@ -22,7 +22,7 @@ describe('report dates and metrics', () => {
   });
   it('joins on IDs and preserves historical delivery, orphaned insight rows and active no-row campaigns', () => {
     const cfg = (id:string,status:string,start:string) => ({ id,name:id,status,effective_status:status,start_time:start });
-    const rows = joinCampaigns([cfg('paused','PAUSED','2026-01-01'),cfg('quiet','ACTIVE','2026-01-01'),cfg('future','ACTIVE','2026-11-15')],[{campaign_id:'paused',spend:'5'},{campaign_id:'deleted',spend:'1'}],{since:'2026-10-01',until:'2026-10-31'});
+    const rows = joinCampaigns([cfg('paused','PAUSED','2026-01-01'),cfg('quiet','ACTIVE','2026-01-01'),cfg('future','ACTIVE','2026-11-15'),{...cfg('ended','ACTIVE','2026-01-01'),stop_time:'2026-09-30'}],[{campaign_id:'paused',spend:'5'},{campaign_id:'deleted',spend:'1'}],{since:'2026-10-01',until:'2026-10-31'});
     expect(rows.map(r=>r.id)).toEqual(['paused','deleted','quiet']);
     expect(rows[1].status).toBe('Unknown'); expect(rows[2].spend).toBeNull();
   });
@@ -46,7 +46,7 @@ describe('Meta report reader', () => {
       return Response.json({data,paging:{cursors:{after:'last'}}});
     });
     const [report]=await readReportWindows({id:'act_1',name:'A',currency:'USD',status:1},[{since:'2026-11-01',until:'2026-11-10'}]);
-    expect(calls).toHaveLength(3);expect(report.totals?.reach).toBe(11);expect(report.campaigns[0].status).toBe('PAUSED');
+    expect(calls).toHaveLength(4);expect(report.totals?.reach).toBe(11);expect(report.campaigns[0].status).toBe('PAUSED');
   });
   it('distinguishes inaccessible datasets from an empty visible list', async () => {
     vi.stubEnv('META_SYSTEM_USER_TOKEN','unit-test');vi.stubGlobal('fetch',async()=>Response.json({error:{message:'Denied'}},{status:403}));

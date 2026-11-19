@@ -73,19 +73,20 @@ export function metrics(row: Row = {}) {
     thruplays: action(row.video_thruplay_watched_actions, ['video_view']),
   };
 }
-export function joinCampaigns(config: MetaCampaign[], insights: Row[], window: Window) {
+export type DeliverySettings = { goals: string[]; bids: string[] };
+export function joinCampaigns(config: MetaCampaign[], insights: Row[], window: Window, settings = new Map<string,DeliverySettings>()) {
   const byId = new Map(config.map(c => [c.id, c]));
   const observed = new Map(insights.map(row => [String(row.campaign_id), row]));
   const ids = new Set(observed.keys());
   for (const item of config) {
-    if (item.effective_status === 'ACTIVE' && (!item.start_time || item.start_time.slice(0, 10) <= window.until)) ids.add(item.id);
+    if (item.effective_status === 'ACTIVE' && (!item.start_time || item.start_time.slice(0, 10) <= window.until) && (!item.stop_time || item.stop_time.slice(0, 10) >= window.since)) ids.add(item.id);
   }
   return Array.from(ids, id => {
     const row = observed.get(id);
     const current = byId.get(id);
     return { id, name: String(row?.campaign_name || current?.name || id), objective: String(row?.objective || current?.objective || ''),
       status: current?.effective_status || 'Unknown', stop: current?.stop_time?.slice(0, 10) || null,
-      hasInsights: Boolean(row), ...metrics(row) };
+      settings: settings.get(id), hasInsights: Boolean(row), ...metrics(row) };
   }).sort((a, b) => (b.spend ?? 0) - (a.spend ?? 0) || a.name.localeCompare(b.name));
 }
 export function outcomes(row: Metrics) {
