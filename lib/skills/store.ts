@@ -1,5 +1,6 @@
 import { get, list, put } from '@vercel/blob';
 import type { SkillRecord } from './types';
+import { getBuiltinSkills } from './builtin';
 const PREFIX = 'skills/staging/';
 const APPROVED_PREFIX = 'skills/approved/';
 type Stored = SkillRecord & { body: string; original: string; files: string[]; fetchedAt: string };
@@ -29,7 +30,7 @@ export async function listStagedSkills(): Promise<Array<Stored & { pathname: str
     const content = await new Response(response.stream).text();
     return { ...(JSON.parse(content) as Stored), pathname: blob.pathname };
   }));
-  const pending = rows.filter((row): row is Stored & { pathname: string } => row !== null && (row.status === 'staged' || row.status === 'reference_only'));
+  const pending = rows.filter((row): row is Stored & { pathname: string } => row !== null && row.source !== 'tossdown-aiads' && (row.status === 'staged' || row.status === 'reference_only'));
   const latest = new Map<string, Stored & { pathname: string }>();
   for (const row of pending.sort((a, b) => b.fetchedAt.localeCompare(a.fetchedAt))) {
     const key = `${row.source}/${row.name}`;
@@ -43,11 +44,11 @@ export async function listApprovedSkills(): Promise<Stored[]> {
     return response ? JSON.parse(await new Response(response.stream).text()) as Stored : null;
   }));
   const latest = new Map<string, Stored>();
-  for (const row of rows.filter((row): row is Stored => row !== null).sort((a, b) => b.fetchedAt.localeCompare(a.fetchedAt))) {
+  for (const row of rows.filter((row): row is Stored => row !== null && row.source !== 'tossdown-aiads').sort((a, b) => b.fetchedAt.localeCompare(a.fetchedAt))) {
     const key = `${row.source}/${row.name}`;
     if (!latest.has(key)) latest.set(key, row);
   }
-  return [...latest.values()];
+  return [...getBuiltinSkills(), ...latest.values()];
 }
 export async function decideSkill(pathname: string, decision: 'approved' | 'rejected') {
   if (!pathname.startsWith(PREFIX) || !pathname.endsWith('.json')) throw new Error('Invalid staged skill path');
@@ -57,6 +58,7 @@ export async function decideSkill(pathname: string, decision: 'approved' | 'reje
   const response = await get(file.url, { access: 'private', useCache: false });
   if (!response) throw new Error('Staged skill version not found');
   const skill = JSON.parse(await new Response(response.stream).text()) as Stored;
+  if (skill.source === 'tossdown-aiads') throw new Error('First-party skills are versioned in the application');
   if (decision === 'approved' && (skill.risk === 'high' || skill.status === 'reference_only')) throw new Error('High risk or unlicensed reference-only skills cannot be approved');
   skill.status = decision;
   await put(pathname, JSON.stringify(skill), { access: 'private', addRandomSuffix: false, allowOverwrite: true, contentType: 'application/json' });
