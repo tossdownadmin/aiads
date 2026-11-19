@@ -405,7 +405,7 @@ export function campaignCards(
               id +
               '-ads" data-set-filter="all">All ad sets <span>' +
               ads.length +
-              " ads</span></button>" +
+              (ads.length===1?" ad":" ads")+"</span></button>" +
               sets
                 .map(
                   (s, i) =>
@@ -421,7 +421,7 @@ export function campaignCards(
                     escape(s.name) +
                     " <span>" +
                     s.ads.length +
-                    " ads</span></button>",
+                    (s.ads.length===1?" ad":" ads")+"</span></button>",
                 )
                 .join("") +
               "</div>"
