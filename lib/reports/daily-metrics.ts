@@ -21,12 +21,12 @@ export function cash(n: number | null | undefined, currency: string) {
 }
 const per = (spend: number | null | undefined, total: number | null | undefined) => spend != null && total != null && total>0 ? spend/total : null;
 const short = (t: string) => t.trim().replace(/_/g,' ');
-const goalText = (c: CampaignRow) => (c.settings?.goals ?? []).join(' ');
+const goalText = (c: Pick<CampaignRow,'settings'>) => (c.settings?.goals ?? []).join(' ');
 const combined = (c: CampaignRow) => [c.name,c.objective,goalText(c)].join(' ');
 export const statusText = (s: string) => short(s).toLowerCase().replace(/^./,v=>v.toUpperCase());
 export type ResultKey = 'purchases'|'leads'|'conversations'|'instagramVisits'|'facebookVisits'|'thruplays'|'landingViews'|'linkClicks';
 const resultNames: Record<ResultKey,string> = { purchases:'purchases', leads:'leads', conversations:'chats', instagramVisits:'IG profile visits', facebookVisits:'FB profile visits', thruplays:'ThruPlays', landingViews:'landing page views', linkClicks:'link clicks' };
-export function resultKind(c: CampaignRow): ResultKey | undefined {
+export function resultKind(c: Pick<CampaignRow,'name'|'objective'|'settings'|'conversations'|'thruplays'>): ResultKey | undefined {
   const name = c.name.toLowerCase(), goals=goalText(c), objective=c.objective.toUpperCase();
   if (/messag|conversation|whatsapp/.test(name) || /CONVERSATIONS|MESSAGING/.test(goals)) return 'conversations';
   if (/LEAD/.test(objective) || /LEAD_GENERATION|QUALITY_LEAD/.test(goals)) return 'leads';

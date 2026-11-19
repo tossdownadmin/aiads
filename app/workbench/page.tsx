@@ -1,8 +1,9 @@
 'use client';
 
 import type { DetailMap } from '../../lib/meta/campaign-detail';
-import { detailBody, detailStyles } from '../../lib/reports/detail-view';
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import CampaignGallery from '../campaign-gallery';
+import {metrics} from '../../lib/reports/model';
+import { useEffect, useMemo, useState } from 'react';
 import { signIn } from 'next-auth/react';
 import WorkspaceShell from '../workspace-shell';
 
@@ -21,14 +22,7 @@ type AuditResult = {
   notice: string;
 };
 
-function metric(value?: string, digits = 2) {
-  if (value === undefined || value === '') return '—';
-  const number = Number(value);
-  return Number.isFinite(number) ? number.toLocaleString(undefined, { maximumFractionDigits: digits }) : '—';
-}
-
 export default function Workbench() {
-  const [expanded,setExpanded]=useState<Record<string,boolean>>({});
   const [connected, setConnected] = useState(false);
   const [skills, setSkills] = useState<Skill[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -72,7 +66,7 @@ export default function Workbench() {
   async function runAudit() {
     setBusy(true);
     setError('');
-    setResult(null);setExpanded({});
+    setResult(null);
     try {
       const response = await fetch('/api/meta/audit', {
         method: 'POST',
@@ -141,7 +135,7 @@ export default function Workbench() {
           <p>{result.analysis.summary}</p>
           {result.analysis.findings?.map((finding, index) => <article className="finding" key={`${finding.title}-${index}`}>
             <strong>{finding.title} <span className={`risk ${finding.severity}`}>{finding.severity}</span></strong>
-            <p>{finding.evidence}</p>{result.campaigns.filter(c => [finding.evidence,finding.title].some(t=>t.includes(c.id)||t.includes(c.name)) || result.details[c.id]?.sets.some(s=>s.ads.some(a=>finding.evidence.includes(a.id)))).map(c=><a key={c.id} href={'#campaign-'+c.id} onClick={()=>setExpanded(prev=>({...prev,[c.id]:true}))}>Open {c.name}</a>)}
+            <p>{finding.evidence}</p>{result.campaigns.filter(c => [finding.evidence,finding.title].some(t=>t.includes(c.id)||t.includes(c.name)) || result.details[c.id]?.sets.some(s=>s.ads.some(a=>finding.evidence.includes(a.id)))).map(c=><a key={c.id} href={'#campaign-'+c.id}>Open {c.name}</a>)}
             <small>Recommended next step: {finding.recommendation}</small>
           </article>)}
           {!!result.analysis.dataGaps?.length && <div className="finding"><strong>Data gaps</strong><ul>{result.analysis.dataGaps.map((gap, index) => <li key={index}>{gap}</li>)}</ul></div>}
@@ -151,8 +145,8 @@ export default function Workbench() {
           <strong>{issue.title}</strong><span>{issue.campaign}</span>
           <small>Spend {issue.spend.toFixed(2)} · CTR {issue.ctr}% · frequency {issue.frequency}</small>
         </div>) : <p className="empty">No threshold flags for this period. Review campaign metrics below.</p>}
-        <style>{detailStyles}</style><h3>Active campaign review</h3>
-        {result.campaigns.length ? <div className="campaign-table-wrap"><table className="campaign-table"><thead><tr><th>Campaign</th><th>Objective</th><th>Spend</th><th>Impressions</th><th>Reach</th><th>CTR</th><th>Frequency</th><th>Status</th></tr></thead><tbody>{result.campaigns.map(campaign => <Fragment key={campaign.id}><tr id={'campaign-'+campaign.id}><td><details className="rep-toggle" open={!!expanded[campaign.id]} onToggle={e=>{const open=e.currentTarget.open;setExpanded(prev=>!!prev[campaign.id]===open?prev:{...prev,[campaign.id]:open});}}><summary>{campaign.name}</summary></details><small>{campaign.id}</small></td><td>{campaign.objective || '—'}</td><td>{metric(campaign.spend)}</td><td>{metric(campaign.impressions, 0)}</td><td>{metric(campaign.reach, 0)}</td><td>{metric(campaign.ctr, 3)}{campaign.ctr ? '%' : ''}</td><td>{metric(campaign.frequency, 2)}</td><td><span className="campaign-status">{campaign.effective_status}</span></td></tr>{expanded[campaign.id] && result.details[campaign.id] && <tr className="rep-detail-row"><td colSpan={8} dangerouslySetInnerHTML={{__html:detailBody(result.details[campaign.id],result.account.currency)}}/></tr>}</Fragment>)}</tbody></table></div> : <p className="empty">No active campaigns were returned for this account.</p>}
+        <h3>Active campaign review</h3>
+        {result.campaigns.length ? <CampaignGallery campaigns={result.campaigns.map(c=>({id:c.id,name:c.name,status:c.effective_status,objective:c.objective||'',stats:metrics(c)}))} details={result.details} currency={result.account.currency} scope="audit"/> : <p className="empty">No active campaigns were returned for this account.</p>}
         <details><summary>Raw campaign evidence</summary><pre>{JSON.stringify(result.campaigns, null, 2)}</pre></details>
         <p className="muted footnote">{result.notice}</p>
       </section>}

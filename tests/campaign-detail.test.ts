@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { budget, creative, readDetails } from "../lib/meta/campaign-detail";
-import { detailBody } from "../lib/reports/detail-view";
+import { campaignCards } from "../lib/reports/detail-view";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -32,20 +32,31 @@ it("retains dynamic copy variants and carousel cards and escapes them in downloa
   });
   expect(c.copy).toEqual(["<script>alert(1)</script>", "Variant"]);
   expect(c.assets.find((a) => a.kind === "Carousel card")?.title).toBe("Card");
-  const html = detailBody(
+  const html = campaignCards(
+    [
+      {
+        id: "campaign",
+        name: "Campaign",
+        status: "ACTIVE",
+        objective: "OUTCOME_AWARENESS",
+      },
+    ],
     {
-      notes: [],
-      sets: [
-        {
-          id: "set",
-          name: "Ad set",
-          status: "PAUSED",
-          settings: {},
-          ads: [{ id: "ad", name: "Ad", status: "PAUSED", creative: c }],
-        },
-      ],
+      campaign: {
+        notes: [],
+        sets: [
+          {
+            id: "set",
+            name: "Ad set",
+            status: "PAUSED",
+            settings: {},
+            ads: [{ id: "ad", name: "Ad", status: "PAUSED", creative: c }],
+          },
+        ],
+      },
     },
     "CAD",
+    "test",
   );
   expect(html).toContain("&lt;script&gt;");
   expect(html).not.toContain("<script>alert");
@@ -120,15 +131,50 @@ it("joins paused inventory and insight-only ads and reports a denied video while
   ).toBe(JSON.stringify(range));
 });
 
-it('keeps ad results when Meta rejects the optional Instagram profile visit metric', async () => {
-  vi.stubEnv('META_SYSTEM_USER_TOKEN', 'test-only');
-  vi.stubGlobal('fetch', async (u: URL) => {
-    const fields = u.searchParams.get('fields') || '';
-    if (fields.includes('instagram_profile_visits')) return Response.json({error:{code:100,message:'instagram_profile_visits is not a valid field'}},{status:400});
-    if (u.searchParams.get('level') === 'ad') return Response.json({data:[{campaign_id:'campaign',adset_id:'set',ad_id:'ad',ad_name:'Observed ad',spend:'5',actions:[{action_type:'link_click',value:'67'}]}]});
-    return Response.json({data:[]});
+it("keeps ad results when Meta rejects the optional Instagram profile visit metric", async () => {
+  vi.stubEnv("META_SYSTEM_USER_TOKEN", "test-only");
+  vi.stubGlobal("fetch", async (u: URL) => {
+    const fields = u.searchParams.get("fields") || "";
+    if (fields.includes("instagram_profile_visits"))
+      return Response.json(
+        {
+          error: {
+            code: 100,
+            message: "instagram_profile_visits is not a valid field",
+          },
+        },
+        { status: 400 },
+      );
+    if (u.searchParams.get("level") === "ad")
+      return Response.json({
+        data: [
+          {
+            campaign_id: "campaign",
+            adset_id: "set",
+            ad_id: "ad",
+            ad_name: "Observed ad",
+            spend: "5",
+            actions: [{ action_type: "link_click", value: "67" }],
+          },
+        ],
+      });
+    return Response.json({ data: [] });
   });
-  const [result] = await readDetails('act_1','CAD',['campaign'],[range]);
+  const [result] = await readDetails("act_1", "CAD", ["campaign"], [range]);
   expect(result.campaign.sets[0].ads[0].stats?.linkClicks).toBe(67);
-  expect(result.campaign.notes).toContain('Instagram profile visits unavailable at ad level.');
+  expect(result.campaign.notes).toContain(
+    "Instagram profile visits unavailable at ad level.",
+  );
+});
+
+it('keeps dialog targets unique between report windows and shows metrics for the campaign objective', () => {
+  const campaign = {id:'campaign',name:'Video views',status:'ACTIVE',objective:'OUTCOME_ENGAGEMENT'};
+  const ad = {id:'ad',name:'Video ad',status:'PAUSED',creative:creative({body:'Original text'})};
+  const details = {campaign:{notes:[],sets:[{id:'set',name:'Audience',status:'PAUSED',settings:{Optimization:'THRUPLAY'},ads:[ad]}]}};
+  const html = campaignCards([campaign],details,'CAD','week') + campaignCards([campaign],details,'CAD','month');
+  const targets = Array.from(html.matchAll(/<dialog[^>]+id="([^"]+)"/g),m=>m[1]);
+  expect(targets).toHaveLength(2);
+  expect(new Set(targets).size).toBe(2);
+  expect(html).toContain('Cost per ThruPlay');
+  expect(html).toContain('All ad sets');
 });

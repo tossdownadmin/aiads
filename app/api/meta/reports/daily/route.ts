@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server';
 import { BlobPreconditionFailedError, BlobNotFoundError, head, get, put } from '@vercel/blob';
 import { z } from 'zod';
 import { verifyAdminSession } from '../../../../../lib/auth';
@@ -12,7 +11,17 @@ import type { SavedDaily } from '../../../../../lib/reports/saved-daily';
 export const runtime = 'nodejs';
 export const maxDuration = 300;
 const path = 'reports/daily/latest-v1.json';
-const reply = (body: unknown, status = 200) => NextResponse.json(body,{status,headers:{'Cache-Control':'private, no-store'}});
+function reply(body:unknown,status=200) {
+  const data=new TextEncoder().encode(JSON.stringify(body));
+  let offset=0;
+  return new Response(new ReadableStream({
+    pull(controller) {
+      controller.enqueue(data.subarray(offset,offset+65536));
+      offset+=65536;
+      if(offset>=data.length)controller.close();
+    },
+  }),{status,headers:{'Content-Type':'application/json','Cache-Control':'private, no-store'}});
+}
 const requestShape = z.object({
   version: z.string().max(200).nullable(),
   accountIds: z.array(z.string().regex(/^act_\d+$/)).min(1).optional(),

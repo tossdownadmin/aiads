@@ -1,5 +1,4 @@
-import { Fragment } from 'react';
-import { detailBody, detailStyles } from '../../lib/reports/detail-view';
+import CampaignGallery from '../campaign-gallery';
 import { money, outcomes, planAmounts, signals, type PlanInputs, type Proposal, type Report, type Snapshot } from '../../lib/reports/model';
 import type { MetaAccount } from '../../lib/meta/read';
 import type { DailyPresentation } from '../../lib/reports/daily-document';
@@ -10,10 +9,9 @@ const pct = (v: number | null) => v === null ? '—' : n(v) + '%';
 const multiple = (v: number | null) => v === null ? '—' : n(v) + '×';
 const statusNames: Record<number,string> = { 1: 'Active', 2: 'Disabled', 3: 'Unsettled', 7: 'Pending risk review', 8: 'Pending settlement', 9: 'In grace period', 100: 'Pending closure', 101: 'Closed' };
 function Campaigns({ period, currency }: { period: Snapshot; currency: string }) {
-  return <><style>{detailStyles}</style><p className="rep-range">{period.window.since} – {period.window.until} · Meta account time zone{period.window.partial && ' · Partial baseline month'}</p>
+  return <><p className="rep-range">{period.window.since} – {period.window.until} · Meta account time zone{period.window.partial && ' · Partial baseline month'}</p>
     {period.notes.map(t => <p key={t}>{t}</p>)}
-    {period.campaigns.length > 0 && <div className="rep-scroll"><table><thead><tr><th>Campaign</th><th>Status today</th><th>Spend</th><th>Impr.</th><th>Reach</th><th>Freq.</th><th>CTR</th><th>CPC</th><th>Reported actions / cost per action</th><th>Purchase ROAS</th></tr></thead>
-    <tbody>{period.campaigns.map(c => <Fragment key={c.id}><tr><th>{period.details?.[c.id]?<details className="rep-toggle"><summary>{c.name}</summary></details>:c.name}<small>{c.objective.replace(/^OUTCOME_/, '')} · {c.id}</small>{c.settings?.goals.length ? <small>Current goals · {c.settings.goals.join(", ")}</small> : null}{c.settings?.bids.length ? <small>Current bids · {c.settings.bids.join(", ")}</small> : null}{c.stop && <small>Scheduled end {c.stop}</small>}</th><td>{c.status}{!c.hasInsights && <small>No insight row</small>}</td><td>{money(c.spend,currency)}</td><td>{n(c.impressions)}</td><td>{n(c.reach)}</td><td>{n(c.frequency)}</td><td>{pct(c.ctr)}</td><td>{money(c.cpc,currency)}</td><td>{outcomes(c).length ? outcomes(c).map(([label,count]) => <small key={label}>{label} {n(count)}{count > 0 && c.spend !== null && ' · ' + money(c.spend / count,currency) + ' each'}</small>) : '—'}</td><td>{multiple(c.roas)}</td></tr>{period.details?.[c.id] && <tr className="rep-detail-row"><td colSpan={10} dangerouslySetInnerHTML={{__html:detailBody(period.details[c.id],currency)}}/></tr>}</Fragment>)}</tbody></table></div>}
+    <CampaignGallery campaigns={period.campaigns.map(c=>({...c,stats:c}))} details={period.details} currency={currency} scope={'monthly-'+period.window.since}/>
   </>;
 }
 function bullets(items: string[]) { return <ul>{items.map((t,i) => <li key={i}>{t}</li>)}</ul>; }

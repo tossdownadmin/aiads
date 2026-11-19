@@ -6,6 +6,7 @@ import WorkspaceShell from '../workspace-shell';
 import { clientCatalog } from '../../lib/competitors/catalog';
 import type { MetaAccount } from '../../lib/meta/read';
 import { accountToday, shiftDay, type PlanInputs } from '../../lib/reports/model';
+import {galleryScript} from '../../lib/reports/detail-view';
 import ReportView, { type Run } from './report-view';
 import { importDailyTemplate, matchPortfolio, readStoredTemplate, templateKey, type DailyTemplate } from '../../lib/reports/daily-template';
 import type { SavedDaily } from '../../lib/reports/saved-daily';
@@ -140,6 +141,7 @@ export default function Reports() {
     }
     style.textContent = 'body{margin:20px auto;max-width:1250px;padding:8px;font:15px system-ui,sans-serif;color:#173b33}*{box-sizing:border-box}' + rules.join('\n');
     doc.head.append(style); doc.body.append(content);
+    const controls=doc.createElement('script');controls.textContent=galleryScript;doc.body.append(controls);
     const file = new Blob(['<!doctype html>\n',doc.documentElement.outerHTML],{type:'text/html;charset=utf-8'});
     const url = URL.createObjectURL(file), link=document.createElement('a');
     link.href=url;link.download='tossdown-' + run.mode + '-' + run.date + '.html';link.click();
