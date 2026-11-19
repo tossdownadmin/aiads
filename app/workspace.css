@@ -16,6 +16,8 @@
 .audit-method input{accent-color:#129681;margin:4px 0 0;flex:none}
 .audit-method strong{display:block;color:#17352f;font-size:14px;line-height:1.3}
 .audit-method small{display:block;margin-top:5px;color:#57746a;font-size:12px;line-height:1.45}
+.workspace-audit .selector-grid label.audit-method{display:flex;align-items:flex-start;gap:12px}
+.workspace-audit .selector-grid .audit-method input[type=radio]{width:17px;min-width:17px;height:17px;min-height:17px;margin:2px 0 0;padding:0;flex:none;accent-color:#129681}
 .audit-other-methods{display:grid;gap:6px;max-width:340px;margin-top:15px;color:#466157;font-size:12px;font-weight:700}
 @media(max-width:850px){.audit-method-list{grid-template-columns:1fr}}
 .workspace-own-skills{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-top:16px}
