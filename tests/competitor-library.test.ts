@@ -36,3 +36,8 @@ it('requests live collection explicitly and retains successful results if a late
  expect(result.ads).toHaveLength(1);expect(result.after).toBeTruthy();expect(result.coverageNote).toContain('unavailable');expect((request.mock.calls[0][0] as URL).searchParams.get('collect')).toBe('true');
  await expect(searchSavedCompetitors([row('a'),row('b')],{...filters,force:true})).rejects.toMatchObject({httpStatus:400});
 });
+
+it('accepts the millisecond timestamps returned by live Page searches',async()=>{
+ vi.stubEnv('FOREPLAY_API_KEY','test');vi.stubGlobal('fetch',vi.fn().mockResolvedValue(Response.json({data:[{id:'date',started_running:1795000000000}]})));
+ const result=await searchForeplay({...filters,brandIds:[],pageId:'1234'});expect(result.ads[0].ad_delivery_start_time).toBe(new Date(1795000000000).toISOString());
+});

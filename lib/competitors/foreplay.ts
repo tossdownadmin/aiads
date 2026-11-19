@@ -39,6 +39,21 @@ function publicUrl(value: unknown, host?: string): string | undefined {
   }
 }
 
+function sourceDate(value: unknown): string | undefined {
+  if (typeof value !== "string" && typeof value !== "number") return undefined;
+  const number =
+    typeof value === "number"
+      ? value
+      : /^\d+$/.test(value)
+        ? Number(value)
+        : undefined;
+  const date =
+    number !== undefined
+      ? new Date(number < 1e12 ? number * 1000 : number)
+      : new Date(value);
+  return Number.isFinite(date.getTime()) ? date.toISOString() : undefined;
+}
+
 export async function searchForeplay(input: ForeplaySearch) {
   const key = process.env.FOREPLAY_API_KEY;
   if (!key) throw new Error("Foreplay API key is not configured");
@@ -149,10 +164,7 @@ export async function searchForeplay(input: ForeplaySearch) {
               ? [String(ad.cta_title)]
               : [],
             publisher_platforms: platforms,
-            ad_delivery_start_time:
-              typeof ad.started_running === "number"
-                ? new Date(ad.started_running * 1000).toISOString()
-                : string(ad.started_running),
+            ad_delivery_start_time: sourceDate(ad.started_running),
             ad_snapshot_url: publicUrl(ad.foreplay_url, "app.foreplay.co"),
             thumbnail_url: publicUrl(ad.thumbnail) || publicUrl(ad.image),
             video_url: publicUrl(ad.video),

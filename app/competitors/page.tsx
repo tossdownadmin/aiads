@@ -419,36 +419,40 @@ export default function CompetitorResearch() {
                   </span>
                 </button>
               </div>
-              {source === "foreplay" && !sources.foreplay?.ready && (
-                <div className="source-setup">
-                  <strong>
-                    {!sources.foreplay?.authConfigured
-                      ? "Google sign-in needs setup"
-                      : !sources.foreplay?.signedIn
-                        ? "Sign in to use Foreplay"
-                        : "Foreplay API key is missing"}
-                  </strong>
-                  <span>
-                    {!sources.foreplay?.authConfigured
-                      ? "Add the Google OAuth client ID and secret, NEXTAUTH_URL, NEXTAUTH_SECRET, and AUTH_ALLOWED_EMAILS in Vercel. Then redeploy."
-                      : !sources.foreplay?.signedIn
-                        ? "Use an approved Google account to review and save advertiser matches. The Foreplay key stays on the server."
-                        : "Add FOREPLAY_API_KEY to the Vercel project and redeploy."}
-                  </span>
-                  {sources.foreplay?.authConfigured &&
-                    !sources.foreplay?.signedIn && (
-                      <button
-                        type="button"
-                        className="secondary-button"
-                        onClick={() =>
-                          void signIn("google", { callbackUrl: "/competitors" })
-                        }
-                      >
-                        Sign in with Google
-                      </button>
-                    )}
-                </div>
-              )}
+              {source === "foreplay" &&
+                sources.foreplay &&
+                !sources.foreplay.ready && (
+                  <div className="source-setup">
+                    <strong>
+                      {!sources.foreplay?.authConfigured
+                        ? "Google sign-in needs setup"
+                        : !sources.foreplay?.signedIn
+                          ? "Sign in to use Foreplay"
+                          : "Foreplay API key is missing"}
+                    </strong>
+                    <span>
+                      {!sources.foreplay?.authConfigured
+                        ? "Add the Google OAuth client ID and secret, NEXTAUTH_URL, NEXTAUTH_SECRET, and AUTH_ALLOWED_EMAILS in Vercel. Then redeploy."
+                        : !sources.foreplay?.signedIn
+                          ? "Use an approved Google account to review and save advertiser matches. The Foreplay key stays on the server."
+                          : "Add FOREPLAY_API_KEY to the Vercel project and redeploy."}
+                    </span>
+                    {sources.foreplay?.authConfigured &&
+                      !sources.foreplay?.signedIn && (
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          onClick={() =>
+                            void signIn("google", {
+                              callbackUrl: "/competitors",
+                            })
+                          }
+                        >
+                          Sign in with Google
+                        </button>
+                      )}
+                  </div>
+                )}
               {source === "foreplay" && sources.foreplay?.signedIn && (
                 <div className="signed-in-note">
                   <span className="status-light" /> Signed in for paid research{" "}
@@ -503,7 +507,11 @@ export default function CompetitorResearch() {
                   onResult={(data, query) => {
                     setResult(data);
                     setTerms(query);
-                    setSelected([]);
+                    setSelected((current) =>
+                      current.filter((id) =>
+                        data.ads.some((ad) => ad.id === id),
+                      ),
+                    );
                     setAnalysis(null);
                   }}
                 />

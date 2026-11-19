@@ -109,6 +109,11 @@ export async function POST(request: Request) {
           { error: "Choose a client brand." },
           { status: 400 },
         );
+      if (data.refresh && (data.mode === "keywords" || data.useBoard))
+        return NextResponse.json(
+          { error: "Live collection requires a selected advertiser or Page." },
+          { status: 400 },
+        );
       const filters = {
         live: data.activeStatus,
         format:
