@@ -19,7 +19,7 @@ function labels(part: string, key: string) {
 }
 
 function scopeLabel(text: string) {
-  const match = /mutton|lahore|grocery|celebration|one.stop|karahi|post.workout|08\/10|21\/10|nb\+ns|courtenay|profile|video|awareness|sales?|best/i.exec(text);
+  const match = /mutton|lahore|grocery|celebration|one.stop|karahi|post.workout|08\/10|21\/10|nb\+ns|courtenay|ig growth|profile|video|awareness|sales?|best/i.exec(text);
   return match?.[0].toLowerCase().replace(/^sales$/,'sale') || '';
 }
 function scopedLabels(part:string) {
@@ -27,12 +27,12 @@ function scopedLabels(part:string) {
   const scopes:Record<string,string>={};
   for(const m of line.matchAll(new RegExp('(?:^|\\],\\s*)\\['+quoted+',\\s*'+quoted+',\\s*'+quoted,'g'))) {
     // Only named measurement scopes survive import. Old values and judgments are discarded.
-    const explicit=/^(?:mutton menu|sale campaign|awareness (?:campaign|video))$/i.test(m[3]);
+    const explicit=/^(?:mutton menu|sale campaign|awareness (?:campaign|video)|nb\+ns only)$/i.test(m[3]);
     if(explicit) scopes[clean(m[1])]=scopeLabel(m[3]);
   }
   return scopes;
 }
-function summaryScopes(data:string,id:string,period:number) {
+function summaryScopes(data:string,id:string,period:number,part:string) {
   const lines=data.split('const SUMS = {')[1]?.split('const NOT_INCLUDED')[0]?.split('\n')||[];
   const line=lines.find(s=>s.trimStart().startsWith(id+':'))||'';
   const row=(period===0?line.split('p7:[')[1]?.split('p30:[')[0]:line.split('p30:[')[1])||'';
@@ -46,11 +46,27 @@ function summaryScopes(data:string,id:string,period:number) {
     if(!quote && ch===']') { if(nested===0){cells.push(cell);break;} nested--; }
     if(!quote && ch===',' && nested===0){cells.push(cell);cell='';} else cell+=ch;
   }
-  return cells.slice(2,7).map(c=>scopeLabel(c));
+  const scopes=cells.slice(2,7).map(c=>scopeLabel(c));
+  const price=cells[3]?.match(/(?:\$|₨)\s*[\d,]+(?:\.\d+)?/)?.[0];
+  if (!scopes[1] && price) {
+    const kpis=part.match(/^\s*kpis:\s*\[(.*)\],?\s*$/m)?.[1]||'';
+    for (const item of kpis.matchAll(new RegExp('(?:^|\\],\\s*)\\['+quoted+',\\s*'+quoted+',\\s*'+quoted,'g'))) {
+      if (/cpl|cpp|cpr/i.test(item[1]) && item[2].match(/(?:\$|₨)\s*[\d,]+(?:\.\d+)?/)?.[0]===price) {
+        const scope=scopeLabel(item[1]) || scopeLabel(item[3]);
+        if (scope) {scopes[1]=scope;break;}
+      }
+    }
+  }
+  return scopes;
 }
 
 export function importDailyTemplate(source: string): DailyTemplate {
   if (source.length > 3_000_000) throw new Error('Choose the original daily HTML report, under 3 MB.');
+  if (source.trimStart().startsWith('{')) {
+    const value=readStoredTemplate(source);
+    if (value) return value;
+    throw new Error('These settings do not contain a supported daily report template.');
+  }
   const embedded=source.match(/<script type="application\/json" id="tossdown-daily-template">([\s\S]*?)<\/script>/)?.[1];
   if (embedded) { const value=readStoredTemplate(embedded); if(value) return value; }
   const data = source.split('/*__DATA_START__*/')[1]?.split('/*__DATA_END__*/')[0];
@@ -64,7 +80,7 @@ export function importDailyTemplate(source: string): DailyTemplate {
     const parts = item.split(/^\s*p(?:7|30):\{/m).slice(1);
     const periods = parts.map((part,index) => {
       const matched = part.match(/\bcols:\s*C_(SALES|VISITS|MIXROAS|MIXED|LEADS)\b/);
-      return { cards: labels(part,'card'), kpis: labels(part,'kpis'), columns: (matched?.[1] || 'MIXED') as ColumnSet, scopes:scopedLabels(part), summary:summaryScopes(data,field(meta,'id'),index) };
+      return { cards: labels(part,'card'), kpis: labels(part,'kpis'), columns: (matched?.[1] || 'MIXED') as ColumnSet, scopes:scopedLabels(part), summary:summaryScopes(data,field(meta,'id'),index,part) };
     });
     if (periods.length !== 2 || periods.some(p => !p.cards.length || !p.kpis.length)) throw new Error('This file uses an unsupported daily report layout.');
     const id = field(meta,'acct');

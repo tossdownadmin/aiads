@@ -10,7 +10,12 @@ const num = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
 export const count = (n: number | null | undefined) => n == null ? dash : num.format(n);
 export const percent = (n: number | null | undefined) => n == null ? dash : (n > 0 && n < .1 ? n.toFixed(3) : n.toFixed(2)) + '%';
 export const ratio = (n: number | null | undefined) => n == null ? dash : n.toFixed(2) + '×';
-export const cash = (n: number | null | undefined, currency: string) => n == null ? dash : money(n,currency);
+export function cash(n: number | null | undefined, currency: string) {
+  if (n == null) return dash;
+  if (currency==='PKR') return '₨'+n.toLocaleString('en-US',{maximumFractionDigits:0});
+  if (currency==='CAD' || currency==='USD') return '$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  return money(n,currency);
+}
 const per = (spend: number | null | undefined, total: number | null | undefined) => spend != null && total != null && total>0 ? spend/total : null;
 const short = (t: string) => t.trim().replace(/_/g,' ');
 const goalText = (c: CampaignRow) => (c.settings?.goals ?? []).join(' ');
@@ -116,8 +121,9 @@ export function accountResult(p: Snapshot, columns: ColumnSet, type='') {
 
 export function dailyFact(label: string, account: MetaAccount, p: Snapshot, layout: ClientLayout | undefined, columns: ColumnSet, findings: Finding[], scopeHint=''): Fact {
   const rows=p.campaigns.filter(c=>(c.spend??0)>0 || (c.impressions??0)>0);
-  const focus=scopedCampaign(scopeHint || label,rows);
-  const hasSelector=selectors.some(([pattern])=>pattern.test(label));
+  const scopeName=scopeHint || label;
+  const focus=scopedCampaign(scopeName,rows);
+  const hasSelector=selectors.some(([pattern])=>pattern.test(scopeName));
   const aggregate=p.totals;
   const status=findings.some(f=>f.tone==='crit')?'Critical':findings.some(f=>f.tone==='warn')?'Watch':'Healthy';
   const primary=accountResult(p,columns,layout?.type);
@@ -127,8 +133,15 @@ export function dailyFact(label: string, account: MetaAccount, p: Snapshot, layo
   const l=label.toLowerCase();
   if (l==='status') return out(status,findings[0]?.title??'Delivery review');
   if (l==='action') return out(status==='Healthy'?'Monitor':'Review',findings[0]?.action??'Review delivery');
+  if (l==='data' && rows.length===1 && rows[0].start && rows[0].start>=p.window.since && rows[0].start<=p.window.until) {
+    const days=Math.floor((Date.parse(p.window.until)-Date.parse(rows[0].start))/86400000)+1;
+    return out(days+(days===1?' day':' days')+' since launch',rows[0].name);
+  }
   if (l==='data') return out(aggregate?'Available':'Unreported','Account insights in this window');
+  const labels=layout?.periods?.flatMap(period=>[...period.cards,...period.kpis])??[];
+  if (l==='active campaigns' && labels.includes('Total ACTIVE Status')) return out(count(rows.filter(c=>(c.spend??0)>0).length),'Campaigns with reported spend during the window');
   if (l==='active campaigns'||l==='campaigns (active)'||l==='total active status') return out(count(p.inventory?.active), 'Current effective status');
+  if (l==='campaigns' && labels.includes('Total ACTIVE Status')) return out(count(p.inventory?.active),'Current effective status');
   if (l==='campaigns'||l==='total campaigns') return out(count(p.inventory?.total),'Current inventory');
   if (l==='campaign'||l==='best campaign') {
     const c=l==='best campaign'?highest(rows,'ctr'):rows[0];

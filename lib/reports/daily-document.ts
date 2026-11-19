@@ -59,7 +59,7 @@ function accountView(entry: Entry,p:Snapshot,layout:ClientLayout|undefined,i:num
   const resultMetric=summary.kind==='purchases'?'Purchases':summary.kind==='leads'?'Leads':summary.kind==='instagramVisits'?'IG Growth Results':'';
   const costMetric=summary.kind==='purchases'?'CPP':summary.kind==='leads'?'CPL':summary.kind==='instagramVisits'?'IG Growth CPR':'';
   const scoped=(label:string, hint:string|undefined)=>dailyFact(label,account,p,layout,spec.columns,findings,hint);
-  const resultScope=ref[0] || defaultScope, costScope=ref[1] || resultScope;
+  const resultScope=ref[0] || defaultScope, costScope=ref[1] || ref[0] || (summary.kind==='instagramVisits'?defaultScope:'');
   const summaryResult=resultMetric && resultScope ? scoped(resultMetric,resultScope) : { value:count(summary.value),detail:summary.scope };
   const summaryCost=costMetric && costScope ? scoped(costMetric,costScope) : { value:cash(summary.cost,account.currency),detail:summary.scope };
   const compare=(label:string,idx:number)=>ref[idx]==='best'?fact('Best '+label):scoped(label,ref[idx] || (label==='ROAS'?spec.scopes?.ROAS:undefined));
@@ -70,7 +70,7 @@ function clientCard(v:View,index:number) {
   return '<button type="button" class="account-card" data-open="'+index+'"><span class="ac-header"><span><span class="ac-name" style="display:block">'+escape(v.name)+'</span><span class="ac-currency">'+escape([v.account.currency,v.market].filter(Boolean).join(' · '))+'</span></span>'+badge(v.type)+'</span><span class="ac-metrics">'+v.spec.cards.map(label=>{
     const k=v.fact(label);
     return '<span title="'+escape(k.detail)+'"><span class="ac-m-label" style="display:block">'+escape(label)+'</span><span class="ac-m-value'+(k.value.length>15?' long':'')+'" style="display:block">'+escape(k.value)+'</span></span>';
-  }).join('')+'</span><span class="ac-issues">'+v.findings.slice(0,2).map(f=>'<span class="issue-chip chip-'+f.tone+'" title="'+escape(f.title)+'">'+icon[f.tone]+' '+escape(f.title)+'</span>').join('')+'</span></button>';
+  }).join('')+'</span><span class="ac-issues">'+v.findings.slice(0,2).map(f=>'<span class="issue-chip chip-'+f.tone+'" title="'+escape(f.title)+'">'+icon[f.tone]+' '+escape(f.title.split(' · ')[0])+'</span>').join('')+'</span></button>';
 }
 function detail(v:View,periodName:string) {
   const active=v.p.inventory?.active;

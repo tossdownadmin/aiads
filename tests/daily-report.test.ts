@@ -20,6 +20,7 @@ describe('daily template and live reports',()=>{
     expect(template.clients[0].periods![0].kpis).toEqual(['Total Spend','CPL']);
     const stored=JSON.stringify(template); expect(stored).not.toContain('$900 old');
     expect(readStoredTemplate(stored)).toEqual(template);
+    expect(importDailyTemplate(stored)).toEqual(template);
     const portfolio=matchPortfolio(template,[account,{...account,id:'act_555',name:'Food'}]);
     expect([...portfolio.matches.keys()]).toEqual([account.id]);
     expect(portfolio.missing.map(c=>c.name)).toEqual(['Other']);
@@ -35,6 +36,12 @@ describe('daily template and live reports',()=>{
     expect(flags.find(f=>f.title==='Cost per lead differs by campaign')?.detail).toMatch(/10.00.*20.00/);
     expect(dailyFact('CPL',account,periods[0],undefined,'LEADS',flags).value).toMatch(/16.29/);
     expect(dailyFact('Video CTR',account,periods[0],undefined,'MIXED',flags).value).toBe('—');
+    const scopedSales={...periods[0],totals:metrics({spend:99,actions:[{action_type:'purchase',value:3}]}),campaigns:joinCampaigns([],[
+      {campaign_id:'9',campaign_name:'Sale campaign',objective:'OUTCOME_SALES',spend:'36',actions:[{action_type:'purchase',value:3}]},
+      {campaign_id:'7',campaign_name:'Awareness',objective:'OUTCOME_AWARENESS',spend:'63'}
+    ],windows[0])};
+    expect(dailyFact('CPP',account,scopedSales,undefined,'SALES',[],'sale').value).toBe('$12.00');
+    expect(dailyFact('CPP',account,scopedSales,undefined,'SALES',[]).value).toBe('$33.00');
   });
   it('exports both working windows, offline navigation, target portfolio exclusions, and escaped source text',()=>{
     const layout=importDailyTemplate(reference).clients[0];

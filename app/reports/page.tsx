@@ -33,6 +33,7 @@ export default function Reports() {
   const frame = useRef<HTMLIFrameElement>(null);
   const [template,setTemplate] = useState<DailyTemplate>();
   const [templateNote,setTemplateNote] = useState('');
+  const [templateText,setTemplateText] = useState('');
   const portfolio = useMemo(()=>matchPortfolio(template,accounts),[template,accounts]);
   const dailyHtml = useMemo(()=>run?.mode==='daily' ? renderDailyDocument(run.entries,run.date,run.presentation) : '',[run]);
   const [dailyUrl,setDailyUrl] = useState('');
@@ -46,15 +47,19 @@ export default function Reports() {
     const ids=Array.from(matchPortfolio(value,list).matches).filter(([,client])=>client.periods).map(([id])=>id);
     setSelected(ids); setRun(null);
   }
-  async function loadTemplate(file?:File) {
-    if (!file) return;
+  function applyTemplateText(source:string) {
     try {
-      if(file.size>3_000_000) throw new Error('Choose the original daily HTML report, under 3 MB.');
-      const value=importDailyTemplate(await file.text());
+      const value=importDailyTemplate(source);
       useTemplate(value,accounts);
+      setTemplateText('');
       try { localStorage.setItem(templateKey,JSON.stringify(value)); setTemplateNote('Template saved in this browser.'); }
       catch { setTemplateNote('Template is available for this session.'); }
     } catch(e) { setTemplateNote(e instanceof Error?e.message:'The template could not be read.'); }
+  }
+  async function loadTemplate(file?:File) {
+    if (!file) return;
+    if (file.size>3_000_000) {setTemplateNote('Choose the original daily HTML report, under 3 MB.');return;}
+    try {applyTemplateText(await file.text());} catch {setTemplateNote('This file could not be read.');}
   }
   async function connect() {
     setError(''); setLoaded(false);
@@ -134,6 +139,7 @@ export default function Reports() {
       {mode === 'daily' ? <>
         <div className="rep-inputs"><label>Through date<input type="date" name="end" defaultValue={end} required onInput={e=>setEnd(e.currentTarget.value)}/></label><label>Find ad accounts<input type="search" value={query} placeholder="Name or account ID" onChange={e=>setQuery(e.target.value)}/></label></div>
         <div className="rep-template"><div><strong>{template?'Daily report template':'Use a previous daily report'}</strong><small>{template?template.clients.length+' expected brands · '+portfolio.matches.size+' matched accounts':'Choose the original daily HTML to use its client list and KPI cards. Figures are read from Meta for the selected dates.'}</small></div><label className="rep-file">{template?'Replace template':'Open template'}<input type="file" accept=".html,.htm,text/html" aria-label="Open daily HTML template" onChange={e=>{const file=e.currentTarget.files?.[0];e.currentTarget.value='';void loadTemplate(file);}}/></label>{template && <button type="button" onClick={()=>useTemplate(template,accounts)}>Select template accounts</button>}<small role="status">{templateNote}</small></div>
+        <details className="rep-paste-template"><summary>Paste a template</summary><label>Daily report HTML or template settings<textarea rows={3} value={templateText} maxLength={3_000_000} onChange={e=>setTemplateText(e.target.value)} /></label><button type="button" disabled={!templateText.trim()} onClick={()=>applyTemplateText(templateText)}>Apply template</button></details>
         <div className="rep-selectbar"><strong>{selected.length} selected</strong><button type="button" onClick={()=>setSelected([...new Set([...selected,...matches.map(a=>a.id)])])}>Select {query ? 'matches' : 'all'}</button><button type="button" onClick={()=>setSelected([])}>Clear</button></div>
         <div className="rep-accounts">{matches.map(a=><label key={a.id}><input type="checkbox" checked={selected.includes(a.id)} onChange={e=>setSelected(e.target.checked?[...selected,a.id]:selected.filter(id=>id!==a.id))}/><span>{a.name}<small>{a.currency} · {a.id}</small></span></label>)}{!matches.length && <p>No matching account</p>}</div></> :
       <><div className="rep-inputs"><label>Ad account<select required value={monthlyId} onChange={e=>{setMonthlyId(e.target.value);setResearchClient('');setInputs(emptyInputs);setRun(null);}}><option value="">Choose account</option>{accounts.map(a=><option key={a.id} value={a.id}>{a.name} · {a.currency} · {a.id}</option>)}</select></label><label>Plan month<input type="month" name="month" required defaultValue={month} onInput={e=>{setMonth(e.currentTarget.value);setInputs(emptyInputs);setRun(null);}}/></label></div>

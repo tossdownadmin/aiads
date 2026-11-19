@@ -12,6 +12,9 @@
 .rep-form button:disabled { opacity:.55; cursor:default; }
 .rep-form input:not([type=checkbox]),.rep-form select,.rep-form textarea { width:100%; min-height:40px; padding:8px 10px; border:1px solid #c2d4cd; border-radius:8px; background:#fff; color:#18382f; font:inherit; font-weight:450; }
 .rep-form textarea { min-height:70px; resize:vertical; }
+.rep-paste-template { margin-top:8px;font-size:13px;color:#395d51; }
+.rep-paste-template summary { width:max-content;cursor:pointer; }
+.rep-paste-template label { margin:8px 0; }
 .rep-inputs { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin:12px 0; }
 .rep-form small,.report-paper small { display:block; color:#49665b; font-size:12px; font-weight:450; }
 .rep-accounts { max-height:210px; overflow:auto; display:grid; grid-template-columns:repeat(auto-fit,minmax(min(215px,100%),1fr)); gap:5px; padding:4px 0; }
