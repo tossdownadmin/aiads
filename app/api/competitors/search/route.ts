@@ -5,12 +5,14 @@ import { verifyAdminSession } from '../../../../lib/auth';
 import { searchForeplay } from '../../../../lib/competitors/foreplay';
 import { verifyPaidSourceSession } from '../../../../lib/competitors/access';
 import { clientCatalog } from '../../../../lib/competitors/catalog';
-import { readCompetitors } from '../../../../lib/competitors/store';
+import { readClientBoard, readCompetitors } from '../../../../lib/competitors/store';
 
 export const runtime = 'nodejs';
 
 const schema = z.object({
   source: z.enum(['meta', 'foreplay']).default('meta'),
+  boardAdvertisers:z.boolean().default(false),
+  useBoard:z.boolean().default(false),
   clientId: z.string().max(80).optional(),
   brandIds: z.array(z.string().min(1).max(100)).max(10).default([]),
   searchTerms: z.string().trim().max(100).default(''),
@@ -21,7 +23,7 @@ const schema = z.object({
   platform: z.enum(['FACEBOOK', 'INSTAGRAM', 'AUDIENCE_NETWORK', 'MESSENGER', 'WHATSAPP', 'THREADS']).optional(),
   pageIds: z.array(z.string().regex(/^\d{3,30}$/)).max(10).default([]),
   after: z.string().max(500).optional(),
-}).refine(value => value.source === 'foreplay' ? value.brandIds.length > 0 : value.searchTerms.length > 0 || value.pageIds.length > 0, {
+}).refine(value => value.source === 'foreplay' ? (value.useBoard || value.brandIds.length > 0) : value.searchTerms.length > 0 || value.pageIds.length > 0, {
   message: 'Choose Foreplay brands, or enter Meta search terms or Page IDs.',
 });
 
@@ -44,10 +46,12 @@ export async function POST(request: Request) {
     if (!process.env.FOREPLAY_API_KEY) return NextResponse.json({ error: 'Add FOREPLAY_API_KEY in Vercel to enable Foreplay search.', code: 'SOURCE_NOT_CONFIGURED' }, { status: 503 });
     try {
       if (!parsed.data.clientId || !clientCatalog.some(item => item.id === parsed.data.clientId)) return NextResponse.json({ error: 'Choose a client brand.' }, { status: 400 });
-      const saved = await readCompetitors(parsed.data.clientId);
-      if (!parsed.data.brandIds.every(id => saved.some(item => item.id === id && item.reviewed === true))) return NextResponse.json({ error: 'Review and confirm each advertiser again before searching.' }, { status: 400 });
+      const board=parsed.data.useBoard ? await readClientBoard(parsed.data.clientId) : null;
+      if(parsed.data.useBoard && !board) return NextResponse.json({error:'Link a board for this client first.'},{status:400});
+      const saved = board ? [] : await readCompetitors(parsed.data.clientId);
+      if (!board && !parsed.data.brandIds.every(id => saved.some(item => item.id === id && item.reviewed === true))) return NextResponse.json({ error: 'Review and confirm each advertiser again before searching.' }, { status: 400 });
       const result = await searchForeplay({
-        brandIds: parsed.data.brandIds,
+        brandIds: parsed.data.brandIds, boardId:board?.id, boardAdvertisers:parsed.data.boardAdvertisers,
         live: parsed.data.activeStatus,
         format: parsed.data.mediaType === 'IMAGE' || parsed.data.mediaType === 'VIDEO' ? parsed.data.mediaType : 'ALL',
         platform: parsed.data.platform === 'FACEBOOK' || parsed.data.platform === 'INSTAGRAM' || parsed.data.platform === 'MESSENGER' || parsed.data.platform === 'AUDIENCE_NETWORK' ? parsed.data.platform : undefined,

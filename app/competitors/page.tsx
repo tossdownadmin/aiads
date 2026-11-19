@@ -1,5 +1,6 @@
 'use client';
 
+import BoardPicker from './client-board';
 import { useEffect, useMemo, useState } from 'react';
 import { signIn, signOut } from 'next-auth/react';
 import { clientCatalog } from '../../lib/competitors/catalog';
@@ -37,6 +38,7 @@ export default function CompetitorResearch() {
   const [source, setSource] = useState<'meta' | 'foreplay'>('foreplay');
   const [clientId, setClientId] = useState(clientCatalog[0].id);
   const clientBrand = clientCatalog.find(item => item.id === clientId) || clientCatalog[0];
+  const [useBoard,setUseBoard]=useState<''|'advertisers'|'curated'>('');
   const [domain, setDomain] = useState('');
   const [candidates, setCandidates] = useState<BrandCandidate[]>([]);
   const [lookups, setLookups] = useState<Record<string, BrandLookup>>({});
@@ -140,7 +142,7 @@ export default function CompetitorResearch() {
     try {
       const response = await fetch('/api/competitors/search', {
         method: 'POST', headers,
-        body: JSON.stringify({ source, clientId, brandIds: source === 'foreplay' ? competitors.map(item => item.id) : [], searchTerms: terms.trim(), pageIds: source === 'meta' ? pageIds.split(',').map(value => value.trim()).filter(Boolean) : [], country, activeStatus, searchType, mediaType, ...(platform ? { platform } : {}), ...(after ? { after } : {}) }),
+        body: JSON.stringify({ source, clientId, useBoard:source==='foreplay' && Boolean(useBoard), boardAdvertisers:useBoard==='advertisers', brandIds: source === 'foreplay' ? competitors.map(item => item.id) : [], searchTerms: terms.trim(), pageIds: source === 'meta' ? pageIds.split(',').map(value => value.trim()).filter(Boolean) : [], country, activeStatus, searchType, mediaType, ...(platform ? { platform } : {}), ...(after ? { after } : {}) }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Search failed');
@@ -194,7 +196,8 @@ export default function CompetitorResearch() {
       {source === 'meta' && !sources.meta?.configured && <div className="source-setup"><strong>Meta Ad Library API is not connected yet.</strong><span>Add <code>META_AD_LIBRARY_TOKEN</code> in Vercel after enabling API access for the Tossdown Meta developer app. Keep it server-side.</span><a href="https://www.facebook.com/ads/library/api/" target="_blank" rel="noreferrer">Open Meta API access steps ↗</a></div>}
       {source === 'foreplay' && <div className="competitor-setup">
         <div className="setup-title"><div><span className="craft-section-number">2</span><div><h3>Competitors</h3><p>Pick a client brand and review its suggested advertisers.</p></div></div><a href={clientBrand.evidence} target="_blank" rel="noreferrer">Brand source ↗</a></div>
-        <label className="field client-picker"><span>Client brand</span><select value={clientId} onChange={event => { setClientId(event.target.value); setDomain(''); }}>{clientCatalog.map(item => <option key={item.id} value={item.id}>{item.name} · {item.market}</option>)}</select></label>
+        <label className="field client-picker"><span>Client brand</span><select value={clientId} onChange={event => { setClientId(event.target.value); setUseBoard(''); setDomain(''); }}>{clientCatalog.map(item => <option key={item.id} value={item.id}>{item.name} · {item.market}</option>)}</select></label>
+        {sources.foreplay?.ready && <BoardPicker key={clientId} clientId={clientId} using={useBoard} onUse={value=>{setUseBoard(value);setResult(null);setSelected([]);setAnalysis(null);}}/>}
         <div className="lookup-head"><div><h4>Suggested competitors</h4><p>Check each Foreplay advertiser match before adding it.</p>{competitors.length + legacyMatches.length >= 10 && <p className="capacity-note">Review or discard earlier selections to free a slot.</p>}</div><button type="button" className="secondary-button lookup-all" disabled={!sources.foreplay?.ready || lookingUp || competitors.length + legacyMatches.length >= 10} onClick={() => void lookupSuggested()}>{lookingUp ? 'Looking up…' : 'Find all 4 in Foreplay'}</button></div>
         <div className="suggestion-list">{clientBrand.competitors.map(suggestion => {
           const lookup = lookups[suggestion.domain];
@@ -225,7 +228,7 @@ export default function CompetitorResearch() {
         <label className="field"><span>Platform</span><select value={platform} onChange={event => setPlatform(event.target.value)}><option value="">All Meta platforms</option><option value="FACEBOOK">Facebook</option><option value="INSTAGRAM">Instagram</option><option value="MESSENGER">Messenger</option>{source === 'meta' && <><option value="WHATSAPP">WhatsApp</option><option value="THREADS">Threads</option></>}</select></label>
       </form>
       {source === 'meta' && noCommercialCoverage && <p className="coverage-warning"><strong>Coverage note for {countries.find(([code]) => code === country)?.[1]}:</strong> Meta’s API generally does not return ordinary commercial ads delivered only outside the UK/EU. You can still browse Meta’s public Ad Library manually for this market.</p>}
-    </section><aside className="craft-summary"><p className="craft-summary-kicker">THIS SEARCH</p><dl><div><dt>Source</dt><dd>{source === 'foreplay' ? 'Foreplay' : 'Meta Library'}</dd></div><div><dt>{source === 'foreplay' ? 'Advertisers' : 'Page IDs'}</dt><dd>{source === 'foreplay' ? competitors.length : pageIds.split(',').filter(value => value.trim()).length}</dd></div><div><dt>Ads per page</dt><dd>{source === 'foreplay' ? 20 : 50}</dd></div><div><dt>Filters</dt><dd>{[activeStatus !== 'ALL', mediaType !== 'ALL', !!platform, source === 'meta' && !!terms.trim()].filter(Boolean).length}</dd></div></dl><div className="craft-up-to"><span>Up to</span><strong>{source === 'foreplay' ? 20 : 50} ads</strong><small>per page</small></div><button className="craft-search-button" type="submit" form="competitor-search-form" disabled={busy || (source === 'foreplay' && (!sources.foreplay?.ready || !competitors.length)) || (source === 'meta' && (!sources.meta?.configured || (!terms.trim() && !pageIds.trim())))}>{busy ? 'Fetching…' : source === 'foreplay' ? 'View competitor ads →' : 'Search ad library →'}</button><p className="craft-summary-foot">{source === 'foreplay' ? 'One Foreplay credit per returned ad.' : sources.meta?.configured ? 'Commercial coverage is limited to the UK/EU.' : 'Add META_AD_LIBRARY_TOKEN to enable this source.'}</p></aside></div>
+    </section><aside className="craft-summary"><p className="craft-summary-kicker">THIS SEARCH</p><dl><div><dt>Source</dt><dd>{source === 'foreplay' ? 'Foreplay' : 'Meta Library'}</dd></div><div><dt>{source === 'foreplay' ? 'Advertisers' : 'Page IDs'}</dt><dd>{source === 'foreplay' ? (useBoard?'Linked board':competitors.length) : pageIds.split(',').filter(value => value.trim()).length}</dd></div><div><dt>Ads per page</dt><dd>{source === 'foreplay' ? 20 : 50}</dd></div><div><dt>Filters</dt><dd>{[activeStatus !== 'ALL', mediaType !== 'ALL', !!platform, source === 'meta' && !!terms.trim()].filter(Boolean).length}</dd></div></dl><div className="craft-up-to"><span>Up to</span><strong>{source === 'foreplay' ? 20 : 50} ads</strong><small>per page</small></div><button className="craft-search-button" type="submit" form="competitor-search-form" disabled={busy || (source === 'foreplay' && (!sources.foreplay?.ready || (!useBoard && !competitors.length))) || (source === 'meta' && (!sources.meta?.configured || (!terms.trim() && !pageIds.trim())))}>{busy ? 'Fetching…' : source === 'foreplay' ? 'View competitor ads →' : 'Search ad library →'}</button><p className="craft-summary-foot">{source === 'foreplay' ? (useBoard==='advertisers'?'One credit for the board roster per page, plus one per returned ad.':'One Foreplay credit per returned ad.') : sources.meta?.configured ? 'Commercial coverage is limited to the UK/EU.' : 'Add META_AD_LIBRARY_TOKEN to enable this source.'}</p></aside></div>
 
     {error && <div className="error">{error}</div>}
 

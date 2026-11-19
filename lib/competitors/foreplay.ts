@@ -2,6 +2,8 @@ type ForeplayAd = Record<string, unknown>;
 
 export type ForeplaySearch = {
   brandIds: string[];
+  boardId?: string;
+  boardAdvertisers?: boolean;
   live: 'ACTIVE' | 'INACTIVE' | 'ALL';
   format: 'ALL' | 'IMAGE' | 'VIDEO';
   platform?: 'FACEBOOK' | 'INSTAGRAM' | 'MESSENGER' | 'AUDIENCE_NETWORK';
@@ -25,8 +27,28 @@ function publicUrl(value: unknown, host?: string): string | undefined {
 export async function searchForeplay(input: ForeplaySearch) {
   const key = process.env.FOREPLAY_API_KEY;
   if (!key) throw new Error('Foreplay API key is not configured');
-  const url = new URL('https://public.api.foreplay.co/api/brand/getAdsByBrandId');
-  input.brandIds.forEach(id => url.searchParams.append('brand_ids', id));
+  let brandIds = input.brandIds;
+  let rosterCost = 0;
+  const useRoster = Boolean(input.boardId && input.boardAdvertisers);
+  if (useRoster) {
+    const roster = new URL('https://public.api.foreplay.co/api/board/brands');
+    roster.searchParams.set('board_id', input.boardId!);
+    roster.searchParams.set('limit', '10');
+    const response = await fetch(roster, { cache: 'no-store', headers: { Authorization: key } });
+    if (!response.ok) throw Object.assign(new Error('Foreplay board lookup failed'), { httpStatus: response.status });
+    const payload = await response.json() as { data: { id: string }[] };
+    brandIds = payload.data.map(brand => brand.id).filter(Boolean);
+    rosterCost = Number(response.headers.get('x-credit-cost') ?? (brandIds.length ? 1 : 0));
+    if (!brandIds.length) return {
+      ads: [], after: null, source: 'Foreplay Brand Ads API' as const, retrievedAt: new Date().toISOString(),
+      coverageNote: 'This board has no associated advertisers. Save a competitor ad on the board in Foreplay first.',
+      creditCost: rosterCost, creditsRemaining: Number(response.headers.get('x-credits-remaining') ?? 0),
+    };
+  }
+  const curated = Boolean(input.boardId && !useRoster);
+  const url = new URL(curated ? 'https://public.api.foreplay.co/api/board/ads' : 'https://public.api.foreplay.co/api/brand/getAdsByBrandId');
+  if (curated) url.searchParams.set('board_id', input.boardId!);
+  else brandIds.forEach(id => url.searchParams.append('brand_ids', id));
   url.searchParams.set('limit', '20');
   url.searchParams.set('order', 'newest');
   if (input.live !== 'ALL') url.searchParams.set('live', String(input.live === 'ACTIVE'));
@@ -58,6 +80,7 @@ export async function searchForeplay(input: ForeplaySearch) {
       ad_delivery_start_time: string(ad.started_running),
       ad_snapshot_url: publicUrl(ad.foreplay_url, 'app.foreplay.co'),
       thumbnail_url: publicUrl(ad.thumbnail),
+      transcript_excerpt: string(ad.full_transcription)?.slice(0,450),
       display_format: string(ad.display_format),
       live: typeof ad.live === 'boolean' ? ad.live : undefined,
     };
@@ -67,8 +90,8 @@ export async function searchForeplay(input: ForeplaySearch) {
     after: string(payload.metadata?.cursor) || null,
     source: 'Foreplay Brand Ads API' as const,
     retrievedAt: new Date().toISOString(),
-    coverageNote: 'Foreplay returns ads indexed for the selected brands. Results are not filtered by delivery country; inspect each original ad and do not infer spend or performance.',
-    creditCost: Number(response.headers.get('x-credit-cost') || ads.length),
+    coverageNote: useRoster ? 'Indexed ads for up to ten advertisers associated with the linked Foreplay board.' : curated ? 'Curated ads saved on the linked Foreplay board, subject to the selected filters.' : 'Foreplay returns ads indexed for the selected brands. Results are not filtered by delivery country; inspect each original ad and do not infer spend or performance.',
+    creditCost: rosterCost + Number(response.headers.get('x-credit-cost') || ads.length),
     creditsRemaining: Number(response.headers.get('x-credits-remaining') || 0),
   };
 }

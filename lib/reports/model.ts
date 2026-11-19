@@ -7,7 +7,7 @@ export type CampaignRow = ReturnType<typeof joinCampaigns>[number];
 export type Snapshot = { window: Window; totals: Metrics | null; campaigns: CampaignRow[]; notes: string[]; inventory?: {total: number; active: number} };
 export type Pixel = { name: string; lastFired: string | null; sources: string[] | null };
 export type Tracking = { checkedAt: string; pixels: Pixel[] | null; since: string };
-export type Report = { account: MetaAccount; generated: string; periods: Snapshot[]; tracking?: Tracking; competitorEvidence?: { client: string; checkedAt: string; coverage: string; ads: { id: string; advertiser: string; text: string; url?: string }[] } };
+export type Report = { account: MetaAccount; generated: string; periods: Snapshot[]; tracking?: Tracking; comparison?: {window:Window; totals:Metrics|null}; competitorEvidence?: { client: string; checkedAt: string; coverage: string; ads: { id: string; advertiser: string; text: string; url?: string; format?:string; cta?:string; transcript?:string }[] } };
 export type PlanInputs = { cap?: number; previousCap?: number; brief: string; competitors: string; event: string };
 export type Proposal = {
   summary: string; financialReview: string; performance: string[]; competitors: string[];
@@ -41,6 +41,12 @@ export function planningWindow(month: string, today: string): Window {
   const until = last < today ? last : shiftDay(today, -1);
   if (until < since) throw new Error('The baseline month has no completed days yet.');
   return { since, until, partial: until < last };
+}
+export function comparisonWindow(baseline:Window):Window {
+  const last=shiftDay(baseline.since,-1), since=last.slice(0,7)+'-01';
+  const days=Math.round((Date.parse(baseline.until)-Date.parse(baseline.since))/86400000);
+  const candidate=shiftDay(since,days);
+  return {since,until:baseline.partial && candidate<last?candidate:last};
 }
 function numeric(value: unknown): number | null {
   if (typeof value !== 'number' && (typeof value !== 'string' || !value.trim())) return null;

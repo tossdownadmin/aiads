@@ -64,3 +64,8 @@ export async function readTracking(accountId: string): Promise<Tracking> {
   }
   return response;
 }
+
+export async function readComparison(accountId:string,window:Window) {
+  const rows=await fetchAllPages<Row>(accountId+'/insights',{level:'account',time_range:JSON.stringify(window),use_unified_attribution_setting:'true',fields:'spend,impressions,reach,frequency,clicks,ctr,cpc,actions,action_values,purchase_roas'});
+  return {window,totals:rows[0]?metrics(rows[0]):null};
+}

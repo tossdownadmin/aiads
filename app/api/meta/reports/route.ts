@@ -2,12 +2,12 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { verifyAdminSession } from '../../../../lib/auth';
 import { clientCatalog } from '../../../../lib/competitors/catalog';
-import { readCompetitors } from '../../../../lib/competitors/store';
+import { readClientBoard, readCompetitors } from '../../../../lib/competitors/store';
 import { searchForeplay } from '../../../../lib/competitors/foreplay';
 import { getAdAccounts } from '../../../../lib/meta/read';
-import { accountToday, dailyWindows, planningWindow, type Report } from '../../../../lib/reports/model';
+import { comparisonWindow, accountToday, dailyWindows, planningWindow, type Report } from '../../../../lib/reports/model';
 import { draftPlan } from '../../../../lib/reports/plan';
-import { readReportWindows, readTracking } from '../../../../lib/reports/read';
+import { readComparison, readReportWindows, readTracking } from '../../../../lib/reports/read';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -36,20 +36,22 @@ export async function POST(request: Request) {
     } catch (error) {
       return json({ error: (error as Error).message }, 400);
     }
-    const [periods, tracking] = await Promise.all([
+    const [periods, tracking, comparison] = await Promise.all([
       readReportWindows(account, windows),
       data.mode === 'plan' ? readTracking(account.id) : undefined,
+      data.mode === 'plan' ? readComparison(account.id,comparisonWindow(windows[0])).catch(()=>({window:comparisonWindow(windows[0]),totals:null})) : undefined,
     ]);
-    const report: Report = { account, generated: now.toISOString(), periods, tracking };
+    const report: Report = { account, generated: now.toISOString(), periods, tracking, comparison };
     if (data.mode === 'plan' && data.researchClient) {
       const client = clientCatalog.find(c => c.id === data.researchClient)!;
       const evidence: NonNullable<Report['competitorEvidence']> = { client: client.name, checkedAt: now.toISOString(), coverage: '', ads: [] };
       try {
-        const saved = (await readCompetitors(client.id)).filter(c => c.reviewed === true).slice(0,10);
-        if (saved.length) {
-          const result = await searchForeplay({ brandIds: saved.map(c => c.id), live: 'ACTIVE', format: 'ALL' });
-          evidence.coverage = result.coverageNote;
-          evidence.ads = result.ads.map(a => ({ id: a.id, advertiser: a.page_name || 'Unlisted', text: (a.ad_creative_bodies[0] || '').slice(0,400), url: a.ad_snapshot_url }));
+        const board=await readClientBoard(client.id);
+        const saved = board ? [] : (await readCompetitors(client.id)).filter(c => c.reviewed === true).slice(0,10);
+        if (saved.length || board) {
+          const result = await searchForeplay({ boardId:board?.id, boardAdvertisers:!!board, brandIds: saved.map(c => c.id), live: 'ACTIVE', format: 'ALL' });
+          evidence.coverage = (board?board.name+' · ':'')+result.coverageNote;
+          evidence.ads = result.ads.map(a => ({ id: a.id, advertiser: a.page_name || 'Unlisted', text: (a.ad_creative_bodies[0] || '').slice(0,400), url: a.ad_snapshot_url, format:a.display_format, cta:a.ad_creative_link_descriptions[0], transcript:a.transcript_excerpt }));
         } else evidence.coverage = 'No reviewed advertiser matches saved for this client.';
       } catch { evidence.coverage = 'Competitor records were unavailable on this run.'; }
       report.competitorEvidence = evidence;

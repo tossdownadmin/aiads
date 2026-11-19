@@ -6,9 +6,9 @@ import WorkspaceShell from '../workspace-shell';
 import { clientCatalog } from '../../lib/competitors/catalog';
 import type { MetaAccount } from '../../lib/meta/read';
 import { accountToday, shiftDay, type PlanInputs } from '../../lib/reports/model';
-import ReportView, { type Entry, type Run } from './report-view';
+import ReportView, { type Run } from './report-view';
 import { importDailyTemplate, matchPortfolio, readStoredTemplate, templateKey, type DailyTemplate } from '../../lib/reports/daily-template';
-import { renderDailyDocument } from '../../lib/reports/daily-document';
+import type { SavedDaily } from '../../lib/reports/saved-daily';
 import './reports.css';
 
 const emptyInputs: PlanInputs = { brief: '', competitors: '', event: '' };
@@ -26,7 +26,6 @@ export default function Reports() {
   const [month,setMonth] = useState('');
   const [inputs,setInputs] = useState<PlanInputs>(emptyInputs);
   const [busy,setBusy] = useState(false);
-  const [progress,setProgress] = useState('');
   const [run,setRun] = useState<Run|null>(null);
   const paper = useRef<HTMLDivElement>(null);
   const locked = useRef(false);
@@ -35,7 +34,37 @@ export default function Reports() {
   const [templateNote,setTemplateNote] = useState('');
   const [templateText,setTemplateText] = useState('');
   const portfolio = useMemo(()=>matchPortfolio(template,accounts),[template,accounts]);
-  const dailyHtml = useMemo(()=>run?.mode==='daily' ? renderDailyDocument(run.entries,run.date,run.presentation) : '',[run]);
+  const [saved,setSaved]=useState<SavedDaily|null>(null);
+  const [version,setVersion]=useState<string|null>(null);
+  const [dailyReady,setDailyReady]=useState(false);
+  const [dailyError,setDailyError]=useState('');
+  const [editing,setEditing]=useState(false);
+  const dailyHtml=saved?.html||'';
+  async function openDaily() {
+    setDailyError('');
+    try {
+      const r=await fetch('/api/meta/reports/daily',{cache:'no-store'});
+      if (r.status===401) {setDenied(true);return;}
+      if (!r.ok) throw new Error();
+      const result=await r.json();
+      setSaved(result.saved);setVersion(result.version);setDailyReady(true);
+    } catch {setDailyReady(false);setDailyError('The saved report could not be opened.');}
+  }
+  useEffect(()=>{
+    if (!saved || !loaded) return;
+    setSelected(saved.accountIds);setTemplate(saved.template);
+  },[saved,loaded]);
+  async function saveDaily(refresh:boolean) {
+    if(locked.current || !dailyReady) return;
+    locked.current=true;setBusy(true);setDailyError('');
+    try {
+      const response=await fetch('/api/meta/reports/daily',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(refresh?{version}:{version,date:end,accountIds:selected,template})});
+      const result=await response.json();
+      if(!response.ok) throw new Error(result.error||'Could not save the report.');
+      setSaved(result.saved);setVersion(result.version);setEditing(false);
+    } catch(e) {setDailyError(e instanceof Error?e.message:'Could not save the report.');}
+    finally {locked.current=false;setBusy(false);}
+  }
   const [dailyUrl,setDailyUrl] = useState('');
   useEffect(()=>{
     if (!dailyHtml) { setDailyUrl(''); return; }
@@ -78,41 +107,26 @@ export default function Reports() {
       setLoaded(true);
     } catch { setError('The account list could not be read.'); }
   }
-  useEffect(() => { void connect(); },[]);
+  useEffect(() => {
+    if(new URLSearchParams(window.location.search).get('view')==='monthly') setMode('plan');
+    void connect();void openDaily();
+  },[]);
   const chosen = accounts.filter(a => mode === 'daily' ? selected.includes(a.id) : a.id === monthlyId);
   const matches = accounts.filter(a => (a.name + a.currency + a.id).toLowerCase().includes(query.toLowerCase().trim()));
   async function generate(form: HTMLFormElement) {
-    if (locked.current || !chosen.length) return;
-    locked.current = true; setBusy(true); setError(''); setRun(null);
-    let cursor = 0, done = 0;
-    const entries: Entry[] = [];
-    const data = new FormData(form);
-    const date = String(data.get(mode === 'daily' ? 'end' : 'month') || '');
-    const worker = async () => {
-      while (cursor < chosen.length) {
-        const index = cursor++, account = chosen[index];
-        try {
-          const body = mode === 'daily' ? { mode, accountId: account.id, end:date } : { mode, accountId: account.id, month:date, inputs, researchClient:researchClient || undefined };
-          const response = await fetch('/api/meta/reports', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
-          const data = await response.json();
-          if (!response.ok) throw new Error(data.error || 'Report unavailable');
-          entries[index] = { account, report: data.report, plan: data.plan, planError: data.planError };
-        } catch (cause) { entries[index] = { account, error: cause instanceof Error ? cause.message : 'Account unavailable.' }; }
-        done++; setProgress(done + ' of ' + chosen.length + ' accounts read');
-      }
-    };
-    setProgress('Reading ' + chosen.length + ' account' + (chosen.length === 1 ? '' : 's') + '…');
+    if(mode==='daily') {await saveDaily(false);return;}
+    if(locked.current || !chosen.length) return;
+    locked.current=true;setBusy(true);setError('');setRun(null);
+    const account=chosen[0], date=String(new FormData(form).get('month')||'');
     try {
-      await Promise.all(Array.from({length:Math.min(2,chosen.length)}, worker));
-      const layouts=Object.fromEntries(portfolio.matches);
-      const exclusions=[...portfolio.missing,...Array.from(portfolio.matches).filter(([id])=>!selected.includes(id)).map(([,c])=>({name:c.name,reason:'Available in Meta. Outside the selected accounts for this report.'}))];
-      if (mode==='daily' && template) {
-        const order=new Map(Array.from(portfolio.matches.keys(),(id,i)=>[id,i]));
-        entries.sort((a,b)=>(order.get(a.account.id)??Infinity)-(order.get(b.account.id)??Infinity));
-      }
-      setRun({mode,date,inputs:{...inputs},entries,presentation:mode==='daily'?{layouts,exclusions,template}:undefined});
-    } finally { locked.current=false; setBusy(false); }
+      const response=await fetch('/api/meta/reports',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode,accountId:account.id,month:date,inputs,researchClient:researchClient||undefined})});
+      const data=await response.json();
+      if(!response.ok) throw new Error(data.error||'Report unavailable.');
+      setRun({mode,date,inputs:{...inputs},entries:[{account,report:data.report,plan:data.plan,planError:data.planError}]});
+    } catch(e) {setError(e instanceof Error?e.message:'Plan unavailable.');}
+    finally {locked.current=false;setBusy(false);}
   }
+
   function download() {
     const content = paper.current?.querySelector('article')?.cloneNode(true) as HTMLElement | undefined;
     if (!content || !run) return;
@@ -133,9 +147,12 @@ export default function Reports() {
   }
   return <WorkspaceShell active="reports" status={loaded ? 'Connected' : undefined}><div className="rep-workspace">
     <header><h1>Client reports</h1><p>Review account delivery or prepare a monthly campaign plan.</p></header>
-    {!loaded ? <section className="workspace-card"><p>{denied ? 'Use your approved Google account to open reports.' : error || 'Loading Meta accounts…'}</p>{denied ? <button onClick={() => void signIn('google',{callbackUrl:'/reports'})}>Sign in with Google</button> : error && <button onClick={() => void connect()}>Retry</button>}</section> :
+    <nav className="rep-mode rep-nav" aria-label="Report type">{(['daily','plan'] as const).map(m=><button type="button" key={m} disabled={busy} aria-pressed={m===mode} onClick={()=>{setMode(m);setQuery('');window.history.replaceState(null,'',m==='daily'?'/reports':'/reports?view=monthly');}}>{m==='daily'?'Daily report':'Monthly plan'}</button>)}</nav>
+    {mode==='daily' && dailyError && <p role="alert">{dailyError} <button type="button" onClick={()=>void openDaily()}>Reload saved report</button></p>}
+    {mode==='daily' && saved && <section className="workspace-card rep-saved"><div><strong>Daily report through {saved.date}</strong><small>{saved.accountIds.length} accounts · Saved {new Date(saved.savedAt).toLocaleString()}</small></div><button type="button" disabled={busy || !dailyReady} onClick={()=>void saveDaily(true)}>{busy?'Updating…':'Update report'}</button><button type="button" disabled={busy} aria-expanded={editing} onClick={()=>setEditing(!editing)}>{editing?'Close settings':'Report settings'}</button></section>}
+    {(mode==='plan' || editing || !saved) && (!loaded ? <section className="workspace-card"><p>{denied ? 'Use your approved Google account to open reports.' : error || 'Loading Meta accounts…'}</p>{denied ? <button onClick={() => void signIn('google',{callbackUrl:'/reports'})}>Sign in with Google</button> : error && <button onClick={() => void connect()}>Retry</button>}</section> :
     <form className="workspace-card rep-form" onSubmit={e => { e.preventDefault(); void generate(e.currentTarget); }}><fieldset disabled={busy}><legend>Report setup</legend>
-      <div className="rep-mode">{(['daily','plan'] as const).map(m => <button key={m} type="button" aria-pressed={mode===m} onClick={() => {setMode(m);setQuery('');setRun(null);}}>{m==='daily' ? 'Daily account report' : 'Next-month ad plan'}</button>)}</div>
+
       {mode === 'daily' ? <>
         <div className="rep-inputs"><label>Through date<input type="date" name="end" defaultValue={end} required onInput={e=>setEnd(e.currentTarget.value)}/></label><label>Find ad accounts<input type="search" value={query} placeholder="Name or account ID" onChange={e=>setQuery(e.target.value)}/></label></div>
         <div className="rep-template"><div><strong>{template?'Daily report template':'Use a previous daily report'}</strong><small>{template?template.clients.length+' expected brands · '+portfolio.matches.size+' matched accounts':'Choose the original daily HTML to use its client list and KPI cards. Figures are read from Meta for the selected dates.'}</small></div><label className="rep-file">{template?'Replace template':'Open template'}<input type="file" accept=".html,.htm,text/html" aria-label="Open daily HTML template" onChange={e=>{const file=e.currentTarget.files?.[0];e.currentTarget.value='';void loadTemplate(file);}}/></label>{template && <button type="button" onClick={()=>useTemplate(template,accounts)}>Select template accounts</button>}<small role="status">{templateNote}</small></div>
@@ -144,13 +161,14 @@ export default function Reports() {
         <div className="rep-accounts">{matches.map(a=><label key={a.id}><input type="checkbox" checked={selected.includes(a.id)} onChange={e=>setSelected(e.target.checked?[...selected,a.id]:selected.filter(id=>id!==a.id))}/><span>{a.name}<small>{a.currency} · {a.id}</small></span></label>)}{!matches.length && <p>No matching account</p>}</div></> :
       <><div className="rep-inputs"><label>Ad account<select required value={monthlyId} onChange={e=>{setMonthlyId(e.target.value);setResearchClient('');setInputs(emptyInputs);setRun(null);}}><option value="">Choose account</option>{accounts.map(a=><option key={a.id} value={a.id}>{a.name} · {a.currency} · {a.id}</option>)}</select></label><label>Plan month<input type="month" name="month" required defaultValue={month} onInput={e=>{setMonth(e.currentTarget.value);setInputs(emptyInputs);setRun(null);}}/></label></div>
       <div className="rep-inputs"><label>Approved plan month cap {chosen[0]?.currency}<input type="number" min="0.01" max="100000000000" step="any" placeholder="Optional" value={inputs.cap ?? ''} onChange={e=>setInputs({...inputs,cap:e.target.value ? Number(e.target.value) : undefined})}/></label><label>Previous month cap {chosen[0]?.currency}<input type="number" min="0.01" max="100000000000" step="any" placeholder="Optional" value={inputs.previousCap ?? ''} onChange={e=>setInputs({...inputs,previousCap:e.target.value ? Number(e.target.value) : undefined})}/></label></div>
-      <label>Fetch current competitor ads from Foreplay<select value={researchClient} onChange={e=>setResearchClient(e.target.value)}><option value="">Skip paid lookup</option>{clientCatalog.map(c=><option key={c.id} value={c.id}>{c.name} · reviewed advertisers</option>)}</select><small>Uses the selected research client’s saved matches. Up to 20 ads at one credit per returned ad.</small></label>
+      <label>Fetch current competitor ads from Foreplay<select value={researchClient} onChange={e=>setResearchClient(e.target.value)}><option value="">Skip paid lookup</option>{clientCatalog.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select><small>Uses up to ten advertisers from the linked board (one lookup credit), or the client’s confirmed advertisers. Up to 20 ads at one credit per returned ad.</small></label>
       <label>Client brief<textarea value={inputs.brief} maxLength={4000} placeholder="Goals, market, approved offers and brand voice" onChange={e=>setInputs({...inputs,brief:e.target.value})}/></label>
       <div className="rep-inputs"><label>Competitor evidence<textarea maxLength={4000} value={inputs.competitors} placeholder="Observed ad, source link and date" onChange={e=>setInputs({...inputs,competitors:e.target.value})}/><a href="/competitors" target="_blank" rel="noreferrer">Open competitor research ↗</a></label>
       <label>Market event<textarea maxLength={2000} value={inputs.event} placeholder="Event, date, market and source" onChange={e=>setInputs({...inputs,event:e.target.value})}/></label></div></>}
-      <button className="rep-primary" disabled={!chosen.length || busy} type="submit">{busy ? 'Preparing report…' : mode==='daily' ? 'Read selected accounts' : 'Draft monthly plan'}</button>
-      <span role="status">{busy ? progress : ''}</span></fieldset></form>}
-    {run?.mode==='daily' && dailyHtml && <section className="rep-daily-preview"><div className="rep-exports">{dailyUrl && <><a href={dailyUrl} target="_blank" rel="noopener noreferrer">Open full report ↗</a><a href={dailyUrl} download={'tossdown-daily-'+run.date+'.html'}>Download HTML</a></>}<button onClick={()=>frame.current?.contentWindow?.postMessage('print-daily-report','*')}>Print / save PDF</button></div><iframe ref={frame} title="Meta Ads daily report" sandbox="allow-scripts allow-modals" srcDoc={dailyHtml}/></section>}
-    {run?.mode==='plan' && <section ref={paper}><div className="rep-exports"><button onClick={download}>Download HTML</button><button onClick={()=>window.print()}>Print / save PDF</button></div><ReportView run={run}/></section>}
+      <button className="rep-primary" disabled={!chosen.length || busy || (mode==='daily' && !dailyReady)} type="submit">{busy ? 'Preparing report…' : mode==='daily' ? 'Generate and save report' : 'Draft monthly plan'}</button>
+      </fieldset></form>)}
+    {mode==='plan' && loaded && error && <p role="alert">{error}</p>}
+    {mode==='daily' && saved && dailyHtml && <section className="rep-daily-preview"><div className="rep-exports">{dailyUrl && <><a href={dailyUrl} target="_blank" rel="noopener noreferrer">Open full report ↗</a><a href={dailyUrl} download={'tossdown-daily-'+saved.date+'.html'}>Download HTML</a></>}<button onClick={()=>frame.current?.contentWindow?.postMessage('print-daily-report','*')}>Print / save PDF</button></div><iframe ref={frame} title="Meta Ads daily report" sandbox="allow-scripts allow-modals" srcDoc={dailyHtml}/></section>}
+    {mode==='plan' && run?.mode==='plan' && <section ref={paper}><div className="rep-exports"><button onClick={download}>Download HTML</button><button onClick={()=>window.print()}>Print / save PDF</button></div><ReportView run={run}/></section>}
     </div></WorkspaceShell>;
 }

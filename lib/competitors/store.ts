@@ -19,3 +19,12 @@ export async function writeCompetitors(clientId: string, competitors: ConfirmedC
     access: 'private', addRandomSuffix: false, allowOverwrite: true, contentType: 'application/json',
   });
 }
+
+export type ClientBoard = {id:string;name:string};
+export async function readClientBoard(clientId:string):Promise<ClientBoard|null> {
+  const file=await get('competitors/client-boards/'+clientId+'.json',{access:'private',useCache:false});
+  return file?.stream ? (await new Response(file.stream).json()).board : null;
+}
+export async function writeClientBoard(clientId:string,board:ClientBoard|null) {
+  await put('competitors/client-boards/'+clientId+'.json',JSON.stringify({board}),{access:'private',allowOverwrite:true,addRandomSuffix:false,contentType:'application/json'});
+}
