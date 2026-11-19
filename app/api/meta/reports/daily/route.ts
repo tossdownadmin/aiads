@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { BlobPreconditionFailedError, get, put } from '@vercel/blob';
+import { BlobPreconditionFailedError, BlobNotFoundError, head, get, put } from '@vercel/blob';
 import { z } from 'zod';
 import { verifyAdminSession } from '../../../../../lib/auth';
 import { getAdAccounts } from '../../../../../lib/meta/read';
@@ -20,10 +20,15 @@ const requestShape = z.object({
   template: z.unknown().optional(),
 });
 async function latest() {
+  let metadata;
+  try { metadata=await head(path); }
+  catch(error) {
+    if(error instanceof BlobNotFoundError) return {saved:null,version:null};
+    throw error;
+  }
   const file=await get(path,{access:'private',useCache:false});
-  if (!file) return {saved:null,version:null};
-  if (!file.stream) throw new Error('Missing report body');
-  return {saved:await new Response(file.stream).json() as SavedDaily,version:file.blob.etag};
+  if (!file?.stream) throw new Error('Missing report body');
+  return {saved:await new Response(file.stream).json() as SavedDaily,version:metadata.etag};
 }
 export async function GET() {
   if (!await verifyAdminSession()) return reply({error:'Sign in to open the daily report.'},401);

@@ -33,7 +33,7 @@ Map positioning in the supplied source-labeled public ads. Group explicit claims
 
 export function getBuiltinSkills(): FirstPartySkill[] {
   return [
-    skill('meta-account-audit', 'Complete campaign-level Meta audit with cited evidence and data gaps.', ['analysis', 'monitoring'], accountAudit),
+    skill('meta-account-audit', 'Review campaigns, ad results and daily trends with cited evidence and data gaps.', ['analysis', 'monitoring'], accountAudit),
     skill('budget-efficiency-review', 'Compare campaign spend and reported outcomes by objective; no automatic budget changes.', ['analysis', 'optimization'], budgetReview),
     skill('campaign-delivery-signals', 'Review campaign delivery and daily ad-level trends.', ['analysis', 'monitoring'], deliveryReview),
     skill('competitor-creative-research', 'Study observable hooks, formats, offers, and calls to action in selected public ads.', ['analysis', 'competitor_intel', 'creative'], competitorResearch),
