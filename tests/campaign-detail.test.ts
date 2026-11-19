@@ -119,3 +119,16 @@ it("joins paused inventory and insight-only ads and reports a denied video while
       ?.searchParams.get("time_range"),
   ).toBe(JSON.stringify(range));
 });
+
+it('keeps ad results when Meta rejects the optional Instagram profile visit metric', async () => {
+  vi.stubEnv('META_SYSTEM_USER_TOKEN', 'test-only');
+  vi.stubGlobal('fetch', async (u: URL) => {
+    const fields = u.searchParams.get('fields') || '';
+    if (fields.includes('instagram_profile_visits')) return Response.json({error:{code:100,message:'instagram_profile_visits is not a valid field'}},{status:400});
+    if (u.searchParams.get('level') === 'ad') return Response.json({data:[{campaign_id:'campaign',adset_id:'set',ad_id:'ad',ad_name:'Observed ad',spend:'5',actions:[{action_type:'link_click',value:'67'}]}]});
+    return Response.json({data:[]});
+  });
+  const [result] = await readDetails('act_1','CAD',['campaign'],[range]);
+  expect(result.campaign.sets[0].ads[0].stats?.linkClicks).toBe(67);
+  expect(result.campaign.notes).toContain('Instagram profile visits unavailable at ad level.');
+});

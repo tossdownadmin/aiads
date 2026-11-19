@@ -152,7 +152,11 @@ export function creative(raw: Fields): Creative {
     post:
       url(raw.instagram_permalink_url) ||
       (/^\d+_\d+$/.test(postId) ? "https://www.facebook.com/" + postId : ""),
-    notes: [],
+    notes: Object.keys(feed).length
+      ? [
+          "Meta provides eligible creative variants. Results belong to the ad as a whole.",
+        ]
+      : [],
   };
 }
 export type Ad = {
@@ -174,6 +178,7 @@ export type AdSet = {
   name: string;
   status: string;
   settings: Record<string, string>;
+  targeting?: Fields;
   stats?: Metrics;
   ads: Ad[];
 };
@@ -183,15 +188,55 @@ const statFields =
   "campaign_id,adset_id,spend,impressions,reach,frequency,clicks,ctr,cpc,actions,action_values,purchase_roas,video_thruplay_watched_actions";
 const creativeFields =
   "id,body,title,thumbnail_url,image_hash,image_url,video_id,object_story_spec,asset_feed_spec,effective_object_story_id,instagram_permalink_url";
-function formatTarget(target: Fields) {
-  return Object.entries(target)
-    .map(
-      ([key, value]) =>
-        key.replaceAll("_", " ") +
-        " · " +
-        (typeof value === "object" ? JSON.stringify(value) : String(value)),
-    )
-    .join("\n");
+function audienceSettings(target: Fields): Record<string, string> {
+  const locations = (value: unknown) =>
+    Object.entries(object(value))
+      .map(([kind, values]) => {
+        const names = Array.isArray(values)
+          ? values
+              .map((v) => {
+                if (typeof v === "string") return v;
+                const item = object(v);
+                return [
+                  item.name || item.key,
+                  item.region,
+                  item.country,
+                  item.radius
+                    ? String(item.radius) +
+                      " " +
+                      words(item.distance_unit) +
+                      " radius"
+                    : "",
+                ]
+                  .filter(Boolean)
+                  .join(", ");
+              })
+              .join(" · ")
+          : String(values);
+        return kind.replaceAll("_", " ") + " · " + names;
+      })
+      .join("\n");
+  const arrays = (value: unknown) =>
+    Array.isArray(value) ? value.map(String).join(", ") : "";
+  return {
+    Age:
+      target.age_min || target.age_max
+        ? String(target.age_min || "Unreported") +
+          "–" +
+          String(target.age_max || "Unreported")
+        : "",
+    Gender: Array.isArray(target.genders)
+      ? target.genders
+          .map((v) => ["All", "Men", "Women"][Number(v)] || String(v))
+          .join(", ")
+      : "",
+    "Included locations": locations(target.geo_locations),
+    "Excluded locations": locations(target.excluded_geo_locations),
+    Platforms: arrays(target.publisher_platforms),
+    "Facebook placements": arrays(target.facebook_positions),
+    "Instagram placements": arrays(target.instagram_positions),
+    Devices: arrays(target.device_platforms),
+  };
 }
 export async function readDetails(
   account: string,
@@ -369,10 +414,31 @@ export async function readDetails(
             ...params,
             ...range,
             level,
-            fields,
+            fields: fields + (daily ? "" : ",instagram_profile_visits"),
             ...(daily ? { time_increment: "1" } : {}),
           });
         } catch (e) {
+          if (
+            !daily &&
+            e instanceof Error &&
+            /instagram_profile_visits|not a valid.*field|invalid metric/i.test(
+              e.message,
+            )
+          ) {
+            periodNotes.push(
+              "Instagram profile visits unavailable at " + level + " level.",
+            );
+            try {
+              return await fetchAllPages<Fields>(account + "/insights", {
+                ...params,
+                ...range,
+                level,
+                fields,
+              });
+            } catch (fallbackError) {
+              e = fallbackError;
+            }
+          }
           periodNotes.push(
             limitation(daily ? "Daily ad trends" : level + " metrics", e),
           );
@@ -409,6 +475,7 @@ export async function readDetails(
         const set = setFor(s.campaign_id, s.id, s.name);
         if (!set) continue;
         set.status = words(s.effective_status);
+        set.targeting = object(s.targeting);
         set.settings = Object.fromEntries(
           Object.entries({
             Optimization: words(s.optimization_goal),
@@ -418,7 +485,7 @@ export async function readDetails(
             "Lifetime budget": budget(s.lifetime_budget, currency),
             Starts: words(s.start_time),
             Ends: words(s.end_time),
-            "Targeting and placements": formatTarget(object(s.targeting)),
+            ...audienceSettings(object(s.targeting)),
             Attribution: s.attribution_spec
               ? JSON.stringify(s.attribution_spec)
               : "",

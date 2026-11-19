@@ -103,6 +103,11 @@ export function detailBody(c: CampaignDetail, currency: string) {
             ["Ad set ID", s.id],
             ...(Object.entries(s.settings) as [string, string][]),
           ]) +
+          (s.targeting && Object.keys(s.targeting).length
+            ? "<details><summary>All audience settings</summary><pre>" +
+              escape(JSON.stringify(s.targeting, null, 2)) +
+              "</pre></details>"
+            : "") +
           measurements(s.stats, currency) +
           (s.ads.length ? "" : notes("No ads returned.")) +
           s.ads
