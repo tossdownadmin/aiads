@@ -35,7 +35,15 @@ export async function getAdAccounts(): Promise<MetaAccount[]> {
 }
 export async function getAccountInsights(accountId: string, period: 'last_7d'|'last_30d') {
   if (!/^act_\d+$/.test(accountId)) throw new Error('Invalid ad account ID');
-  const data = await fetchAllPages<Record<string,unknown>>(`${accountId}/insights`, { level:'campaign', date_preset:period, fields:'campaign_name,campaign_id,objective,account_currency,spend,impressions,reach,frequency,clicks,ctr,cpc,actions,action_values,purchase_roas', limit:'500' });
+  const fields='campaign_name,campaign_id,objective,account_currency,spend,impressions,reach,frequency,clicks,ctr,cpc,actions,action_values,purchase_roas';
+  const params={level:'campaign',date_preset:period,limit:'500'};
+  let data;
+  try {
+    data=await fetchAllPages<Record<string,unknown>>(`${accountId}/insights`,{...params,fields:fields+',instagram_profile_visits'});
+  } catch(error) {
+    if(!(error instanceof Error) || !/instagram_profile_visits|not a valid.*field|invalid metric/i.test(error.message))throw error;
+    data=await fetchAllPages<Record<string,unknown>>(`${accountId}/insights`,{...params,fields});
+  }
   return { data };
 }
 

@@ -375,7 +375,7 @@ export function campaignCards(
           (scope === "audit" ? "campaign-" + escape(campaign.id) : id) +
           '"><header class="cg-campaign-head"><div><p class="cg-objective">' +
           escape(objective) +
-          " · " +
+          " · " + escape(currency) + " · " +
           sets.length +
           " ad " +
           (sets.length === 1 ? "set" : "sets") +
@@ -405,7 +405,7 @@ export function campaignCards(
               id +
               '-ads" data-set-filter="all">All ad sets <span>' +
               ads.length +
-              "</span></button>" +
+              " ads</span></button>" +
               sets
                 .map(
                   (s, i) =>
@@ -421,7 +421,7 @@ export function campaignCards(
                     escape(s.name) +
                     " <span>" +
                     s.ads.length +
-                    "</span></button>",
+                    " ads</span></button>",
                 )
                 .join("") +
               "</div>"
