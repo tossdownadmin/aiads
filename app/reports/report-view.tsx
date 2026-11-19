@@ -1,7 +1,8 @@
 import { money, outcomes, planAmounts, signals, type PlanInputs, type Proposal, type Report, type Snapshot } from '../../lib/reports/model';
 import type { MetaAccount } from '../../lib/meta/read';
+import type { DailyPresentation } from '../../lib/reports/daily-document';
 export type Entry = { account: MetaAccount; report?: Report; error?: string; plan?: Proposal; planError?: string };
-export type Run = { mode: 'daily' | 'plan'; date: string; entries: Entry[]; inputs: PlanInputs };
+export type Run = { mode: 'daily' | 'plan'; date: string; entries: Entry[]; inputs: PlanInputs; presentation?: DailyPresentation };
 const n = (v: number | null) => v === null ? '—' : v.toLocaleString('en', { maximumFractionDigits: 2 });
 const pct = (v: number | null) => v === null ? '—' : n(v) + '%';
 const multiple = (v: number | null) => v === null ? '—' : n(v) + '×';
@@ -14,18 +15,6 @@ function Campaigns({ period, currency }: { period: Snapshot; currency: string })
   </>;
 }
 function bullets(items: string[]) { return <ul>{items.map((t,i) => <li key={i}>{t}</li>)}</ul>; }
-function daily(entries: Entry[], i: number) {
-  const totals = new Map<string,number>();
-  for (const e of entries) {
-    const amount = e.report?.periods[i]?.totals?.spend;
-    if (typeof amount === 'number') totals.set(e.account.currency, (totals.get(e.account.currency) ?? 0) + amount);
-  }
-  return <><h3>{i ? '30' : '7'}-day overview</h3><div className="rep-totals">{[...totals].map(([key,value]) => <div key={key}><small>Reported spend · {key}</small><strong>{money(value,key)}</strong></div>)}</div>
-    <div className="rep-scroll"><table><thead><tr><th>Account</th><th>Spend</th><th>Purchases</th><th>Leads</th><th>Purchase ROAS</th><th>CTR</th><th>Freq.</th></tr></thead><tbody>{entries.map(e => {const t=e.report?.periods[i]?.totals;return <tr key={e.account.id}><th>{e.account.name}<small>{e.account.currency}</small></th><td>{money(t?.spend ?? null,e.account.currency)}</td><td>{n(t?.purchases ?? null)}</td><td>{n(t?.leads ?? null)}</td><td>{multiple(t?.roas ?? null)}</td><td>{pct(t?.ctr ?? null)}</td><td>{n(t?.frequency ?? null)}</td></tr>;})}</tbody></table></div>
-    <h3>Account detail</h3>{entries.map(e => {const snapshot = e.report?.periods[i]; const flags = snapshot ? signals(snapshot) : [];return <details className="rep-detail" key={e.account.id}><summary>{e.account.name}<span>{e.error ? 'Unavailable' : snapshot?.campaigns.length + ' campaigns'}</span></summary>
-      {e.error && <p>{e.error}</p>}{snapshot && <><p>{e.account.id} · {e.account.currency} · {e.account.timezone} · {statusNames[e.account.status] || 'Status ' + e.account.status}</p><Campaigns period={snapshot} currency={e.account.currency}/><h4>Findings and next actions</h4>{flags.length ? bullets(flags.map(f => f.finding + ' ' + f.action)) : <p>No delivery or missing-outcome flags in these checks.</p>}</>}</details>;})}
-    <p className="rep-footnote">A dash marks an unreported value. Spend totals include only accounts with a reported total. Reach and frequency come directly from Meta at the stated level. Actions use Meta attribution and can overlap across types.</p></>;
-}
 function monthly(run: Run) {
   const entry = run.entries[0];
   if (!entry?.report) return <p>{entry?.error || 'No report returned.'}</p>;
@@ -57,8 +46,6 @@ export default function ReportView({run}:{run:Run}) {
   const first = run.entries.find(e => e.report)?.report;
   return <article className="report-paper"><header><small>Tossdown Ads Intelligence</small><h2>{run.mode === 'daily' ? 'Daily account report' : 'Next-month ad plan'}</h2>
     <p>{run.mode === 'daily' ? 'Through ' : 'Plan month '}{run.date}{first && ' · Retrieved ' + first.generated.slice(0,16).replace('T',' ') + ' UTC'}</p></header>
-    {run.mode === 'daily' ? <><p>{run.entries.filter(e => e.report).length} of {run.entries.length} selected accounts returned reports.</p><div className="rep-periods">
-      <input type="radio" name="report-window" id="window-week" defaultChecked/><label htmlFor="window-week">Last 7 days</label><input type="radio" name="report-window" id="window-month"/><label htmlFor="window-month">Last 30 days</label>
-      <section className="rep-seven">{daily(run.entries,0)}</section><section className="rep-thirty">{daily(run.entries,1)}</section></div></> : monthly(run)}
+    {monthly(run)}
   </article>;
 }

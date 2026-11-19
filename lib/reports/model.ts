@@ -4,7 +4,7 @@ export type Window = { since: string; until: string; partial?: boolean };
 export type Row = Record<string, unknown>;
 export type Metrics = ReturnType<typeof metrics>;
 export type CampaignRow = ReturnType<typeof joinCampaigns>[number];
-export type Snapshot = { window: Window; totals: Metrics | null; campaigns: CampaignRow[]; notes: string[] };
+export type Snapshot = { window: Window; totals: Metrics | null; campaigns: CampaignRow[]; notes: string[]; inventory?: {total: number; active: number} };
 export type Pixel = { name: string; lastFired: string | null; sources: string[] | null };
 export type Tracking = { checkedAt: string; pixels: Pixel[] | null; since: string };
 export type Report = { account: MetaAccount; generated: string; periods: Snapshot[]; tracking?: Tracking; competitorEvidence?: { client: string; checkedAt: string; coverage: string; ads: { id: string; advertiser: string; text: string; url?: string }[] } };
@@ -68,6 +68,12 @@ export function metrics(row: Row = {}) {
     purchases, leads: action(row.actions, leadTypes), purchaseValue,
     roas: reportedRoas ?? (spend && purchaseValue !== null ? purchaseValue / spend : null),
     instagramVisits: numeric(row.instagram_profile_visits) ?? action(row.actions, ['onsite_conversion.instagram_profile_visit', 'instagram_profile_visit']),
+    facebookVisits: action(row.actions, ['onsite_conversion.facebook_profile_visit', 'facebook_profile_visit', 'page_visit']),
+    conversations: action(row.actions, ['onsite_conversion.messaging_conversation_started_7d', 'messaging_conversation_started_7d']),
+    formLeads: action(row.actions, ['onsite_conversion.lead_form', 'onsite_conversion.lead_gen_form', 'onsite_conversion.lead_form_submit']),
+    conversionLeads: action(row.actions, ['onsite_conversion.conversion_lead', 'offsite_conversion.lead_converted']) ?? action(row.conversions, ['onsite_conversion.conversion_lead', 'offsite_conversion.lead_converted']),
+    websiteLeads: action(row.actions, ['offsite_conversion.fb_pixel_lead']),
+    onMetaLeads: action(row.actions, ['onsite_conversion.lead_grouped']),
     landingViews: action(row.actions, ['landing_page_view', 'omni_landing_page_view']),
     linkClicks: action(row.actions, ['link_click']),
     thruplays: action(row.video_thruplay_watched_actions, ['video_view']),
@@ -84,7 +90,7 @@ export function joinCampaigns(config: MetaCampaign[], insights: Row[], window: W
   return Array.from(ids, id => {
     const row = observed.get(id);
     const current = byId.get(id);
-    return { id, name: String(row?.campaign_name || current?.name || id), objective: String(row?.objective || current?.objective || ''),
+    return { id, start: current?.start_time?.slice(0, 10) || null, name: String(row?.campaign_name || current?.name || id), objective: String(row?.objective || current?.objective || ''),
       status: current?.effective_status || 'Unknown', stop: current?.stop_time?.slice(0, 10) || null,
       settings: settings.get(id), hasInsights: Boolean(row), ...metrics(row) };
   }).sort((a, b) => (b.spend ?? 0) - (a.spend ?? 0) || a.name.localeCompare(b.name));

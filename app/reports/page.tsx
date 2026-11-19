@@ -1,12 +1,14 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { signIn } from 'next-auth/react';
 import WorkspaceShell from '../workspace-shell';
 import { clientCatalog } from '../../lib/competitors/catalog';
 import type { MetaAccount } from '../../lib/meta/read';
 import { accountToday, shiftDay, type PlanInputs } from '../../lib/reports/model';
 import ReportView, { type Entry, type Run } from './report-view';
+import { importDailyTemplate, matchPortfolio, readStoredTemplate, templateKey, type DailyTemplate } from '../../lib/reports/daily-template';
+import { renderDailyDocument } from '../../lib/reports/daily-document';
 import './reports.css';
 
 const emptyInputs: PlanInputs = { brief: '', competitors: '', event: '' };
@@ -28,6 +30,32 @@ export default function Reports() {
   const [run,setRun] = useState<Run|null>(null);
   const paper = useRef<HTMLDivElement>(null);
   const locked = useRef(false);
+  const frame = useRef<HTMLIFrameElement>(null);
+  const [template,setTemplate] = useState<DailyTemplate>();
+  const [templateNote,setTemplateNote] = useState('');
+  const portfolio = useMemo(()=>matchPortfolio(template,accounts),[template,accounts]);
+  const dailyHtml = useMemo(()=>run?.mode==='daily' ? renderDailyDocument(run.entries,run.date,run.presentation) : '',[run]);
+  const [dailyUrl,setDailyUrl] = useState('');
+  useEffect(()=>{
+    if (!dailyHtml) { setDailyUrl(''); return; }
+    const url=URL.createObjectURL(new Blob([dailyHtml],{type:'text/html;charset=utf-8'}));
+    setDailyUrl(url); return ()=>URL.revokeObjectURL(url);
+  },[dailyHtml]);
+  function useTemplate(value:DailyTemplate,list:MetaAccount[]) {
+    setTemplate(value);
+    const ids=Array.from(matchPortfolio(value,list).matches).filter(([,client])=>client.periods).map(([id])=>id);
+    setSelected(ids); setRun(null);
+  }
+  async function loadTemplate(file?:File) {
+    if (!file) return;
+    try {
+      if(file.size>3_000_000) throw new Error('Choose the original daily HTML report, under 3 MB.');
+      const value=importDailyTemplate(await file.text());
+      useTemplate(value,accounts);
+      try { localStorage.setItem(templateKey,JSON.stringify(value)); setTemplateNote('Template saved in this browser.'); }
+      catch { setTemplateNote('Template is available for this session.'); }
+    } catch(e) { setTemplateNote(e instanceof Error?e.message:'The template could not be read.'); }
+  }
   async function connect() {
     setError(''); setLoaded(false);
     try {
@@ -36,6 +64,7 @@ export default function Reports() {
       if (!r.ok) throw new Error();
       const {accounts: list} = await r.json() as {accounts: MetaAccount[]};
       setAccounts(list.sort((a,b) => a.name.localeCompare(b.name)));
+      try { const saved=readStoredTemplate(localStorage.getItem(templateKey)); if(saved) useTemplate(saved,list); } catch { /* Browser storage can be unavailable. */ }
       const today = accountToday(Intl.DateTimeFormat().resolvedOptions().timeZone);
       setEnd(shiftDay(today,-1));
       const next = new Date(today.slice(0,7) + '-01T00:00:00Z');
@@ -70,7 +99,13 @@ export default function Reports() {
     setProgress('Reading ' + chosen.length + ' account' + (chosen.length === 1 ? '' : 's') + '…');
     try {
       await Promise.all(Array.from({length:Math.min(2,chosen.length)}, worker));
-      setRun({mode,date,inputs:{...inputs},entries});
+      const layouts=Object.fromEntries(portfolio.matches);
+      const exclusions=[...portfolio.missing,...Array.from(portfolio.matches).filter(([id])=>!selected.includes(id)).map(([,c])=>({name:c.name,reason:'Available in Meta. Outside the selected accounts for this report.'}))];
+      if (mode==='daily' && template) {
+        const order=new Map(Array.from(portfolio.matches.keys(),(id,i)=>[id,i]));
+        entries.sort((a,b)=>(order.get(a.account.id)??Infinity)-(order.get(b.account.id)??Infinity));
+      }
+      setRun({mode,date,inputs:{...inputs},entries,presentation:mode==='daily'?{layouts,exclusions,template}:undefined});
     } finally { locked.current=false; setBusy(false); }
   }
   function download() {
@@ -98,6 +133,7 @@ export default function Reports() {
       <div className="rep-mode">{(['daily','plan'] as const).map(m => <button key={m} type="button" aria-pressed={mode===m} onClick={() => {setMode(m);setQuery('');setRun(null);}}>{m==='daily' ? 'Daily account report' : 'Next-month ad plan'}</button>)}</div>
       {mode === 'daily' ? <>
         <div className="rep-inputs"><label>Through date<input type="date" name="end" defaultValue={end} required onInput={e=>setEnd(e.currentTarget.value)}/></label><label>Find ad accounts<input type="search" value={query} placeholder="Name or account ID" onChange={e=>setQuery(e.target.value)}/></label></div>
+        <div className="rep-template"><div><strong>{template?'Daily report template':'Use a previous daily report'}</strong><small>{template?template.clients.length+' expected brands · '+portfolio.matches.size+' matched accounts':'Choose the original daily HTML to use its client list and KPI cards. Figures are read from Meta for the selected dates.'}</small></div><label className="rep-file">{template?'Replace template':'Open template'}<input type="file" accept=".html,.htm,text/html" aria-label="Open daily HTML template" onChange={e=>{const file=e.currentTarget.files?.[0];e.currentTarget.value='';void loadTemplate(file);}}/></label>{template && <button type="button" onClick={()=>useTemplate(template,accounts)}>Select template accounts</button>}<small role="status">{templateNote}</small></div>
         <div className="rep-selectbar"><strong>{selected.length} selected</strong><button type="button" onClick={()=>setSelected([...new Set([...selected,...matches.map(a=>a.id)])])}>Select {query ? 'matches' : 'all'}</button><button type="button" onClick={()=>setSelected([])}>Clear</button></div>
         <div className="rep-accounts">{matches.map(a=><label key={a.id}><input type="checkbox" checked={selected.includes(a.id)} onChange={e=>setSelected(e.target.checked?[...selected,a.id]:selected.filter(id=>id!==a.id))}/><span>{a.name}<small>{a.currency} · {a.id}</small></span></label>)}{!matches.length && <p>No matching account</p>}</div></> :
       <><div className="rep-inputs"><label>Ad account<select required value={monthlyId} onChange={e=>{setMonthlyId(e.target.value);setResearchClient('');setInputs(emptyInputs);setRun(null);}}><option value="">Choose account</option>{accounts.map(a=><option key={a.id} value={a.id}>{a.name} · {a.currency} · {a.id}</option>)}</select></label><label>Plan month<input type="month" name="month" required defaultValue={month} onInput={e=>{setMonth(e.currentTarget.value);setInputs(emptyInputs);setRun(null);}}/></label></div>
@@ -108,6 +144,7 @@ export default function Reports() {
       <label>Market event<textarea maxLength={2000} value={inputs.event} placeholder="Event, date, market and source" onChange={e=>setInputs({...inputs,event:e.target.value})}/></label></div></>}
       <button className="rep-primary" disabled={!chosen.length || busy} type="submit">{busy ? 'Preparing report…' : mode==='daily' ? 'Read selected accounts' : 'Draft monthly plan'}</button>
       <span role="status">{busy ? progress : ''}</span></fieldset></form>}
-    {run && <section ref={paper}><div className="rep-exports"><button onClick={download}>Download HTML</button><button onClick={()=>window.print()}>Print / save PDF</button></div><ReportView run={run}/></section>}
+    {run?.mode==='daily' && dailyHtml && <section className="rep-daily-preview"><div className="rep-exports">{dailyUrl && <><a href={dailyUrl} target="_blank" rel="noopener noreferrer">Open full report ↗</a><a href={dailyUrl} download={'tossdown-daily-'+run.date+'.html'}>Download HTML</a></>}<button onClick={()=>frame.current?.contentWindow?.postMessage('print-daily-report','*')}>Print / save PDF</button></div><iframe ref={frame} title="Meta Ads daily report" sandbox="allow-scripts allow-modals" srcDoc={dailyHtml}/></section>}
+    {run?.mode==='plan' && <section ref={paper}><div className="rep-exports"><button onClick={download}>Download HTML</button><button onClick={()=>window.print()}>Print / save PDF</button></div><ReportView run={run}/></section>}
     </div></WorkspaceShell>;
 }

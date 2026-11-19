@@ -1,7 +1,7 @@
 import { fetchAllPages, getCampaigns, type MetaAccount } from '../meta/read';
 import { joinCampaigns, metrics, type Row, type DeliverySettings, type Snapshot, type Tracking, type Window } from './model';
 
-const fields = 'spend,impressions,reach,frequency,clicks,ctr,cpc,actions,action_values,purchase_roas,video_thruplay_watched_actions';
+const fields = 'spend,impressions,reach,frequency,clicks,ctr,cpc,actions,conversions,action_values,purchase_roas,video_thruplay_watched_actions';
 
 export async function readReportWindows(account: MetaAccount, windows: Window[]): Promise<Snapshot[]> {
   const [inventory, adsets] = await Promise.all([
@@ -39,7 +39,7 @@ export async function readReportWindows(account: MetaAccount, windows: Window[])
     if (!inventory) notes.push('Campaign inventory was unavailable. Current statuses and active campaigns without insight rows could not be checked.');
     if (accountRows === null) notes.push('Account totals were unavailable. Campaign rows remain available.');
     if (accountRows && !accountRows.length) notes.push('Meta returned no account-level insight row for this period.');
-    return { window, totals: accountRows?.[0] ? metrics(accountRows[0]) : null, campaigns: joinCampaigns(inventory ?? [], rows, window, settings), notes };
+    return { window, inventory: inventory ? { total: inventory.length, active: inventory.filter(c => c.effective_status === 'ACTIVE').length } : undefined, totals: accountRows?.[0] ? metrics(accountRows[0]) : null, campaigns: joinCampaigns(inventory ?? [], rows, window, settings), notes };
   }));
 }
 
