@@ -31,6 +31,7 @@ it('validates window coverage and citations before retaining a successful result
 });
 it('uses skill findings while keeping measured KPI values and template structure',async()=>{
  const before=JSON.stringify(report);const analysis=await analyzeDailyReport(report,getReportingSkills()[0]);expect(JSON.stringify(report)).toBe(before);
+ const supplied=JSON.parse(api.model.mock.calls[0][1]);expect(supplied.facts).toEqual(dailyEvidence(report).facts.map(({id,value})=>({id,value})));
  const updated={...report,periods:report.periods.map((p,i)=>({...p,analysis:{findings:analysis.periods[i].findings}}))};
  const original=renderDailyDocument([{account,report}],'2026-11-18'),html=renderDailyDocument([{account,report:updated}],'2026-11-18',{skill:analysis.run.skill});
  const kpis=(value:string)=>Array.from(value.matchAll(/class="kpi-label">([^<]*)<\/div><div class="kpi-value[^"]*">([^<]*)/g),m=>[m[1],m[2]]).filter(([label])=>!['Critical Flags','Warnings','Status'].includes(label));

@@ -283,7 +283,9 @@ export async function analyzeDailyReport(
   const evidence = dailyEvidence(report);
   const modelEvidence = {
     ...evidence,
-    facts: evidence.facts.map(({ display, ...fact }) => fact),
+    // The window is already present in each exact evidence ID. Keep every
+    // measurement while avoiding repeated presentation and window metadata.
+    facts: evidence.facts.map(({ display, periodId, ...fact }) => fact),
   };
   const result = await runReportSkill(skill, modelEvidence, (raw) =>
     validateDailyAnalysis(raw, evidence),
