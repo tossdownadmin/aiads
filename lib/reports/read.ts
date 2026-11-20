@@ -2,7 +2,7 @@ import { readDetails } from '../meta/campaign-detail';
 import { fetchAllPages, getCampaigns, type MetaAccount } from '../meta/read';
 import { joinCampaigns, metrics, type Row, type DeliverySettings, type Snapshot, type Tracking, type Window } from './model';
 
-const fields = 'spend,impressions,reach,frequency,clicks,ctr,cpc,actions,conversions,action_values,purchase_roas,video_thruplay_watched_actions,results';
+const fields = 'spend,impressions,reach,frequency,clicks,ctr,cpc,actions,conversions,action_values,purchase_roas,video_thruplay_watched_actions';
 
 export async function readReportWindows(account: MetaAccount, windows: Window[]): Promise<Snapshot[]> {
   const [inventory, adsets] = await Promise.all([

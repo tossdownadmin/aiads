@@ -55,6 +55,8 @@ describe('Meta report reader', () => {
     });
     const [report]=await readReportWindows({id:'act_1',name:'A',currency:'USD',status:1},[{since:'2026-11-01',until:'2026-11-10'}]);
     expect(calls).toHaveLength(8);expect(report.details?.a).toBeDefined();expect(report.totals?.reach).toBe(11);expect(report.campaigns[0].status).toBe('PAUSED');
+    for(const call of calls.filter(url=>['campaign','account'].includes(url.searchParams.get('level')||'')))expect(call.searchParams.get('fields')?.split(',')).not.toContain('results');
+    for(const call of calls.filter(url=>['adset','ad'].includes(url.searchParams.get('level')||'')))expect(call.searchParams.get('fields')?.split(',')).toContain('results');
   });
   it('distinguishes inaccessible datasets from an empty visible list', async () => {
     vi.stubEnv('META_SYSTEM_USER_TOKEN','unit-test');vi.stubGlobal('fetch',async()=>Response.json({error:{message:'Denied'}},{status:403}));
