@@ -185,7 +185,7 @@ export type AdSet = {
 export type CampaignDetail = { sets: AdSet[]; notes: string[] };
 export type DetailMap = Record<string, CampaignDetail>;
 const statFields =
-  "campaign_id,adset_id,spend,impressions,reach,frequency,clicks,ctr,cpc,actions,action_values,purchase_roas,video_thruplay_watched_actions";
+  "campaign_id,adset_id,spend,impressions,reach,frequency,clicks,ctr,cpc,actions,action_values,purchase_roas,video_thruplay_watched_actions,results";
 const creativeFields =
   "id,body,title,thumbnail_url,image_hash,image_url,video_id,object_story_spec,asset_feed_spec,effective_object_story_id,instagram_permalink_url";
 function audienceSettings(target: Fields): Record<string, string> {
@@ -395,7 +395,7 @@ export async function readDetails(
     for (const [index, period] of periods.entries()) {
       const range: Record<string, string> =
         typeof period === "string"
-          ? { date_preset: period }
+          ? { date_preset: period, use_unified_attribution_setting: "true" }
           : {
               time_range: JSON.stringify({
                 since: period.since,

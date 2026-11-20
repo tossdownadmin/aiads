@@ -12,3 +12,7 @@
 ## Missing reporting rows
 
 A missing account-level insight row is not a verified zero. Zero active campaigns at retrieval does not prove that no ads delivered earlier in a historical window. If spend/impressions are not reported, say that delivery cannot be established from the returned data. Never write “no ads were delivering” or “zero delivery” without explicit zero metrics for those dates. Distinguish source gaps, current paused states and verified historical zeros.
+
+## Imported metrics and tracking claims
+
+A metric that is null or not reported is a limitation of the imported evidence. It does not prove the campaign failed to record outcomes, that tracking is broken, or that Ads Manager has no results. Facebook Page visits may be exposed through the insights results indicator at ad-set level rather than the familiar actions list. Keep Facebook Page visits, Instagram profile visits, clicks and followers separate. If the relevant imported measurement is unavailable, use a title such as “Facebook Page visits unavailable in imported data” and recommend comparing the same dates and attribution settings in Ads Manager. Never describe a campaign as “not recording” merely because a field is absent.

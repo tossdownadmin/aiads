@@ -1,14 +1,15 @@
+import { portableFontStyles } from '../ui/report-font';
 // Presentation of the supplied daily report, scoped to its standalone document.
-export const dailyStyles = `:root{
+export const dailyStyles = portableFontStyles + `:root{
   color-scheme:light;
-  --bg:#f5f6f8;--surface:#fff;--surface2:#f0f1f4;--border:#e2e4e9;
-  --fg:#111827;--fg2:#4b5563;--fg3:#9ca3af;
-  --accent:#2563eb;--accent-bg:#eff6ff;
-  --good:#059669;--good-bg:#ecfdf5;
+  --bg:#fdfbfa;--surface:#fff;--surface2:#f6f2ef;--border:#e5dfe2;
+  --fg:#242124;--fg2:#574e55;--fg3:#786d75;
+  --accent:#bd1241;--accent-bg:#fff0f4;
+  --good:#3d5877;--good-bg:#edf2f8;
   --warn:#d97706;--warn-bg:#fffbeb;
   --crit:#dc2626;--crit-bg:#fef2f2;
-  --font-body:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
-  --font-mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Consolas,'Courier New',monospace;
+  --font-body:'Poppins',ui-sans-serif,system-ui,sans-serif;
+  --font-mono:'Poppins',ui-sans-serif,system-ui,sans-serif;
 }
 *,*::before,*::after{box-sizing:border-box}
 body{font-family:var(--font-body);background:var(--bg);color:var(--fg);margin:0;font-size:14px;line-height:1.5}

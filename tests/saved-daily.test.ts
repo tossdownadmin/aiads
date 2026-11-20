@@ -15,7 +15,7 @@ const old={date:'2025-01-10',accountIds:[account.id],html:'previous',savedAt:'20
 const savedPath='reports/daily/latest-v1.json',pending='reports/daily/pending-v1.json';
 const blobs=new Map<string,{value:any;version:string}>();let number=0;
 const post=(body:unknown)=>POST(new Request('https://example.com/api/meta/reports/daily',{method:'POST',body:JSON.stringify(body)}));
-async function start(extra={}){return (await (await post({action:'start',version:'v1',...extra})).json()).job;}
+async function start(extra={}){return (await (await post({action:'start',version:'v1',accountIds:[account.id],...extra})).json()).job;}
 beforeEach(()=>{
  vi.resetAllMocks();blobs.clear();number=1;blobs.set(savedPath,{value:structuredClone(old),version:'v1'});
  api.auth.mockResolvedValue(true);api.accounts.mockResolvedValue([account]);api.skill.mockResolvedValue(getReportingSkills()[0]);
@@ -54,4 +54,15 @@ it('uses inclusive comparison windows with matched elapsed days',()=>{
 
 it('rejects an outdated selected skill version before starting a job',async()=>{
  expect((await post({action:'start',version:'v1',skillSha:'old-version'})).status).toBe(400);expect(api.analyze).not.toHaveBeenCalled();expect(blobs.get(savedPath)!.value.html).toBe('previous');
+});
+
+it('refreshes the assigned portfolio instead of reusing an older account selection',async()=>{
+ const first={...account,id:'act_2036318527081035',name:'Victoria Harbor Cafe'},second={...account,id:'act_791947983578213',name:'Mandarin Chinese Halal'},unassigned={...account,id:'act_587490045801812',name:'td Big Apple'};
+ api.accounts.mockResolvedValue([unassigned,second,first]);
+ const response=await post({action:'start',version:'v1',date:'2025-01-10'}),body=await response.json();
+ expect(response.status).toBe(200);expect(body.job.total).toBe(2);
+ expect(blobs.get(pending)!.value.accountIds).toEqual([first.id,second.id]);
+ expect(blobs.get(pending)!.value.template.clients).toHaveLength(15);
+ expect(blobs.get(pending)!.value.template.clients.map((c:any)=>c.name)).not.toContain('Big Apple');
+ expect(blobs.get(savedPath)!.value.html).toBe('previous');
 });

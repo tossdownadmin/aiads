@@ -1,0 +1,86 @@
+@font-face{font-family:"Poppins";font-style:normal;font-weight:400;font-display:swap;src:url(/fonts/poppins-latin-400.woff2) format("woff2")}
+@font-face{font-family:"Poppins";font-style:normal;font-weight:500;font-display:swap;src:url(/fonts/poppins-latin-500.woff2) format("woff2")}
+@font-face{font-family:"Poppins";font-style:normal;font-weight:600;font-display:swap;src:url(/fonts/poppins-latin-600.woff2) format("woff2")}
+@font-face{font-family:"Poppins";font-style:normal;font-weight:700;font-display:swap;src:url(/fonts/poppins-latin-700.woff2) format("woff2")}
+@font-face{font-family:"Poppins";font-style:normal;font-weight:800;font-display:swap;src:url(/fonts/poppins-latin-800.woff2) format("woff2")}
+/* Tossdown charcoal, cream and rose. Poppins is hosted with this application. */
+:root {
+  --td-ink:#242124;
+  --td-muted:#70676e;
+  --td-canvas:#f7f5f2;
+  --td-surface:#ffffff;
+  --td-border:#e5dfe2;
+  --td-brand:#e51451;
+  --td-brand-text:#bd1241;
+  --td-brand-soft:#fff0f4;
+  --td-cream:#fffddb;
+  font-family:"Poppins",ui-sans-serif,system-ui,sans-serif;
+  color:var(--td-ink);
+  background:var(--td-canvas);
+  font-synthesis:none;
+}
+body,button,input,select,textarea,dialog { font-family:"Poppins",ui-sans-serif,system-ui,sans-serif; }
+body { -webkit-font-smoothing:antialiased; }
+button,input,select,textarea { accent-color:var(--td-brand); }
+a { color:var(--td-brand-text); }
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible {
+  outline:2px solid var(--td-brand);
+  outline-offset:3px;
+}
+.craft-shell { background:var(--td-canvas); color:var(--td-ink); font-family:"Poppins",ui-sans-serif,system-ui,sans-serif; }
+.craft-sidebar { background:#181616; border-right-color:#343034; }
+.craft-brand { color:#fffddb; font-weight:600; letter-spacing:-.04em; }
+.craft-brand-mark,.craft-side-avatar { background:var(--td-brand); color:#fff; }
+.craft-brand-mark span { color:#fffddb; }
+.craft-side-group>p { color:#a89da4; font-weight:500; }
+.craft-side-group>a { color:#d2c9ce; font-weight:500; }
+.craft-side-group>a>span:first-child { color:#aaa0a7; }
+.craft-side-group>a:hover { background:#2b2428; color:#fff; }
+.craft-side-group>a.active { background:#3c202a; color:#fff; }
+.craft-side-group>a.active>span:first-child { color:#ff7097; }
+.craft-side-group>a small { color:#e7a9bc; font-weight:400; }
+.craft-side-foot { border-color:#393035; color:#f5edef; }
+.craft-side-foot small { color:#a89da4; }
+.craft-topbar { background:#fff; border-bottom-color:var(--td-border); }
+.craft-menu,.craft-brand-search input { color:var(--td-ink); }
+.craft-menu:hover,.craft-brand-search { background:#f6f3f4; }
+.craft-brand-search,.craft-page-tabs { border-color:var(--td-border); }
+.craft-page-tabs a.active { background:#242124; }
+.craft-top-status { color:var(--td-muted); font-weight:500; }
+.status-light { background:var(--td-brand); box-shadow:0 0 0 3px #ffe1e9; }
+.craft-hero { background:#242124; border-color:#242124; box-shadow:none; }
+.craft-hero h1 { color:var(--td-cream); font-weight:600; letter-spacing:-.045em; }
+.craft-hero-main p,.craft-hero-main a { color:#eadde3; }
+.craft-crumb { color:#f39ab4; font-weight:500; }
+.craft-hero-icon { background:#3b2930; color:#ff7097; }
+.craft-steps li { border-color:#5a444d; background:#32262c; color:#dfcdd5; font-weight:500; }
+.craft-steps li span { background:#52404a; color:#fff; }
+.craft-steps li.active { border-color:var(--td-brand); background:var(--td-brand); color:#fff; }
+.craft-steps li.active span { color:var(--td-brand-text); background:#fff; }
+.workspace-card,.workspace-home-card,.craft-summary,.craft-shell .research-form,.craft-shell .ad-results,.craft-shell .analysis-panel { border-color:var(--td-border); box-shadow:0 8px 28px #24212405; }
+.workspace-home-card:hover { border-color:#eaa8bd; }
+.workspace-home-icon { background:var(--td-brand-soft); color:var(--td-brand-text); }
+.workspace-home-label,.workspace-home-card strong,.workspace-home-note strong { color:var(--td-brand-text); }
+.workspace-access button,.workspace-actions button,.workspace-link-button,.workspace-audit .run-button,.craft-search-button,.rep-form .rep-primary,.rep-saved>button:first-of-type {
+  background:var(--td-brand); border-color:var(--td-brand); color:#fff; font-weight:600;
+}
+.workspace-actions .workspace-secondary,.rep-nav button[aria-pressed=true] { background:#242124; border-color:#242124; color:#fff; }
+.audit-method.selected,.craft-shell .source-picker button.active { background:var(--td-brand-soft); border-color:var(--td-brand); box-shadow:0 0 0 2px #e5145110; }
+.audit-method input,.workspace-audit .selector-grid .audit-method input[type=radio] { accent-color:var(--td-brand); }
+.workspace-audit .finding { border-left-color:var(--td-brand); }
+.workspace-audit .metric-row div,.workspace-hint,.workspace-tags span,.workspace-audit .result-head .badge { background:#faf2f5; }
+.craft-shell .source-picker button.active .craft-source-check { background:var(--td-brand); border-color:var(--td-brand); }
+.craft-section-number { background:var(--td-brand-soft); color:var(--td-brand-text); }
+.fp-tabs button[aria-pressed=true],.fp-client-summary,.fp-client-bar { border-color:var(--td-border); }
+.fp-dialog { font-family:"Poppins",ui-sans-serif,system-ui,sans-serif; }
+.report-paper { font-family:"Poppins",ui-sans-serif,system-ui,sans-serif; color:var(--td-ink); }
+.report-paper>header { border-bottom-color:var(--td-brand); }
+.report-paper h2,.report-paper h3,.report-paper h4 { color:var(--td-ink); font-weight:600; }
+.report-paper a { color:var(--td-brand-text); }
+.rep-totals>div { background:#faf7f8; }
+.rep-portfolio { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin:12px 0; padding:14px 18px; border:1px solid var(--td-border); border-radius:12px; background:#fff; }
+.rep-portfolio strong { display:block; font-size:13px; font-weight:600; }
+.rep-portfolio small { display:block; color:var(--td-muted); font-size:12px; margin-top:3px; }
+.rep-portfolio button { padding:8px 12px; background:var(--td-brand-soft); color:var(--td-brand-text); font-size:12px; font-weight:600; }
+.cg-status.is-active,.risk.low { background:#edf2f8; color:#3d5877; }
+@media print { .rep-portfolio { display:none; } }

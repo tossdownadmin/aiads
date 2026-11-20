@@ -1,6 +1,6 @@
 .fp-workspace {
   margin-top: 24px;
-  color: #173b30;
+  color: #342d33;
 }
 .fp-client-bar {
   display: flex;
@@ -16,7 +16,7 @@
 .fp-tabs {
   display: flex;
   gap: 7px;
-  border-bottom: 1px solid #dfe9e3;
+  border-bottom: 1px solid #e5dfe2;
   padding-bottom: 12px;
   margin-bottom: 22px;
 }
@@ -27,11 +27,11 @@
   font: inherit;
   font-size: 13px;
   background: transparent;
-  color: #64766b;
+  color: #70676e;
 }
 .fp-tabs button[aria-pressed="true"] {
-  background: #e7f3ec;
-  color: #126e52;
+  background: #f6f2ef;
+  color: #342d33;
 }
 .fp-section-head {
   display: flex;
@@ -47,7 +47,7 @@
 }
 .fp-section-head p,
 .fp-cost {
-  color: #708075;
+  color: #70676e;
   font-size: 12px;
   line-height: 1.6;
   margin: 6px 0 14px;
@@ -62,7 +62,7 @@
   justify-content: space-between;
   gap: 15px;
   padding: 15px;
-  border: 1px solid #dde8e0;
+  border: 1px solid #e5dfe2;
   border-radius: 12px;
   background: #fff;
 }
@@ -76,7 +76,7 @@
 .fp-confirm input {
   width: 17px;
   height: 17px;
-  accent-color: #168468;
+  accent-color: #c51246;
 }
 .fp-select > span:last-child {
   min-width: 0;
@@ -88,15 +88,15 @@
 .fp-select small {
   display: block;
   font-size: 12px;
-  color: #718276;
+  color: #70676e;
   margin-top: 3px;
   overflow-wrap: anywhere;
 }
 .fp-avatar {
   display: grid;
   place-items: center;
-  background: #e9f3ed;
-  color: #237253;
+  background: #f6f2ef;
+  color: #342d33;
   width: 36px;
   height: 36px;
   flex-shrink: 0;
@@ -110,7 +110,7 @@
 }
 .fp-text {
   background: transparent !important;
-  color: #177253 !important;
+  color: #342d33 !important;
   padding: 5px 0 !important;
   border: 0 !important;
   font: inherit;
@@ -120,10 +120,10 @@
   text-align: left;
 }
 .fp-empty {
-  border: 1px dashed #cbded0;
+  border: 1px dashed #e5dfe2;
   padding: 24px;
   border-radius: 12px;
-  background: #f8fbf8;
+  background: #fdfbfa;
 }
 .fp-empty h4 {
   font-size: 17px;
@@ -131,7 +131,7 @@
 }
 .fp-empty p {
   font-size: 13px;
-  color: #718176;
+  color: #70676e;
 }
 .fp-filters {
   display: grid;
@@ -149,13 +149,13 @@
 .fp-board,
 .fp-suggestions {
   margin: 24px 0;
-  border-top: 1px solid #e1eae3;
+  border-top: 1px solid #e5dfe2;
   padding-top: 14px;
 }
 .fp-board > summary,
 .fp-suggestions > summary {
   font-size: 12px;
-  color: #728276;
+  color: #70676e;
   cursor: pointer;
   font-weight: 500;
 }
@@ -167,7 +167,7 @@
 }
 .fp-suggestions article {
   padding: 14px;
-  border: 1px solid #e2eae4;
+  border: 1px solid #e5dfe2;
   border-radius: 10px;
 }
 .fp-suggestions small,
@@ -175,7 +175,7 @@
   display: block;
   font-size: 12px;
   margin-top: 5px;
-  color: #647a6a;
+  color: #70676e;
 }
 .fp-discover {
   display: grid;
@@ -194,7 +194,7 @@
   justify-content: space-between;
   gap: 20px;
   padding: 18px;
-  border: 1px solid #dde7df;
+  border: 1px solid #e5dfe2;
   border-radius: 12px;
 }
 .fp-candidates h4 {
@@ -203,14 +203,14 @@
 }
 .fp-candidates p {
   font-size: 13px;
-  color: #617769;
+  color: #70676e;
   margin: 5px 0;
 }
 .fp-candidates small,
 .fp-candidates a {
   display: block;
   font-size: 12px;
-  color: #718276;
+  color: #70676e;
   margin: 5px 0;
 }
 .fp-save-search {
@@ -247,15 +247,15 @@
   flex-wrap: wrap;
   margin: 18px 0;
   font-size: 12px;
-  color: #6a7e6e;
+  color: #70676e;
 }
 .fp-notice {
   font-size: 13px;
-  color: #24774e;
+  color: #c51246;
 }
 .fp-edited {
   font-size: 11px;
-  color: #859087;
+  color: #70676e;
   margin: 18px 0 0;
 }
 .fp-dialog {
@@ -265,11 +265,11 @@
   max-width: 620px;
   width: calc(100vw - 32px);
   max-height: 90dvh;
-  color: #1c3d2d;
-  font: 14px/1.6 system-ui;
+  color: #342d33;
+  font: 14px/1.6 "Poppins",sans-serif;
 }
 .fp-dialog::backdrop {
-  background: #102e2466;
+  background: #24212466;
   backdrop-filter: blur(3px);
 }
 .fp-dialog form {
@@ -287,8 +287,8 @@
   margin: 0;
 }
 .fp-dialog header button {
-  background: #edf3ee;
-  color: #45604d;
+  background: #f6f2ef;
+  color: #574e55;
   border: 0;
   border-radius: 50%;
   font-size: 24px;
@@ -299,25 +299,25 @@
   display: grid;
   gap: 7px;
   font-size: 12px;
-  color: #58715e;
+  color: #70676e;
   font-weight: 500;
 }
 .fp-dialog input:not([type="checkbox"]),
 .fp-dialog textarea,
 .fp-dialog select {
   font: inherit;
-  border: 1px solid #d9e5db;
+  border: 1px solid #e5dfe2;
   border-radius: 8px;
   padding: 11px 12px;
   background: #fff;
   width: 100%;
   box-sizing: border-box;
-  color: #24432f;
+  color: #342d33;
 }
 .fp-dialog small {
   font-size: 11px;
   font-weight: 400;
-  color: #7b8c7d;
+  color: #70676e;
 }
 .fp-editor-grid {
   display: grid;
@@ -329,13 +329,13 @@
   align-items: flex-start;
   gap: 10px;
   font-size: 12px;
-  color: #516c57;
+  color: #574e55;
 }
 .fp-dialog footer {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
-  border-top: 1px solid #e4ebe5;
+  border-top: 1px solid #e5dfe2;
   padding-top: 18px;
 }
 .fp-workspace .error {

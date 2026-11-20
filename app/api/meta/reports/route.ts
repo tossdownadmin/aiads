@@ -4,8 +4,8 @@ import { verifyAdminSession } from '../../../../lib/auth';
 import { clientIdSchema } from '../../../../lib/competitors/library';
 import { readClientBoard, readCompetitors, readClientCatalog } from '../../../../lib/competitors/store';
 import { searchForeplay, searchSavedCompetitors } from '../../../../lib/competitors/foreplay';
-import { getAdAccounts } from '../../../../lib/meta/read';
-import { comparisonWindow, accountToday, dailyWindows, planningWindow, type Report } from '../../../../lib/reports/model';
+import { getAdAccounts, fetchAllPages } from '../../../../lib/meta/read';
+import { comparisonWindow, accountToday, dailyWindows, planningWindow, validDay, type Report } from '../../../../lib/reports/model';
 import {selectReportSkill} from '../../../../lib/skills/report-runner';
 import {analyzeDailyReport} from '../../../../lib/reports/daily-analysis';
 import { draftPlan } from '../../../../lib/reports/plan';
@@ -21,6 +21,19 @@ const schema = z.discriminatedUnion('mode', [
   z.object({ mode: z.literal('plan'), accountId, month: z.string().length(7), researchClient: clientIdSchema.optional(), skillName:z.string().min(1).max(120).optional(), skillSha:z.string().min(1).max(200).optional(), inputs, draft: z.boolean().default(true) }),
 ]);
 const json = (body: unknown, status = 200) => NextResponse.json(body, { status, headers: { 'Cache-Control': 'private, no-store' } });
+// Authenticated read-only reconciliation of the fields used by Ads Manager.
+export async function GET(request:Request) {
+  if(!await verifyAdminSession())return json({error:'Sign in to read Meta reports.'},401);
+  const q=new URL(request.url).searchParams;
+  const id=q.get('accountId')||'',since=q.get('since')||'',until=q.get('until')||'';
+  if(!/^act_\d+$/.test(id)||!validDay(since)||!validDay(until)||since>until||Date.parse(until)-Date.parse(since)>93*86400000)return json({error:'Choose an account and a reporting window of at most 94 days.'},400);
+  try {
+    const account=(await getAdAccounts()).find(a=>a.id===id);
+    if(!account)return json({error:'The account is unavailable to this connection.'},403);
+    const rows=await fetchAllPages(id+'/insights',{level:'adset',time_range:JSON.stringify({since,until}),use_unified_attribution_setting:'true',fields:'campaign_id,campaign_name,adset_id,adset_name,spend,actions,results,cost_per_result,attribution_setting',limit:'200'});
+    return json({account:{id:account.id,name:account.name,currency:account.currency,timezone:account.timezone},window:{since,until},rows});
+  }catch{return json({error:'Meta could not return the requested result evidence.'},502);}
+}
 export async function POST(request: Request) {
   if (!await verifyAdminSession()) return json({ error: 'Sign in to read Meta reports.' }, 401);
   const input = schema.safeParse(await request.json().catch(() => null));

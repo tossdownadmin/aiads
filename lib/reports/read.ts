@@ -2,7 +2,7 @@ import { readDetails } from '../meta/campaign-detail';
 import { fetchAllPages, getCampaigns, type MetaAccount } from '../meta/read';
 import { joinCampaigns, metrics, type Row, type DeliverySettings, type Snapshot, type Tracking, type Window } from './model';
 
-const fields = 'spend,impressions,reach,frequency,clicks,ctr,cpc,actions,conversions,action_values,purchase_roas,video_thruplay_watched_actions';
+const fields = 'spend,impressions,reach,frequency,clicks,ctr,cpc,actions,conversions,action_values,purchase_roas,video_thruplay_watched_actions,results';
 
 export async function readReportWindows(account: MetaAccount, windows: Window[]): Promise<Snapshot[]> {
   const [inventory, adsets] = await Promise.all([
@@ -44,7 +44,14 @@ export async function readReportWindows(account: MetaAccount, windows: Window[])
   }));
   const ids = [...new Set(snapshots.flatMap(p => p.campaigns.map(c => c.id)))];
   const details = await readDetails(account.id, account.currency, ids, windows);
-  return snapshots.map((p,i) => ({...p, details:details[i]}));
+  return snapshots.map((p,i) => ({...p, details:details[i],campaigns:p.campaigns.map(c=>{
+    if(c.facebookVisits!==null)return c;
+    const reported=details[i]?.[c.id]?.sets.filter(set=>set.stats)||[];
+    // Page-visit results can be available only at ad-set level. Roll up complete
+    // reporting rows once; do not also add the same ads or attribution variants.
+    if(!reported.length||reported.some(set=>set.stats!.facebookVisits===null))return c;
+    return {...c,facebookVisits:reported.reduce((total,set)=>total+set.stats!.facebookVisits!,0)};
+  })}));
 }
 
 export async function readTracking(accountId: string): Promise<Tracking> {

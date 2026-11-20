@@ -20,6 +20,7 @@ import { selectReportSkill } from "../skills/report-runner";
 import { skillVersion, type ReportingSkill } from "../skills/report-packages";
 import type { SkillRun } from "../skills/report-types";
 import type { SavedDaily } from "./saved-daily";
+import { activePortfolio, activePortfolioId, activeReportTemplate } from '../../config/active-clients';
 
 const savedPath = "reports/daily/latest-v1.json",
   jobPath = "reports/daily/pending-v1.json";
@@ -34,6 +35,7 @@ type DailyJob = {
   date: string;
   accountIds: string[];
   template?: DailyTemplate;
+  portfolioId?: string;
   baseVersion: string | null;
   skill: ReportingSkill;
   completed: { id: string; name: string; path: string; run: SkillRun }[];
@@ -140,19 +142,19 @@ export async function startDaily(input: {
     throw new DailyConflict(
       "An update is already pending. Resume or discard it first.",
     );
-  const ids = [
-    ...new Set(input.accountIds ?? previous.value?.accountIds ?? []),
-  ];
-  if (!ids.length) throw new DailyInputError("Choose accounts for the report.");
   const accounts = await getAdAccounts(),
     byId = new Map(accounts.map((a) => [a.id, a]));
+  const assigned=activePortfolio(accounts);
+  const customRefresh=!input.accountIds&&previous.value?.portfolioId==='custom';
+  const ids=[...new Set(input.accountIds ?? (customRefresh?previous.value!.accountIds:assigned.accountIds))];
+  if (!ids.length) throw new DailyInputError("No assigned reporting accounts are available to this Meta connection.");
   if (ids.some((id) => !byId.has(id)))
     throw new DailyInputError(
       "A selected account is unavailable to the Meta connection.",
     );
   const template = input.accountIds
     ? readStoredTemplate(JSON.stringify(input.template) ?? null)
-    : previous.value?.template;
+    : customRefresh?previous.value?.template:activeReportTemplate(previous.value?.template);
   if (input.template && !template)
     throw new DailyInputError("The report template is invalid.");
   const chosen = ids.map((id) => byId.get(id)!);
@@ -184,6 +186,7 @@ export async function startDaily(input: {
     date,
     accountIds: chosen.map((a) => a.id),
     template,
+    portfolioId:ids.length===assigned.accountIds.length&&ids.every(id=>(assigned.accountIds as string[]).includes(id))?activePortfolioId:'custom',
     baseVersion: previous.version,
     skill,
     completed: [],
@@ -327,6 +330,7 @@ export async function advanceDaily(id: string) {
       savedAt: new Date().toISOString(),
       accountIds: job.accountIds,
       template: job.template,
+      portfolioId:job.portfolioId,
       html,
       skill: selectedSkill,
       runs: leased.completed.map((e) => e.run),

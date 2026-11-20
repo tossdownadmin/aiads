@@ -55,3 +55,10 @@ it('does not accept a historical zero-delivery claim based on missing reporting'
  const bad={periods:answer.periods.map(p=>({...p,findings:p.findings.map(f=>({...f,interpretation:'No ads were delivering during these dates.'}))}))};
  expect(()=>validateDailyAnalysis(bad,dailyEvidence(unknown))).toThrow('missing reporting row');
 });
+
+it('labels an unreported outcome as an import gap instead of a recording failure',()=>{
+ const evidence=dailyEvidence(report);
+ const findings=(title:string)=>({periods:answer.periods.map(p=>({...p,findings:p.findings.map(f=>({...f,title,interpretation:'This metric was not returned in the imported evidence.',evidenceIds:[p.periodId+':account:facebookVisits']}))}))});
+ expect(()=>validateDailyAnalysis(findings('Facebook profile-visit campaign not recording profile visits'),evidence)).toThrow('recording or tracking failure');
+ expect(validateDailyAnalysis(findings('Facebook Page visits unavailable in imported data'),evidence)).toHaveLength(2);
+});

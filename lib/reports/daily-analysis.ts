@@ -32,7 +32,7 @@ const labels: Partial<Record<keyof Metrics, string>> = {
   purchaseValue: "Attributed purchase value",
   roas: "Purchase ROAS",
   instagramVisits: "Instagram profile visits",
-  facebookVisits: "Facebook profile visits",
+  facebookVisits: "Facebook Page visits",
   conversations: "Conversations",
   landingViews: "Landing page views",
   linkClicks: "Link clicks",
@@ -230,6 +230,10 @@ export function validateDailyAnalysis(
             "No explicit zero delivery was supplied for this window. A missing reporting row or current inactive inventory cannot prove historical zero delivery. Describe the missing evidence instead.",
           );
         const cited = f.evidenceIds.map((id) => facts.get(id));
+        if(cited.some(fact=>fact?.value===null)&&(
+          /\b(?:not recording|not tracking|tracking (?:failure|broken|missing)|untracked (?:visits|conversions))\b/i.test(f.title)||
+          /\b(?:outcome|result|visit|conversion) (?:metric )?is not being captured\b/i.test(f.interpretation)
+        ))throw Error('A missing imported metric does not establish a recording or tracking failure. Describe an imported data gap and compare the same dates and attribution settings in Ads Manager.');
         if (cited.some((fact) => !fact || fact.periodId !== p.periodId)) {
           const invalid = f.evidenceIds.filter(
             (id) => !facts.get(id) || facts.get(id)!.periodId !== p.periodId,

@@ -9,4 +9,5 @@ export type SavedDaily = {
   skill?: import('../skills/report-types').SkillVersion;
   runs?: import('../skills/report-types').SkillRun[];
   jobId?: string;
+  portfolioId?: string;
 };

@@ -64,6 +64,15 @@ function action(value: unknown, names: string[]) {
 }
 const purchaseTypes = ['omni_purchase', 'purchase', 'offsite_conversion.fb_pixel_purchase'];
 const leadTypes = ['lead', 'onsite_conversion.lead_grouped', 'offsite_conversion.fb_pixel_lead'];
+function resultValue(value: unknown, indicator: string) {
+  if(!Array.isArray(value))return null;
+  const result=value.find(item=>item&&typeof item==='object'&&[indicator,'actions:'+indicator].includes(String(item.indicator)));
+  if(!result)return null;
+  if(numeric(result.value)!==null)return numeric(result.value);
+  const values=result.values;
+  // Attribution variants are alternatives. Never add them together.
+  return Array.isArray(values)&&values.length===1?numeric(values[0]?.value):null;
+}
 export function metrics(row: Row = {}) {
   const spend = numeric(row.spend);
   const purchases = action(row.actions, purchaseTypes);
@@ -75,7 +84,7 @@ export function metrics(row: Row = {}) {
     purchases, leads: action(row.actions, leadTypes), purchaseValue,
     roas: reportedRoas ?? (spend && purchaseValue !== null ? purchaseValue / spend : null),
     instagramVisits: numeric(row.instagram_profile_visits) ?? action(row.actions, ['onsite_conversion.instagram_profile_visit', 'instagram_profile_visit']),
-    facebookVisits: action(row.actions, ['onsite_conversion.facebook_profile_visit', 'facebook_profile_visit', 'page_visit']),
+    facebookVisits: action(row.actions, ['onsite_conversion.facebook_profile_visit', 'facebook_profile_visit', 'page_visit']) ?? resultValue(row.results,'page_visit_view'),
     conversations: action(row.actions, ['onsite_conversion.messaging_conversation_started_7d', 'messaging_conversation_started_7d']),
     formLeads: action(row.actions, ['onsite_conversion.lead_form', 'onsite_conversion.lead_gen_form', 'onsite_conversion.lead_form_submit']),
     conversionLeads: action(row.actions, ['onsite_conversion.conversion_lead', 'offsite_conversion.lead_converted']) ?? action(row.conversions, ['onsite_conversion.conversion_lead', 'offsite_conversion.lead_converted']),

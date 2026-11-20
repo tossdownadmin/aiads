@@ -11,6 +11,10 @@ import { importDailyTemplate, matchPortfolio, templateKey, type DailyTemplate } 
 import type {PublicDailyJob} from '../../lib/reports/daily-jobs';
 import type { SavedDaily } from '../../lib/reports/saved-daily';
 import './reports.css';
+import { activeClients, activePortfolio, activePortfolioId, activeReportTemplate } from '../../config/active-clients';
+import { dailyStyles } from '../../lib/reports/daily-style';
+import { detailStyles } from '../../lib/reports/detail-view';
+import { portableFontStyles } from '../../lib/ui/report-font';
 
 const emptyInputs: PlanInputs = { brief: '', competitors: '', event: '' };
 export default function Reports() {
@@ -36,6 +40,7 @@ export default function Reports() {
   const [templateNote,setTemplateNote] = useState('');
   const [templateText,setTemplateText] = useState('');
   const portfolio = useMemo(()=>matchPortfolio(template,accounts),[template,accounts]);
+  const assigned = useMemo(()=>activePortfolio(accounts),[accounts]);
   const [saved,setSaved]=useState<SavedDaily|null>(null);
   const [version,setVersion]=useState<string|null>(null);
   const [dailyReady,setDailyReady]=useState(false);
@@ -59,6 +64,10 @@ export default function Reports() {
       if(!gallery||gallery===panel.lastElementChild||!heading?.classList.contains('section-label')||!heading.textContent?.startsWith('Campaign Performance'))continue;
       panel.append(heading,gallery);changed=true;
     }
+    const theme=doc.createElement('style');
+    theme.setAttribute('data-tossdown-brand','rose-poppins-v1');
+    theme.textContent=dailyStyles+detailStyles;
+    doc.head.append(theme);changed=true;
     return changed?'<!doctype html>\n'+doc.documentElement.outerHTML:html;
   },[saved?.html]);
   async function openDaily() {
@@ -72,8 +81,10 @@ export default function Reports() {
     } catch {setDailyReady(false);setDailyError('The saved report could not be opened.');}
   }
   useEffect(()=>{
-    if (!saved || !loaded) return;
-    setSelected(saved.accountIds);setTemplate(saved.template);
+    if (!loaded) return;
+    const custom=saved?.portfolioId==='custom';
+    setSelected(custom?saved.accountIds:assigned.accountIds);
+    setTemplate(custom?saved.template:activeReportTemplate(saved?.template));
   },[saved,loaded]);
   async function continueDaily(jobId:string) {
     while(live.current) {
@@ -187,9 +198,9 @@ export default function Reports() {
     const style = doc.createElement('style');
     const rules: string[] = [];
     for (const sheet of Array.from(document.styleSheets)) {
-      try { for (const rule of Array.from(sheet.cssRules)) if (/report-paper|rep-|cg-|window-week|window-month/.test(rule.cssText)) rules.push(rule.cssText); } catch { /* skip unrelated cross-origin styles */ }
+      try { for (const rule of Array.from(sheet.cssRules)) if (/report-paper|rep-|cg-|window-week|window-month|^:root/.test(rule.cssText)) rules.push(rule.cssText); } catch { /* skip unrelated cross-origin styles */ }
     }
-    style.textContent = 'body{margin:20px auto;max-width:1250px;padding:8px;font:15px system-ui,sans-serif;color:#173b33}*{box-sizing:border-box}' + rules.join('\n');
+    style.textContent = portableFontStyles+'body{margin:20px auto;max-width:1250px;padding:8px;font:14px/1.6 Poppins,system-ui,sans-serif;color:#242124}*{box-sizing:border-box}' + rules.join('\n');
     doc.head.append(style); doc.body.append(content);
     const file = new Blob(['<!doctype html>\n',doc.documentElement.outerHTML],{type:'text/html;charset=utf-8'});
     return URL.createObjectURL(file);
@@ -203,6 +214,7 @@ export default function Reports() {
     <header><h1>Client reports</h1><p>Review account delivery or prepare a monthly campaign plan.</p></header>
     <nav className="rep-mode rep-nav" aria-label="Report type">{(['daily','plan'] as const).map(m=><button type="button" key={m} disabled={busy} aria-pressed={m===mode} onClick={()=>{setMode(m);setQuery('');window.history.replaceState(null,'',m==='daily'?'/reports':'/reports?view=monthly');}}>{m==='daily'?'Daily report':'Monthly plan'}</button>)}</nav>
     {skillError&&<p role="alert">{skillError} <button type="button" onClick={()=>void loadReportingSkills()}>Retry skill loading</button></p>}
+    {mode==='daily'&&loaded&&<section className="rep-portfolio" aria-label="Active reporting portfolio"><div><strong>{activeClients.length} assigned brands · {assigned.accountIds.length} connected accounts</strong><small>{saved?.portfolioId===activePortfolioId?'The saved report covers the assigned reporting portfolio.':'Update the report to include the assigned reporting portfolio.'} All connected accounts remain available in selectors.</small>{assigned.missing.length>0&&<small>{assigned.missing.map(client=>client.name).join(', ')}: Meta account access is unavailable.</small>}</div><button type="button" disabled={busy} onClick={()=>{setSelected(assigned.accountIds);setTemplate(activeReportTemplate(saved?.template));setEditing(true);}}>Use assigned accounts</button></section>}
     {mode==='daily' && dailyError && <p role="alert">{dailyError} <button type="button" onClick={()=>void openDaily()}>Reload saved report</button></p>}
     {mode==='daily' && saved && <section className="workspace-card rep-saved"><div><strong>Daily report through {saved.date}</strong><small>{saved.accountIds.length} accounts · Saved {new Date(saved.savedAt).toLocaleString()} · {saved.skill?'Skill '+saved.skill.name+' · v'+saved.skill.sha.slice(0,8):'Earlier report — update to run the reporting skill'}</small></div><button type="button" disabled={busy || !dailyReady || job?.status==='running' || job?.status==='failed' || !reportSkills.some(s=>s.name===dailySkill)} onClick={()=>void saveDaily(true)}>{busy?'Updating…':'Update report'}</button><button type="button" disabled={busy} aria-expanded={editing} onClick={()=>setEditing(!editing)}>{editing?'Close settings':'Report settings'}</button></section>}
     {mode==='daily' && job && (job.status==='running'||job.status==='failed') && <section className="workspace-card" aria-label="Daily update progress"><p role="status"><strong>{job.done} of {job.total} accounts reviewed</strong> · Skill {job.skill.name} · Through {job.date}</p><p>{busy?'Reviewing evidence and running the skill. Keep this page open to continue the queued accounts.':'The pending update is saved. Resume it to continue.'} Your last saved report remains available.</p>{job.error&&!busy&&<p role="alert">{job.error}</p>}<progress value={job.done} max={job.total} aria-label="Accounts reviewed"/><div className="workspace-actions"><button type="button" disabled={busy} onClick={()=>void resumeDaily()}>Resume update</button><button type="button" disabled={busy} onClick={()=>void discardPending()}>Discard pending update</button></div></section>}

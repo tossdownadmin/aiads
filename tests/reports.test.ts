@@ -20,6 +20,12 @@ describe('report dates and metrics', () => {
     expect(m).toMatchObject({purchases:2,leads:0,roas:2.4,reach:null});
     expect(metrics({}).purchases).toBeNull();
   });
+  it('reads Facebook Page visits from Meta results without adding attribution alternatives',()=>{
+    expect(metrics({results:[{indicator:'page_visit_view',values:[{value:'90'}]}]}).facebookVisits).toBe(90);
+    expect(metrics({results:[{indicator:'actions:page_visit_view',values:[{value:'0'}]}]}).facebookVisits).toBe(0);
+    expect(metrics({results:[{indicator:'page_visit_view',values:[{value:'90'},{value:'85'}]}]}).facebookVisits).toBeNull();
+    expect(metrics({results:[{indicator:'profile_visit_view',values:[{value:'90'}]}]}).facebookVisits).toBeNull();
+  });
   it('joins on IDs and preserves historical delivery, orphaned insight rows and active no-row campaigns', () => {
     const cfg = (id:string,status:string,start:string) => ({ id,name:id,status,effective_status:status,start_time:start });
     const rows = joinCampaigns([cfg('paused','PAUSED','2026-01-01'),cfg('quiet','ACTIVE','2026-01-01'),cfg('future','ACTIVE','2026-11-15'),{...cfg('ended','ACTIVE','2026-01-01'),stop_time:'2026-09-30'}],[{campaign_id:'paused',spend:'5'},{campaign_id:'deleted',spend:'1'}],{since:'2026-10-01',until:'2026-10-31'});
