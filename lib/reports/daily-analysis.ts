@@ -201,6 +201,11 @@ const schema = z.object({
     .min(1)
     .max(2),
 });
+function claimsZeroDelivery(text:string) {
+  const claim=/\b(?:no ads (?:were |are )?(?:delivering|running)|no ads ran|no delivery occurred|zero spend|zero delivery|no spending occurred)\b/i;
+  const uncertainty=/\b(?:cannot|can't|unable to|unknown|uncertain|unclear|whether|not (?:confirmed|established|verified|proven|proof|evidence|equivalent|the same)|does(?: not|n't) (?:prove|mean|confirm|establish|show)|do not (?:prove|interpret|infer|mean))\b/i;
+  return text.split(/[.!?;]|\bbut\b|\bhowever\b/i).some(clause=>claim.test(clause)&&!uncertainty.test(clause));
+}
 export function validateDailyAnalysis(
   raw: unknown,
   evidence: ReturnType<typeof dailyEvidence>,
@@ -222,12 +227,10 @@ export function validateDailyAnalysis(
         const window = evidence.periods.find((item) => item.id === p.periodId)!;
         if (
           !window.confirmedZeroDelivery &&
-          /\b(?:no ads (?:were |are )?(?:delivering|running)|no ads ran|no delivery occurred|zero spend|zero delivery|no spending occurred)\b/i.test(
-            f.interpretation,
-          )
+          claimsZeroDelivery(f.interpretation)
         )
           throw Error(
-            "No explicit zero delivery was supplied for this window. A missing reporting row or current inactive inventory cannot prove historical zero delivery. Describe the missing evidence instead.",
+            "No explicit zero delivery was supplied for this window. A missing reporting row or current inactive inventory cannot prove historical zero delivery. Describe the missing evidence instead. Rejected wording: "+f.interpretation.slice(0,220),
           );
         const cited = f.evidenceIds.map((id) => facts.get(id));
         if(cited.some(fact=>fact?.value===null)&&(
