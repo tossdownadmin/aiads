@@ -6,7 +6,6 @@ import WorkspaceShell from '../workspace-shell';
 import { clientCatalog, type ClientSeed } from '../../lib/competitors/catalog';
 import type { MetaAccount } from '../../lib/meta/read';
 import { accountToday, shiftDay, type PlanInputs } from '../../lib/reports/model';
-import {galleryScript} from '../../lib/reports/detail-view';
 import ReportView, { type Run } from './report-view';
 import { importDailyTemplate, matchPortfolio, templateKey, type DailyTemplate } from '../../lib/reports/daily-template';
 import type {PublicDailyJob} from '../../lib/reports/daily-jobs';
@@ -48,7 +47,20 @@ export default function Reports() {
   const [dailySkill,setDailySkill]=useState('daily-meta-review'),[monthlySkill,setMonthlySkill]=useState('monthly-meta-plan');
   const live=useRef(true);
   useEffect(()=>{live.current=true;return()=>{live.current=false;};},[]);
-  const dailyHtml=saved?.html||'';
+  const dailyHtml=useMemo(()=>{
+    const html=saved?.html;
+    if(!html)return '';
+    // Apply the current reading order to saved snapshots and their downloads.
+    const doc=new DOMParser().parseFromString(html,'text/html');
+    let changed=false;
+    for(const panel of Array.from(doc.querySelectorAll('.tab-panel[data-panel]'))) {
+      const gallery=Array.from(panel.children).find(el=>el.classList.contains('cg-campaigns'));
+      const heading=gallery?.previousElementSibling;
+      if(!gallery||gallery===panel.lastElementChild||!heading?.classList.contains('section-label')||!heading.textContent?.startsWith('Campaign Performance'))continue;
+      panel.append(heading,gallery);changed=true;
+    }
+    return changed?'<!doctype html>\n'+doc.documentElement.outerHTML:html;
+  },[saved?.html]);
   async function openDaily() {
     setDailyError('');
     try {
@@ -179,7 +191,6 @@ export default function Reports() {
     }
     style.textContent = 'body{margin:20px auto;max-width:1250px;padding:8px;font:15px system-ui,sans-serif;color:#173b33}*{box-sizing:border-box}' + rules.join('\n');
     doc.head.append(style); doc.body.append(content);
-    const controls=doc.createElement('script');controls.textContent=galleryScript;doc.body.append(controls);
     const file = new Blob(['<!doctype html>\n',doc.documentElement.outerHTML],{type:'text/html;charset=utf-8'});
     return URL.createObjectURL(file);
   }

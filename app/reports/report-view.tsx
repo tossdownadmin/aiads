@@ -1,5 +1,4 @@
-import CampaignGallery from '../campaign-gallery';
-import { money, outcomes, planAmounts, signals, type PlanInputs, type Proposal, type Report, type Snapshot } from '../../lib/reports/model';
+import { money, planAmounts, signals, type PlanInputs, type Proposal, type Report } from '../../lib/reports/model';
 import type { MetaAccount } from '../../lib/meta/read';
 import type { DailyPresentation } from '../../lib/reports/daily-document';
 export type Entry = { account: MetaAccount; report?: Report; error?: string; plan?: Proposal; planError?: string };
@@ -8,12 +7,6 @@ const n = (v: number | null) => v === null ? '—' : v.toLocaleString('en', { ma
 const pct = (v: number | null) => v === null ? '—' : n(v) + '%';
 const multiple = (v: number | null) => v === null ? '—' : n(v) + '×';
 const statusNames: Record<number,string> = { 1: 'Active', 2: 'Disabled', 3: 'Unsettled', 7: 'Pending risk review', 8: 'Pending settlement', 9: 'In grace period', 100: 'Pending closure', 101: 'Closed' };
-function Campaigns({ period, currency }: { period: Snapshot; currency: string }) {
-  return <><p className="rep-range">{period.window.since} – {period.window.until} · Meta account time zone{period.window.partial && ' · Partial baseline month'}</p>
-    {period.notes.map(t => <p key={t}>{t}</p>)}
-    <CampaignGallery campaigns={period.campaigns.map(c=>({...c,stats:c}))} details={period.details} currency={currency} scope={'monthly-'+period.window.since}/>
-  </>;
-}
 function bullets(items: string[]) { return <ul>{items.map((t,i) => <li key={i}>{t}</li>)}</ul>; }
 function monthly(run: Run) {
   const entry = run.entries[0];
@@ -28,12 +21,14 @@ function monthly(run: Run) {
   return <>
     <p>{report.account.name} · {report.account.id} · {currency} · {report.account.timezone} · Account {statusNames[report.account.status] || report.account.status}</p>
     <h3>{baseline.window.partial?'Month to date':'Last month'} at a glance</h3>
+    <p className="rep-range">{baseline.window.since} – {baseline.window.until} · Meta account time zone{baseline.window.partial && ' · Partial baseline month'}</p>
+    {baseline.notes.map(t => <p key={t}>{t}</p>)}
     <div className="rep-totals">{[['Spend',money(baseline.totals?.spend ?? null,currency)],['Purchases',n(baseline.totals?.purchases ?? null)],['Leads',n(baseline.totals?.leads ?? null)],['Purchase ROAS',multiple(baseline.totals?.roas ?? null)],['Reporting period cap',money(info.previousCap ?? null,currency)],['Spend against cap',pct(info.previousCap && baseline.totals?.spend != null ? 100 * baseline.totals.spend / info.previousCap : null)]].map(([label,value]) => <div key={label}><small>{label}</small><strong>{value}</strong></div>)}</div>
     {report.comparison && <section><h4>Previous period comparison</h4><p>{report.comparison.window.since} – {report.comparison.window.until} compared with {baseline.window.since} – {baseline.window.until}.</p>{report.comparison.totals ? <div className="rep-scroll"><table><thead><tr><th>Metric</th><th>Previous period</th><th>Planning baseline</th></tr></thead><tbody>{(['spend','leads','purchases','roas','ctr'] as const).map(key=>{
       const format=key==='spend'?(v:number|null)=>money(v,currency):key==='ctr'?pct:key==='roas'?multiple:n;
       return <tr key={key}><th>{{spend:'Spend',leads:'Leads',purchases:'Purchases',roas:'Purchase ROAS',ctr:'CTR'}[key]}</th><td>{format(report.comparison!.totals![key])}</td><td>{format(baseline.totals?.[key]??null)}</td></tr>;
     })}</tbody></table></div>:<p>Meta returned no comparison totals.</p>}</section>}
-    {plan && <p>{plan.summary}</p>}<Campaigns period={baseline} currency={currency}/>
+    {plan && <p>{plan.summary}</p>}
     <h4>Tracking evidence</h4>{tracking && <><p>Last seven days at retrieval · {tracking.since.slice(0,10)} – {tracking.checkedAt.slice(0,10)} UTC</p>{tracking.pixels === null ? <p>Dataset inventory unavailable to this connection.</p> : tracking.pixels.length ? <ul>{tracking.pixels.map((px,i) => <li key={i}>{px.name} · Last fired {px.lastFired || 'unreported'} · Event sources {px.sources === null ? 'unavailable' : px.sources.join(', ') || 'none returned'}</li>)}</ul> : <p>No datasets visible on this account connection.</p>}</>}
     {planError && <p role="alert">{planError}</p>}
     <h3>Top and low performers</h3>{plan ? bullets(plan.performance) : bullets(signals(baseline).map(f => f.finding))}

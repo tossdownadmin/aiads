@@ -54,9 +54,9 @@ function detail(v:View,periodName:string) {
   const actions=new Map(v.findings.map(f=>[f.action,f.reason]));
   return '<div class="overview-bar"><div><div class="overview-name">'+escape(v.name)+'</div><div class="overview-meta">'+escape(['Account '+v.account.id.replace(/^act_/,''),v.account.currency,v.market].filter(Boolean).join(' · '))+'</div></div><div class="overview-tags">'+(active!=null?badge(active+' Active','green'):'')+badge(v.type)+'</div></div>'+
     title(periodName+' — KPIs')+'<div class="kpi-grid">'+v.spec.kpis.map((label,i)=>tile(v.fact(label),i===0?'highlight':label==='Status'&&v.tone==='crit'?'crit':'')).join('')+'</div>'+
-    title('Campaign Performance — '+periodName)+campaignPreview(v.p,v.account.currency,v.account.id+'-'+v.p.window.since+'-'+v.p.window.until)+
     title('Issues & Flags')+'<div class="issues-grid">'+v.findings.map(f=>issue(f.tone,f.title,f.detail)).join('')+v.p.notes.map(n=>issue('warn','Data availability',n)).join('')+'</div>'+
-    title('Recommendations')+Array.from(actions,([name,reason],i)=>'<div class="rec-card"><div class="rec-number">Action '+String(i+1).padStart(2,'0')+'</div><div class="rec-title">'+escape(name)+'</div><div class="rec-body">'+escape(reason)+'</div></div>').join('');
+    title('Recommendations')+Array.from(actions,([name,reason],i)=>'<div class="rec-card"><div class="rec-number">Action '+String(i+1).padStart(2,'0')+'</div><div class="rec-title">'+escape(name)+'</div><div class="rec-body">'+escape(reason)+'</div></div>').join('')+
+    title('Campaign Performance — '+periodName)+campaignPreview(v.p,v.account.currency,v.account.id+'-'+v.p.window.since+'-'+v.p.window.until);
 }
 function overview(views:View[],exclusions:Exclusion[],periodName:string) {
   const currencies=[...new Set(views.map(v=>v.account.currency))].sort((a,b)=>{
