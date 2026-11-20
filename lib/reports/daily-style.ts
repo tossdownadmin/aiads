@@ -17,8 +17,8 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--fg);margin:0;
 .header{background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100}
 .header-inner{max-width:1200px;margin:0 auto;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .logo-area{display:flex;align-items:center;gap:10px}
-.logo-mark{width:32px;height:32px;background:var(--accent);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.logo-mark svg{width:18px;height:18px}
+.logo-mark{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden}
+.logo-mark img{display:block;width:32px;height:32px;object-fit:contain}
 .header-title{font-size:15px;font-weight:700;letter-spacing:-.01em}
 .header-subtitle{font-size:12px;color:var(--fg3);font-family:var(--font-mono)}
 .header-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
@@ -77,6 +77,40 @@ td.mono{font-family:var(--font-mono)}
 .issue-icon{font-size:14px;flex-shrink:0;margin-top:1px}
 .issue-title{font-weight:600;font-size:13px;margin-bottom:2px}
 .issue-detail{font-size:12px;color:var(--fg2)}
+.findings-columns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;align-items:start}
+.finding-section{min-width:0}
+.finding-content{min-width:0;flex:1}
+.finding-account{font-size:11px;font-weight:600;color:var(--accent);margin:0 0 5px}
+.finding-content .issue-title{margin:0 0 5px;font-size:13px;overflow-wrap:anywhere}
+.finding-content .issue-detail{margin:0;line-height:1.7}
+.finding-evidence{border-top:1px solid var(--border);margin-top:10px;padding-top:8px;color:var(--fg2);font-size:11px;line-height:1.6;overflow-wrap:anywhere}
+.evidence-label{font-size:10px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--fg3);margin:0 0 3px}
+.finding-evidence ul{margin:0;padding-left:16px}
+.finding-evidence li+li{margin-top:3px}
+.evidence-more{margin-top:5px}
+.evidence-more summary{cursor:pointer;color:var(--fg2);font-size:11px;text-decoration:underline;text-underline-offset:3px}
+.evidence-more[open] summary{margin-bottom:5px}
+.evidence-more summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.section-intro{margin:-2px 0 14px;font-size:12px;line-height:1.7;color:var(--fg2);max-width:85ch}
+.actions-section{margin-bottom:28px}
+.priority-group+.priority-group{margin-top:18px}
+.priority-heading{font-size:12px;font-weight:700;margin:0 0 8px;color:var(--fg)}
+.action-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;align-items:start}
+.action-list .rec-card{margin:0;min-width:0}
+.rec-meta{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:8px}
+.action-account{font-size:12px;color:var(--accent)}
+.action-list .rec-title{margin:0 0 5px;overflow-wrap:anywhere}
+.action-list .rec-body{margin:0}
+.availability-section{border:1px solid var(--border);border-radius:10px;background:var(--surface2);padding:16px;margin-bottom:24px}
+.availability-section .section-label{color:var(--fg2)}
+.coverage-note{font-size:11px;color:var(--fg2);line-height:1.7;margin:0 0 10px}
+.review-notes{font-size:12px;line-height:1.7;color:var(--fg2);margin:0;padding-left:18px;overflow-wrap:anywhere}
+.review-notes li+li{margin-top:6px}
+.availability-section .empty{font-size:11px;margin:0}
+.table-period{display:block;font-size:10px;font-weight:400;text-transform:none;letter-spacing:0;color:var(--fg2);margin-top:3px}
+.period-comparison{min-width:580px}
+.period-comparison tbody th{background:var(--surface);font-size:12px;text-transform:none;letter-spacing:0;font-weight:500;border-bottom:1px solid var(--border)}
+.period-comparison tbody tr:last-child th{border-bottom:0}
 
 .rec-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:10px}
 .rec-number{font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px}
@@ -106,6 +140,7 @@ td.mono{font-family:var(--font-mono)}
 
 .cmp td:first-child{font-weight:600}
 .footer{border-top:1px solid var(--border);padding:16px;text-align:center;font-size:11px;color:var(--fg3);font-family:var(--font-mono)}
+@media (max-width:800px){.findings-columns,.action-list{grid-template-columns:1fr}.findings-columns{gap:0}}
 @media (max-width:640px){.tabs-bar{top:0;position:relative}.header{position:relative}}
 [hidden]{display:none!important}
 button.account-card{font:inherit;text-align:left;color:inherit;width:100%}
@@ -115,5 +150,5 @@ button.account-card{font:inherit;text-align:left;color:inherit;width:100%}
 .kpi-value.long{font-size:16px}.ac-m-value.long{font-size:13px}
 .empty{color:var(--fg2);font-size:13px;margin:0 0 20px}
 .issue-chip{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.print-only{display:none}
-@media print{.main>[data-period],.main [data-panel]{display:block!important}.main [data-panel]:not([data-panel="overview"]),.main>[data-period="1"]{break-before:page}body{background:white}.header,.tabs-bar{position:static}.tabs-bar,.period{display:none}.main{padding:12px 0}.account-card,.kpi-card,.issue-row,.rec-card,tr{break-inside:avoid}.main>.tab-panel:not([hidden]){display:block}table{font-size:8.5pt;min-width:0}th,td{white-space:normal;padding:4px}.table-wrap{overflow:visible}.print-only{display:block}.footer{margin-top:12px}}
+@media print{.main>[data-period],.main [data-panel]{display:block!important}.main [data-panel]:not([data-panel="overview"]),.main>[data-period="1"]{break-before:page}body{background:white}.header,.tabs-bar{position:static}.tabs-bar,.period{display:none}.main{padding:12px 0}.account-card,.kpi-card,.issue-row,.rec-card,tr{break-inside:avoid}.main>.tab-panel:not([hidden]){display:block}table,.period-comparison{font-size:8.5pt;min-width:0}th,td{white-space:normal;padding:4px}.table-wrap{overflow:visible}.print-only{display:block}.footer{margin-top:12px}.findings-columns,.action-list{display:block}.action-list .rec-card{margin-bottom:10px}.priority-heading,.section-label{break-after:avoid}.evidence-more::details-content{content-visibility:visible}.evidence-more>ul{display:block!important}.evidence-more>summary{display:none}.finding-evidence{font-size:9pt}.coverage-note,.review-notes{font-size:9pt}}
 `;

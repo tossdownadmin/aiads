@@ -15,8 +15,117 @@ import { activeClients, activePortfolio, activePortfolioId, activeReportTemplate
 import { dailyStyles } from '../../lib/reports/daily-style';
 import { detailStyles } from '../../lib/reports/detail-view';
 import { portableFontStyles } from '../../lib/ui/report-font';
+import {BRAND_ICON_DATA_URI} from '../../lib/ui/brand-icon';
+import type { DailyClientContext, DailyClientContextInput } from '../../lib/reports/client-context';
 
 const emptyInputs: PlanInputs = { brief: '', competitors: '', event: '' };
+type ContextDraft = { businessGoal: string; qualificationNotes: string; targetCpa: string; targetCpl: string; targetRoas: string; monthlyBudget: string; budgetMonth: string };
+const contextDraft = (context: DailyClientContext | null): ContextDraft => ({
+  businessGoal: context?.businessGoal ?? '',
+  qualificationNotes: context?.qualificationNotes ?? '',
+  targetCpa: context?.targetCpa?.toString() ?? '',
+  targetCpl: context?.targetCpl?.toString() ?? '',
+  targetRoas: context?.targetRoas?.toString() ?? '',
+  monthlyBudget: context?.monthlyBudget?.toString() ?? '',
+  budgetMonth: context?.budgetMonth ?? '',
+});
+
+function DailyContextEditor({ account }: { account: MetaAccount }) {
+  const [draft,setDraft] = useState<ContextDraft>(()=>contextDraft(null));
+  const [record,setRecord] = useState<{ context: DailyClientContext | null; version: string | null; currency: string } | null>(null);
+  const [loading,setLoading] = useState(true), [saving,setSaving] = useState(false);
+  const [error,setError] = useState(''), [status,setStatus] = useState('');
+  const [conflict,setConflict] = useState(false), [reload,setReload] = useState(0);
+  const mounted = useRef(false), savingLock = useRef(false);
+  useEffect(()=>{
+    mounted.current=true;
+    return()=>{mounted.current=false;};
+  },[]);
+  useEffect(()=>{
+    const controller = new AbortController();
+    let current = true;
+    setLoading(true);setError('');setStatus('');setRecord(null);setConflict(false);
+    void (async()=>{
+      try {
+        const response = await fetch('/api/meta/reports/context?accountId='+encodeURIComponent(account.id), {cache:'no-store',signal:controller.signal});
+        const result = await response.json();
+        if (!current) return;
+        if (!response.ok) throw Error(result.error || 'The saved context could not be loaded.');
+        if (result.account?.id !== account.id || (result.context && result.context.accountId !== account.id)) throw Error('The saved context does not match this account. Reload it.');
+        setRecord({context:result.context,version:result.version,currency:result.account.currency});
+        setDraft(contextDraft(result.context));
+      } catch (e) {
+        if (current) setError(e instanceof Error ? e.message : 'The saved context could not be loaded.');
+      } finally { if (current) setLoading(false); }
+    })();
+    return()=>{current=false;controller.abort();};
+  },[account.id,reload]);
+  async function save() {
+    if (!record || loading || conflict || savingLock.current) return;
+    const context: DailyClientContextInput = {businessGoal:draft.businessGoal,qualificationNotes:draft.qualificationNotes};
+    for (const field of ['targetCpa','targetCpl','targetRoas','monthlyBudget'] as const) {
+      if (!draft[field].trim()) continue;
+      const value = Number(draft[field]);
+      if (!Number.isFinite(value) || value <= 0) {setError('Targets and monthly budget must be greater than zero, or left blank.');return;}
+      context[field]=value;
+    }
+    if (draft.budgetMonth) context.budgetMonth=draft.budgetMonth;
+    if (context.monthlyBudget !== undefined && !context.budgetMonth) {setError('Choose a budget month when setting a monthly budget.');return;}
+    savingLock.current=true;setSaving(true);setError('');setStatus('');
+    try {
+      const response = await fetch('/api/meta/reports/context', {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({accountId:account.id,version:record.version,context})});
+      const result = await response.json();
+      if (!mounted.current) return;
+      if (!response.ok) {if(response.status===409)setConflict(true);throw Error(result.error || 'The context could not be saved.');}
+      if (result.account?.id !== account.id || result.context?.accountId !== account.id) throw Error('The saved context does not match this account. Reload it.');
+      setRecord({context:result.context,version:result.version,currency:result.account.currency});
+      setDraft(contextDraft(result.context));
+      setStatus('Context saved. It applies when a new daily report or update is started.');
+    } catch (e) {
+      if (mounted.current) setError(e instanceof Error ? e.message : 'The context could not be saved.');
+    } finally {savingLock.current=false;if(mounted.current)setSaving(false);}
+  }
+  function reloadSaved() {
+    setRecord(null);setLoading(true);setReload(value=>value+1);
+  }
+  return <div className="rep-context-editor" aria-busy={loading || saving}>
+    {loading && <p role="status">Loading saved context…</p>}
+    {error && <p className="rep-context-error" role="alert">{error}</p>}
+    {!loading && <button type="button" disabled={saving} onClick={reloadSaved}>Reload saved context</button>}
+    {conflict && <p className="rep-context-meta">Your draft is still shown. Reloading replaces it with the team’s latest saved context.</p>}
+    {record && <form onSubmit={e=>{e.preventDefault();void save();}}><fieldset disabled={saving || loading}>
+      <legend>Business context for {account.name}</legend>
+      <p className="rep-context-meta">Currency: <strong>{record.currency}</strong> · From the connected Meta account{record.context ? ' · Last saved '+new Date(record.context.updatedAt).toLocaleString() : ''}</p>
+      {record.context && record.context.currency!==record.currency && <p role="alert">The saved context uses {record.context.currency}. These targets will be ignored until you review and save them in {record.currency}.</p>}
+      {!record.context && <p role="status">No context saved for this account. Daily reports can still run without it.</p>}
+      <label>Business goal<textarea maxLength={1200} rows={3} value={draft.businessGoal} placeholder="Optional: approved business objective" onChange={e=>setDraft({...draft,businessGoal:e.target.value})}/><small>{draft.businessGoal.length}/1,200 characters</small></label>
+      <div className="rep-inputs">
+        <label>Target CPA ({record.currency})<input type="number" min="0" step="any" value={draft.targetCpa} placeholder="Optional" onChange={e=>setDraft({...draft,targetCpa:e.target.value})}/></label>
+        <label>Target CPL ({record.currency})<input type="number" min="0" step="any" value={draft.targetCpl} placeholder="Optional" onChange={e=>setDraft({...draft,targetCpl:e.target.value})}/></label>
+        <label>Target ROAS<input type="number" min="0" step="any" value={draft.targetRoas} placeholder="Optional" onChange={e=>setDraft({...draft,targetRoas:e.target.value})}/></label>
+        <label>Approved monthly budget ({record.currency})<input type="number" min="0" step="any" value={draft.monthlyBudget} placeholder="Optional" onChange={e=>setDraft({...draft,monthlyBudget:e.target.value})}/></label>
+        <label>Budget month<input type="month" value={draft.budgetMonth} required={!!draft.monthlyBudget.trim()} onChange={e=>setDraft({...draft,budgetMonth:e.target.value})}/><small>Required with a monthly budget; applies to this month only.</small></label>
+      </div>
+      <label>Qualification notes<textarea maxLength={1200} rows={3} value={draft.qualificationNotes} placeholder="Optional: what the team considers a qualified lead or sale" onChange={e=>setDraft({...draft,qualificationNotes:e.target.value})}/><small>Team-reported context, not CRM verification. {draft.qualificationNotes.length}/1,200 characters</small></label>
+      <button className="rep-primary" type="submit" disabled={saving || conflict}>{saving ? 'Saving context…' : 'Save context'}</button>
+      {status && <p role="status">{status}</p>}
+    </fieldset></form>}
+  </div>;
+}
+
+function DailyContextSettings({ accounts }: { accounts: MetaAccount[] }) {
+  const [accountId,setAccountId] = useState('');
+  const account = accounts.find(a=>a.id===accountId);
+  return <section className="workspace-card rep-form rep-context" aria-label="Daily report business context">
+    <h2>Daily report business context</h2>
+    <p>Optional inputs shared with your team for each account. Leave unknown goals and targets blank.</p>
+    <p>Save context before starting a new daily report or update. Saving does not change the saved report or accounts already processed in a pending update.</p>
+    <label>Context account<select value={accountId} onChange={e=>setAccountId(e.target.value)}><option value="">Choose a connected account</option>{accounts.map(a=><option key={a.id} value={a.id}>{a.name} · {a.currency} · {a.id}</option>)}</select><small>All connected accounts are available, including accounts outside the report selection.</small></label>
+    {/* A new editor per account isolates drafts and in-flight reads and saves. */}
+    {account && <DailyContextEditor key={account.id} account={account}/>}
+  </section>;
+}
+
 export default function Reports() {
   const [mode,setMode] = useState<'daily'|'plan'>('daily');
   const [accounts,setAccounts] = useState<MetaAccount[]>([]);
@@ -58,6 +167,10 @@ export default function Reports() {
     // Apply the current reading order to saved snapshots and their downloads.
     const doc=new DOMParser().parseFromString(html,'text/html');
     let changed=false;
+    const favicon=doc.createElement('link');favicon.rel='icon';favicon.type='image/png';favicon.href=BRAND_ICON_DATA_URI;
+    doc.head.querySelectorAll('link[rel="icon"]').forEach(icon=>icon.remove());doc.head.append(favicon);
+    const mark=doc.querySelector('.logo-mark');
+    if(mark){const icon=doc.createElement('img');icon.src=BRAND_ICON_DATA_URI;icon.width=32;icon.height=32;icon.alt='Tossdown';mark.replaceChildren(icon);}
     for(const panel of Array.from(doc.querySelectorAll('.tab-panel[data-panel]'))) {
       const gallery=Array.from(panel.children).find(el=>el.classList.contains('cg-campaigns'));
       const heading=gallery?.previousElementSibling;
@@ -195,6 +308,7 @@ export default function Reports() {
     const doc = document.implementation.createHTMLDocument('Tossdown · ' + (run.mode === 'daily' ? 'Daily account report' : 'Next-month ad plan'));
     const meta = doc.createElement('meta'); meta.setAttribute('charset','utf-8'); doc.head.prepend(meta);
     const viewport = doc.createElement('meta'); viewport.name='viewport'; viewport.content='width=device-width, initial-scale=1'; doc.head.append(viewport);
+    const favicon=doc.createElement('link');favicon.rel='icon';favicon.type='image/png';favicon.href=BRAND_ICON_DATA_URI;doc.head.append(favicon);
     const style = doc.createElement('style');
     const rules: string[] = [];
     for (const sheet of Array.from(document.styleSheets)) {
@@ -210,6 +324,8 @@ export default function Reports() {
     const url=monthlyDownload();setMonthlyUrl(url);
     return()=>{if(url)URL.revokeObjectURL(url);};
   },[run]);
+  const approvedDailySkill = reportSkills.find(s=>s.name===dailySkill && s.reportType==='daily');
+  const pendingSkillChanged = !!job && !!approvedDailySkill && job.skill.sha !== approvedDailySkill.sha;
   return <WorkspaceShell active="reports" status={loaded ? 'Connected' : undefined}><div className="rep-workspace">
     <header><h1>Client reports</h1><p>Review account delivery or prepare a monthly campaign plan.</p></header>
     <nav className="rep-mode rep-nav" aria-label="Report type">{(['daily','plan'] as const).map(m=><button type="button" key={m} disabled={busy} aria-pressed={m===mode} onClick={()=>{setMode(m);setQuery('');window.history.replaceState(null,'',m==='daily'?'/reports':'/reports?view=monthly');}}>{m==='daily'?'Daily report':'Monthly plan'}</button>)}</nav>
@@ -217,8 +333,9 @@ export default function Reports() {
     {mode==='daily'&&loaded&&<section className="rep-portfolio" aria-label="Active reporting portfolio"><div><strong>{activeClients.length} assigned brands · {assigned.accountIds.length} connected accounts</strong><small>{saved?.portfolioId===activePortfolioId?'The saved report covers the assigned reporting portfolio.':'Update the report to include the assigned reporting portfolio.'} All connected accounts remain available in selectors.</small>{assigned.missing.length>0&&<small>{assigned.missing.map(client=>client.name).join(', ')}: Meta account access is unavailable.</small>}</div><button type="button" disabled={busy} onClick={()=>{setSelected(assigned.accountIds);setTemplate(activeReportTemplate(saved?.template));setEditing(true);}}>Use assigned accounts</button></section>}
     {mode==='daily' && dailyError && <p role="alert">{dailyError} <button type="button" onClick={()=>void openDaily()}>Reload saved report</button></p>}
     {mode==='daily' && saved && <section className="workspace-card rep-saved"><div><strong>Daily report through {saved.date}</strong><small>{saved.accountIds.length} accounts · Saved {new Date(saved.savedAt).toLocaleString()} · {saved.skill?'Skill '+saved.skill.name+' · v'+saved.skill.sha.slice(0,8):'Earlier report — update to run the reporting skill'}</small></div><button type="button" disabled={busy || !dailyReady || job?.status==='running' || job?.status==='failed' || !reportSkills.some(s=>s.name===dailySkill)} onClick={()=>void saveDaily(true)}>{busy?'Updating…':'Update report'}</button><button type="button" disabled={busy} aria-expanded={editing} onClick={()=>setEditing(!editing)}>{editing?'Close settings':'Report settings'}</button></section>}
-    {mode==='daily' && job && (job.status==='running'||job.status==='failed') && <section className="workspace-card" aria-label="Daily update progress"><p role="status"><strong>{job.done} of {job.total} accounts reviewed</strong> · Skill {job.skill.name} · Through {job.date}</p><p>{busy?'Reviewing evidence and running the skill. Keep this page open to continue the queued accounts.':'The pending update is saved. Resume it to continue.'} Your last saved report remains available.</p>{job.error&&!busy&&<p role="alert">{job.error}</p>}<progress value={job.done} max={job.total} aria-label="Accounts reviewed"/><div className="workspace-actions"><button type="button" disabled={busy} onClick={()=>void resumeDaily()}>Resume update</button><button type="button" disabled={busy} onClick={()=>void discardPending()}>Discard pending update</button></div></section>}
+    {mode==='daily' && job && (job.status==='running'||job.status==='failed') && <section className="workspace-card" aria-label="Daily update progress"><p role="status"><strong>{job.done} of {job.total} accounts reviewed</strong> · Skill {job.skill.name} · Through {job.date}</p><p>{busy?'Reviewing evidence and running the skill. Keep this page open to continue the queued accounts.':'The pending update is saved. Resume it to continue.'} Your last saved report remains available.</p>{pendingSkillChanged && <p className="rep-pending-skill" role="status">This pending update uses a different skill version ({job.skill.sha.slice(0,8)}) from the selected approved daily skill ({approvedDailySkill!.sha.slice(0,8)}). Finish it with Resume update, or discard it and start a new update to apply the full upgrade and saved context. Accounts already processed in this pending update stay unchanged.</p>}{job.error&&!busy&&<p role="alert">{job.error}</p>}{job.currentReview && <p role="status">Current account: {job.currentReview.done} of {job.currentReview.total} evidence review steps saved. The final step combines the findings.</p>}<progress value={job.done} max={job.total} aria-label="Accounts reviewed"/><div className="workspace-actions"><button type="button" disabled={busy} onClick={()=>void resumeDaily()}>Resume update</button><button type="button" disabled={busy} onClick={()=>void discardPending()}>Discard pending update</button></div></section>}
     {mode==='daily'&&saved?.runs?.length ? <details className="rep-paste-template"><summary>Skill execution records</summary><p>Each record identifies the actual skill version, model, evidence hash and validated output.</p><ul>{saved.runs.map((r,i)=><li key={r.id}>{accounts.find(a=>a.id===saved.accountIds[i])?.name||saved.accountIds[i]} · <a href={'/api/meta/reports/runs?runId='+r.id} target="_blank" rel="noreferrer">Analysis record ↗</a> · <a href={'/api/meta/reports/runs?runId='+r.id+'&file=evidence'} target="_blank" rel="noreferrer">Evidence ↗</a></li>)}</ul></details>:null}
+    {mode==='daily' && loaded && (editing || !saved) && <DailyContextSettings accounts={accounts}/>}
     {(mode==='plan' || editing || !saved) && (!loaded ? <section className="workspace-card"><p>{denied ? 'Use your approved Google account to open reports.' : error || 'Loading Meta accounts…'}</p>{denied ? <button onClick={() => void signIn('google',{callbackUrl:'/reports'})}>Sign in with Google</button> : error && <button onClick={() => void connect()}>Retry</button>}</section> :
     <form className="workspace-card rep-form" onSubmit={e => { e.preventDefault(); void generate(e.currentTarget); }}><fieldset disabled={busy}><legend>Report setup</legend>
       <label>Reporting skill<select disabled={!reportSkills.length} value={mode==='daily'?dailySkill:monthlySkill} onChange={e=>mode==='daily'?setDailySkill(e.target.value):setMonthlySkill(e.target.value)}><option value="">Choose a reporting skill</option>{reportSkills.filter(s=>s.reportType===(mode==='daily'?'daily':'monthly')).map(s=><option key={s.name} value={s.name}>{s.name.split('-').map(w=>w[0].toUpperCase()+w.slice(1)).join(' ')} · version {s.sha.slice(0,8)}</option>)}</select><small>The selected skill and its reference files drive the written review. Metrics and layout use the report template.</small></label>

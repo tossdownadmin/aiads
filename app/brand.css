@@ -30,8 +30,8 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .craft-shell { background:var(--td-canvas); color:var(--td-ink); font-family:"Poppins",ui-sans-serif,system-ui,sans-serif; }
 .craft-sidebar { background:#181616; border-right-color:#343034; }
 .craft-brand { color:#fffddb; font-weight:600; letter-spacing:-.04em; }
-.craft-brand-mark,.craft-side-avatar { background:var(--td-brand); color:#fff; }
-.craft-brand-mark span { color:#fffddb; }
+.brand-icon { display:block; flex:none; object-fit:contain; }
+.craft-brand-mark.brand-icon,.craft-side-avatar.brand-icon { background:transparent; border-radius:0; }
 .craft-side-group>p { color:#a89da4; font-weight:500; }
 .craft-side-group>a { color:#d2c9ce; font-weight:500; }
 .craft-side-group>a>span:first-child { color:#aaa0a7; }

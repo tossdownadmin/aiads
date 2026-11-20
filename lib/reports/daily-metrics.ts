@@ -3,7 +3,7 @@ import { money, type CampaignRow, type Metrics, type Snapshot } from './model';
 import type { ClientLayout, ColumnSet, PeriodLayout } from './daily-template';
 
 export type Tone = 'ok' | 'warn' | 'crit';
-export type Finding = { tone: Tone; title: string; detail: string; action: string; reason: string };
+export type Finding = import('../skills/report-types').ReportFinding;
 export type Fact = { label: string; value: string; detail: string };
 export const dash = '—';
 const num = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });

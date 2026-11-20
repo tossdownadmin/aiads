@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { runReportSkill } from "../skills/report-runner";
 import type { ReportingSkill } from "../skills/report-packages";
-import type { DailyAnalysis, ReportFinding } from "../skills/report-types";
+import {hash,skillVersion} from '../skills/report-packages';
+import type { DailyAnalysis, ReportFinding, SkillRun } from "../skills/report-types";
 import type { Report, Metrics } from "./model";
 import {
   cash,
@@ -43,6 +44,7 @@ const labels: Partial<Record<keyof Metrics, string>> = {
   onMetaLeads: "On-Meta leads",
 };
 export function dailyEvidence(report: Report) {
+  const context=report.reviewContext?.accountId===report.account.id&&report.reviewContext.currency===report.account.currency?report.reviewContext:null;
   const facts: EvidenceFact[] = [];
   const add = (
     periodId: string,
@@ -70,9 +72,9 @@ export function dailyEvidence(report: Report) {
       id,
       "coverage",
       "Data availability",
-      p.notes,
-      p.notes.length
-        ? p.notes.join(" · ")
+      [...p.notes,...p.reviewNotes??[]],
+      p.notes.length || p.reviewNotes?.length
+        ? [...p.notes,...p.reviewNotes??[]].join(" · ")
         : "Account and campaign reporting were retrieved for these dates.",
     );
     const metricFacts = (
@@ -97,8 +99,22 @@ export function dailyEvidence(report: Report) {
                   : count(v);
         add(id, prefix + ":" + key, name + " — " + label, v, text);
       }
+      for(const [key,label] of [['purchases','purchase'],['leads','lead']] as const){
+        const value=costPer(metrics?.spend??null,metrics?.[key]??null);
+        add(id,prefix+':cost-per-'+label,name+' — cost per '+label,value,cash(value,report.account.currency));
+      }
     };
     metricFacts("account", "Account", p.totals);
+    add(id,'client-context','Client-supplied business goals and targets',context??null,context?'Client-supplied context; lead quality and margins are not independently verified.':'No matching client targets or business goal supplied.');
+    if(context)for(const [key,label] of [['targetCpa','Approved target CPA'],['targetCpl','Approved target CPL'],['targetRoas','Approved target ROAS']] as const){
+      const value=context[key];if(value!==undefined)add(id,'target:'+key,label,value,key==='targetRoas'?ratio(value):report.account.currency+' '+cash(value,report.account.currency));
+    }
+    if(p.previous){
+      add(id,'previous-window','Equal-length previous period',p.previous.window,p.previous.window.since+' to '+p.previous.window.until);
+      metricFacts('previous-account','Previous period — account',p.previous.totals);
+    }
+    if(p.pacing)add(id,'budget-pacing','Approved monthly budget pacing',p.pacing,
+      report.account.currency+' '+cash(p.pacing.spent,report.account.currency)+' spent through day '+p.pacing.elapsedDays+' of '+p.pacing.monthDays+'; approved '+p.pacing.month+' budget '+cash(p.pacing.budget,report.account.currency)+'; linear month-end projection '+cash(p.pacing.projectedSpend,report.account.currency)+' (estimate, not a forecast guarantee).');
     for (const c of p.campaigns) {
       const prefix = "campaign:" + c.id;
       metricFacts(prefix, c.name, c);
@@ -129,26 +145,36 @@ export function dailyEvidence(report: Report) {
           costPer(c.spend, c[kind]),
           cash(costPer(c.spend, c[kind]), report.account.currency),
         );
+      const previous=p.previous?.campaigns.find(prior=>prior.id===c.id);
+      if(previous){
+        metricFacts('previous-campaign:'+c.id,'Previous period — '+c.name,previous);
+        const changes:Record<string,number|null>={};
+        for(const key of ['spend','ctr','cpc','purchases','leads','roas','instagramVisits','facebookVisits'] as const){
+          changes[key]=previous[key]!=null&&previous[key]!>0&&c[key]!=null?100*(c[key]!-previous[key]!)/previous[key]!:null;
+        }
+        if(kind){
+          const current=costPer(c.spend,c[kind]),prior=costPer(previous.spend,previous[kind]);
+          add(id,'previous-campaign:'+c.id+':cost-per-result','Previous period — '+c.name+' — cost per '+resultLabel(kind),prior,cash(prior,report.account.currency));
+          changes.costPerResult=prior!=null&&prior>0&&current!=null?100*(current-prior)/prior:null;
+        }
+        add(id,prefix+':change','Comparable previous-period changes for '+c.name,{previousWindow:p.previous!.window,percent:changes},Object.entries(changes).filter(([,v])=>v!==null).map(([key,v])=>key+' '+(v!>=0?'+':'')+v!.toFixed(1)+'%').join(' · ')||'No comparable nonzero baseline.');
+      }
     }
-    const ads = Object.values(p.details || {})
-      .flatMap((d) => d.sets.flatMap((s) => s.ads))
-      .sort((a, b) => (b.stats?.spend ?? 0) - (a.stats?.spend ?? 0));
-    for (const ad of ads.slice(0, 8))
-      add(
-        id,
-        "ad:" + ad.id,
-        ad.name + " — dated ad evidence",
-        {
-          id: ad.id,
-          stats: ad.stats,
-          days: ad.days,
-          creativeId: ad.creative.id,
-          copy: ad.creative.copy.slice(0, 2).map((text) => text.slice(0, 500)),
-        },
-        "Individual ad metrics and " +
-          (ad.days?.length ?? 0) +
-          " daily observations supplied.",
-      );
+    let adCount=0,setCount=0;
+    for(const [campaignId,detail] of Object.entries(p.details??{}))for(const set of detail.sets){
+      setCount++;
+      add(id,'adset:'+set.id,set.name+' — ad set settings and outcomes',{
+        id:set.id,name:set.name,campaignId,statusAtRetrieval:set.status,settings:set.settings,stats:set.stats??null,
+      },'Current targeting, placement eligibility, budget settings and period metrics. These are not audience/placement performance breakdowns.');
+      for(const ad of set.ads){
+        adCount++;
+        add(id,'ad:'+ad.id,ad.name+' — ad performance',{
+          id:ad.id,name:ad.name,campaignId,adsetId:set.id,statusAtRetrieval:ad.status,
+          stats:ad.stats??null,days:ad.days??[],creativeId:ad.creative.id,
+          copy:ad.creative.copy.slice(0,2).map(text=>text.slice(0,320)),formats:[...new Set(ad.creative.assets.map(a=>a.kind))],
+        },(ad.stats?.spend!=null?'Spend '+cash(ad.stats.spend,report.account.currency)+'. ':'')+(ad.days?.length??0)+' dated daily observations; '+(ad.creative.assets.length?'creative metadata and copy supplied; image/video not visually analysed.':'creative unavailable.'));
+      }
+    }
     return {
       id,
       window: p.window,
@@ -162,9 +188,10 @@ export function dailyEvidence(report: Report) {
       })),
       inventory: p.inventory,
       adCoverage: {
-        available: ads.length,
-        supplied: Math.min(ads.length, 8),
-        selection: "Highest spend ads. All campaign metrics are supplied.",
+        available: adCount,
+        supplied: adCount,
+        adSets:setCount,
+        selection: "All returned ad and ad-set metrics and daily observations. Larger evidence is reviewed in separate batches before synthesis. No image/video visual inspection or per-placement performance breakdown is supplied.",
       },
     };
   });
@@ -174,7 +201,7 @@ export function dailyEvidence(report: Report) {
     periods,
     facts,
     instructions:
-      "Review each window independently. Return one to four prioritized findings per window. COPY exact evidence IDs from facts, including the window prefix and metric suffix; never invent a metric ID. Use evidence IDs for metrics rather than restating numbers. Do not treat seven and thirty overlapping days as independent comparison periods.",
+      "Review each window against its supplied previous-window only. Return three to five concise prioritized findings per window when material evidence supports them; fewer is valid. Cover measured wins as well as meaningful concerns without manufacturing either. Use priority now, next or monitor. COPY exact evidence IDs from facts; never invent a metric ID. Cite at most five IDs per finding. Include one or two supplied measurements in the interpretation for readability, but do not calculate new KPI values. Do not treat seven and thirty overlapping days as independent comparison periods. Ad-set settings are current configuration, not performance breakdowns. Missing outcomes are import gaps, not proven tracking failures. Never call leads qualified without independently verified qualification evidence.",
   };
 }
 const text = (max: number) => z.string().trim().min(1).max(max);
@@ -192,6 +219,8 @@ const schema = z.object({
               evidenceIds: z.array(text(200)).min(1).max(5),
               action: text(240),
               reason: text(400),
+              priority: z.enum(['now','next','monitor']).optional(),
+              category: z.enum(['win','concern','observation','data_gap']).optional(),
             }),
           )
           .min(1)
@@ -231,7 +260,7 @@ export function validateDailyAnalysis(
         if (
           !window.confirmedZeroDelivery &&
           !citedCampaignZeros &&
-          claimsZeroDelivery(f.interpretation)
+          claimsZeroDelivery([f.title,f.interpretation,f.action,f.reason].join('. '))
         )
           throw Error(
             "No explicit zero delivery was supplied for this cited account or campaign. A missing reporting row or current inactive inventory cannot prove historical zero delivery. Cite the exact zero-spend and zero-impression campaign evidence, or describe the missing evidence instead. Rejected wording: "+f.interpretation.slice(0,220),
@@ -257,15 +286,23 @@ export function validateDailyAnalysis(
               allowed.join(", "),
           );
         }
+        validateReviewClaims(f);
+        if(f.category==='win'&&f.tone!=='ok')throw Error('A measured win must use ok tone; concerns and data gaps are not wins.');
+        const render=(prose:string)=>bindMeasuredText(prose,f.evidenceIds,facts,evidence);
         return {
           tone: f.tone,
-          title: f.title,
+          title: render(f.title),
           detail:
             cited.map((fact) => fact!.display).join(". ") +
             ". " +
-            f.interpretation,
-          action: f.action,
-          reason: f.reason,
+            render(f.interpretation),
+          action: render(f.action),
+          reason: render(f.reason),
+          interpretation:render(f.interpretation),
+          evidence:cited.map(fact=>fact!.display),
+          evidenceIds:f.evidenceIds,
+          priority:f.priority??(f.tone==='crit'?'now':f.tone==='warn'?'next':'monitor'),
+          category:f.category??(f.tone==='ok'?'win':'concern'),
         };
       })
       .sort(
@@ -279,16 +316,154 @@ export function validateDailyAnalysis(
 export async function analyzeDailyReport(
   report: Report,
   skill: ReportingSkill,
+  checkpoint?:DailyReviewCheckpoint,
 ): Promise<DailyAnalysis> {
   const evidence = dailyEvidence(report);
-  const modelEvidence = {
-    ...evidence,
-    // The window is already present in each exact evidence ID. Keep every
-    // measurement while avoiding repeated presentation and window metadata.
-    facts: evidence.facts.map(({ display, periodId, ...fact }) => fact),
+  const batches=partitionDailyEvidence(evidence);
+  if(batches.length===1){
+    const result=await runReportSkill(skill,modelInput(evidence),raw=>validateDailyAnalysis(raw,evidence));
+    return {run:result.run,periods:result.output};
+  }
+  const reviewed:(ReviewedBatch|null)[]=Array(batches.length).fill(null);
+  const keys=batches.map(batch=>hash(JSON.stringify({skill:skillVersion(skill).packageHash,evidence:modelInput(batch)})));
+  if(checkpoint)for(let i=0;i<batches.length;i++){
+    const cached=await checkpoint.load(keys[i]);
+    if(cached&&cached.run.skill.packageHash===skillVersion(skill).packageHash&&cached.run.evidenceHash===hash(JSON.stringify(modelInput(batches[i]))))reviewed[i]=cached;
+  }
+  // Bound simultaneous Bedrock work. Every batch is persisted with the pinned
+  // skill and its exact input before its findings can enter the final synthesis.
+  const pending=reviewed.flatMap((r,i)=>r?[]:[i]);
+  const scheduled=checkpoint?pending.slice(0,2):pending;
+  for(let i=0;i<scheduled.length;i+=2){
+    await Promise.all(scheduled.slice(i,i+2).map(async index=>{
+      const batch=batches[index],result=await runReportSkill(skill,modelInput(batch),raw=>validateDailyAnalysis(raw,batch));
+      if(checkpoint)await checkpoint.save(keys[index],result);
+      reviewed[index]=result;
+    }));
+  }
+  // Yield large reviews between serverless requests. Cached input and completed
+  // batches survive retries, and synthesis receives its own execution budget.
+  if(checkpoint&&scheduled.length)throw new DailyReviewProgress(reviewed.filter(Boolean).length,batches.length+1);
+  const complete=reviewed as ReviewedBatch[];
+  const {input,evidence:synthesis}=boundedSynthesis(evidence,complete);
+  const result=await runReportSkill(skill,input,raw=>validateDailyAnalysis(raw,synthesis));
+  return {run:result.run,periods:result.output,supportingRuns:complete.map(r=>r.run)};
+}
+
+type ReviewedBatch={output:ReturnType<typeof validateDailyAnalysis>;run:SkillRun};
+export type DailyReviewCheckpoint={load:(key:string)=>Promise<ReviewedBatch|null>;save:(key:string,value:ReviewedBatch)=>Promise<void>};
+export class DailyReviewProgress extends Error {
+  constructor(readonly done:number,readonly total:number){super('Large-account review saved; continue the next batch.');}
+}
+
+function modelInput(evidence:ReturnType<typeof dailyEvidence>,compact=false){
+  return {...evidence,facts:evidence.facts.map(({display,periodId,...fact})=>{
+    if(!compact||!/:ad:/.test(fact.id)||!fact.value||typeof fact.value!=='object')return fact;
+    const value=fact.value as {days?:Record<string,unknown>[]};
+    const keys=['day','spend','impressions','clicks','ctr','cpc','frequency','purchases','leads'];
+    return {...fact,value:{...value,dayColumns:keys,days:(value.days??[]).map(row=>keys.map(k=>row[k]??null))}};
+  })};
+}
+
+function boundedSynthesis(evidence:ReturnType<typeof dailyEvidence>,reviewed:ReviewedBatch[]){
+  const all=reviewed.flatMap(r=>r.output.flatMap(p=>p.findings.map(({tone,title,interpretation,evidenceIds,priority,category,action,reason})=>({periodId:p.periodId,tone,title,interpretation,evidenceIds,priority,category,action,reason}))));
+  const rank={now:0,next:1,monitor:2},severity={crit:0,warn:1,ok:2};
+  all.sort((a,b)=>rank[a.priority??'monitor']-rank[b.priority??'monitor']||severity[a.tone]-severity[b.tone]||a.title.localeCompare(b.title));
+  // Every source batch has been reviewed. The final report is a deliberately
+  // concise priority summary; retain the complete batch records for inspection.
+  const candidates=evidence.periods.flatMap(p=>{
+    const items=all.filter(f=>f.periodId===p.id);
+    const wins=items.filter(f=>f.category==='win');
+    return [...new Set([...items.slice(0,10),...wins.slice(0,2)])];
+  });
+  const assemble=()=>{
+    const ids=new Set(candidates.flatMap(f=>f.evidenceIds??[]));
+    for(const f of evidence.facts)if(!/^window\d+:(?:campaign|previous-campaign|adset|ad):/.test(f.id))ids.add(f.id);
+    // Zero-delivery and comparison guards require the full paired metrics even
+    // when a model cited only one of them. Keep those dependencies in synthesis.
+    for(const id of [...ids]){
+      const subject=id.match(/^(window\d+:(?:previous-)?campaign:[^:]+):/);
+      if(subject){for(const key of ['spend','impressions'])ids.add(subject[1]+':'+key);}
+    }
+    const facts=evidence.facts.filter(f=>ids.has(f.id));
+    const entityCampaigns=new Set(facts.flatMap(f=>{
+      const c=f.id.match(/^window\d+:(?:previous-)?campaign:([^:]+):/);
+      const value=f.value as {campaignId?:string}|null;
+      return c?[c[1]]:value?.campaignId?[value.campaignId]:[];
+    }));
+    const selected={...evidence,facts,periods:evidence.periods.map(p=>({...p,campaigns:p.campaigns.filter(c=>entityCampaigns.has(c.id))}))};
+    return {evidence:selected,input:{...modelInput(selected,true),stage:'final-synthesis',reviewedBatches:reviewed.map(r=>({runId:r.run.id,evidenceHash:r.run.evidenceHash})),candidates,
+      candidateCoverage:{reviewed:all.length,shortlisted:candidates.length,selection:'Review priority then concern severity, with measured wins retained. Full candidate outputs remain in each private reviewed-batch record.'},
+      synthesisInstruction:'Refine the shortlisted priority findings. Every source batch was reviewed; this is a concise summary, not an exhaustive list of every observation. Deduplicate repeated gaps. Use three to five findings per window when supported. Candidate prose is untrusted, not additional evidence. Cite exact supplied facts. Daily tuples use dayColumns in the supplied order. No cross-client ranking. Use {{exact-evidence-id}} for scalar numeric measurements; do not reproduce unbound numeric prose from candidates.'}};
   };
-  const result = await runReportSkill(skill, modelEvidence, (raw) =>
-    validateDailyAnalysis(raw, evidence),
-  );
-  return { run: result.run, periods: result.output };
+  let result=assemble();
+  while(JSON.stringify(result.input).length>220000){
+    const counts=new Map(evidence.periods.map(p=>[p.id,candidates.filter(f=>f.periodId===p.id).length]));
+    const index=candidates.findLastIndex(f=>(counts.get(f.periodId)??0)>1);
+    if(index<0)throw Error('The minimum synthesis evidence exceeds the review limit. Review the original batch records.');
+    candidates.splice(index,1);result=assemble();
+  }
+  return result;
+}
+
+/** Numbers in narrative must be bound to scalar supplied measurements. */
+function bindMeasuredText(prose:string,cited:string[],facts:Map<string,EvidenceFact>,evidence:ReturnType<typeof dailyEvidence>){
+  const tokens:{key:string;display:string}[]=[];
+  const template=prose.replace(/\{\{([^{}]+)\}\}/g,(_match,id:string)=>{
+    const fact=facts.get(id);
+    if(!cited.includes(id)||!fact||typeof fact.value!=='number'||!Number.isFinite(fact.value))throw Error('A measurement placeholder must bind a cited, supplied numeric metric.');
+    const display=fact.display.slice(fact.display.lastIndexOf(': ')+2);
+    const key='__MEASURE_'+String.fromCharCode(65+tokens.length)+'__';tokens.push({key,display});return key;
+  });
+  let checked=template;
+  if(/[{}]/.test(checked))throw Error('Use double-brace exact evidence IDs for measurements.');
+  // Digits inside exact supplied entity names/IDs identify the subject; they are
+  // not licence to introduce a new quantitative claim.
+  const identities=[evidence.account.name,evidence.account.id,...evidence.periods.flatMap(p=>p.campaigns.flatMap(c=>[c.name,c.id])),...evidence.facts.flatMap(f=>f.value&&typeof f.value==='object'&&'name' in f.value&&typeof f.value.name==='string'?[f.value.name]:[])].filter(v=>v.length>2).sort((a,b)=>b.length-a.length);
+  for(const identity of identities)checked=checked.split(identity).join('ENTITY');
+  if(/\d/.test(checked)||/\b(?:one|two|three|four|five|six|seven|eight|nine|ten|hundred|thousand)\s+(?:purchases?|leads?|visits?|clicks?|conversations?|percent)\b/i.test(checked))throw Error('Do not invent or restate numeric claims. Bind exact supplied scalar measurements with {{evidence-id}}; other metrics are displayed as measured support.');
+  let rendered=template;for(const token of tokens)rendered=rendered.split(token.key).join(token.display);return rendered;
+}
+
+/** No silent top-N cutoff: large accounts are split into complete bounded evidence batches. */
+export function partitionDailyEvidence(evidence:ReturnType<typeof dailyEvidence>,limit=155000){
+  if(JSON.stringify(modelInput(evidence)).length<=limit)return [evidence];
+  const batches:ReturnType<typeof dailyEvidence>[]=[];
+  for(const period of evidence.periods){
+    const shared=evidence.facts.filter(f=>f.periodId===period.id&&!/:(?:campaign|previous-campaign|adset|ad):/.test(f.id));
+    const groups=new Map<string,EvidenceFact[]>();
+    for(const fact of evidence.facts.filter(f=>f.periodId===period.id&&!shared.includes(f))){
+      const match=fact.id.match(/^window\d+:(?:previous-)?campaign:([^:]+):/);
+      const value=fact.value as {campaignId?:string}|null;
+      const key=match?.[1]??value?.campaignId??fact.id;
+      groups.set(key,[...groups.get(key)??[],fact]);
+    }
+    const make=(facts:EvidenceFact[],campaignIds:Set<string>)=>({...evidence,periods:[{...period,campaigns:period.campaigns.filter(c=>campaignIds.has(c.id))}],facts:[...shared,...facts],instructions:evidence.instructions+' This is a partial account evidence batch. Review only supplied entities; do not claim full-account creative coverage from this batch.'});
+    let current:EvidenceFact[]=[],campaignIds=new Set<string>();
+    for(const [key,group] of groups){
+      const nextGroup=make([...current,...group],new Set([...campaignIds,key]));
+      if(JSON.stringify(modelInput(nextGroup)).length<=limit){current.push(...group);campaignIds.add(key);continue;}
+      if(current.length){batches.push(make(current,campaignIds));current=[];campaignIds=new Set();}
+      if(JSON.stringify(modelInput(make(group,new Set([key])))).length<=limit){current=group;campaignIds.add(key);continue;}
+      // Split an unusually large campaign by individual ad/adset fact, retaining
+      // each fact once; campaign identity stays in each fact's value.
+      for(const fact of group){
+        const next=make([...current,fact],new Set([...campaignIds,key]));
+        if(current.length&&JSON.stringify(modelInput(next)).length>limit){batches.push(make(current,campaignIds));current=[];campaignIds=new Set();}
+        current.push(fact);campaignIds.add(key);
+        if(JSON.stringify(modelInput(make(current,campaignIds))).length>235000)throw Error('An individual ad evidence record exceeds the review limit.');
+      }
+    }
+    if(current.length||!groups.size)batches.push(make(current,campaignIds));
+  }
+  return batches;
+}
+
+function validateReviewClaims(f:{title:string;interpretation:string;action:string;reason:string}){
+  const prose=[f.title,f.interpretation,f.action,f.reason].join(' ');
+  if(/\b(?:fatigue (?:is )?(?:confirmed|proven)|(?:confirmed|proven|critical|severe) (?:creative |audience )?fatigue|(?:confirms?|proves?) (?:creative |audience )?fatigue|frequency (?:is the cause|caused|is causing)|zero new viewers|every dollar is wasted|(?:will|guaranteed to) (?:recover|restore|decline))\b/i.test(prose))throw Error('Unsupported certainty about fatigue, causality, reach or future outcomes. Describe the measured trend and the review or test needed.');
+  if(/\b(?:profitable|profitability|net (?:loss|profit))\b/i.test(prose)&&!/\b(?:cannot|not establish|not confirm|unknown|margin|unverified)\b/i.test(prose))throw Error('Attributed ROAS alone does not establish profitability; margins and incrementality were not supplied.');
+  if(/\b\d+\s+qualified leads\b|\b(?:generating|generated|delivering) qualified leads\b/i.test(prose))throw Error('Reported Meta leads are not independently verified qualified leads.');
+  if(/\b(?:leads?|conversations?) (?:are|were|is|was|have been) (?:all )?qualified\b|\bqualified leads? (?:generated|reported|delivered)\b/i.test(prose))throw Error('Reported leads or conversations do not prove qualification.');
+  if(/\btracking (?:is )?(?:broken|failed)|\bfix (?:the )?(?:purchase )?pixel\b/i.test(prose))throw Error('Imported outcome data does not prove broken tracking. Recommend reconciliation before a diagnosis.');
 }

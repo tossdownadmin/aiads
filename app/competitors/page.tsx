@@ -1,6 +1,7 @@
 "use client";
 
 import ForeplayLibrary from "./foreplay-library";
+import BrandIcon from "../brand-icon";
 import type {
   ResearchAd as Ad,
   ResearchResult as SearchResult,
@@ -223,9 +224,7 @@ export default function CompetitorResearch() {
         aria-label="Main navigation"
       >
         <a className="craft-brand" href="/">
-          <span className="craft-brand-mark">
-            T<span>.</span>
-          </span>
+          <BrandIcon className="craft-brand-mark" />
           <strong>Tossdown</strong>
         </a>
         <div className="craft-side-group">
@@ -250,7 +249,7 @@ export default function CompetitorResearch() {
           </a>
         </div>
         <div className="craft-side-foot">
-          <span className="craft-side-avatar">T</span>
+          <BrandIcon className="craft-side-avatar" size={34} />
           <span>
             <strong>Tossdown Ads</strong>
             <small>Research workspace</small>

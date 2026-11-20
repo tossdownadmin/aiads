@@ -1,19 +1,32 @@
 import { campaignCards, detailStyles, galleryScript } from './detail-view';
 import type { MetaAccount } from '../meta/read';
-import { dailyWindows, shiftDay, type Report, type Snapshot } from './model';
+import { dailyWindows, shiftDay, validDay, type Report, type Snapshot } from './model';
 import { dailyStyles } from './daily-style';
+import { BRAND_ICON_DATA_URI } from '../ui/brand-icon';
+import type { ReportFinding as PresentedFinding } from '../skills/report-types';
 import type { ClientLayout, DailyTemplate, Exclusion } from './daily-template';
-import { accountResult, cash, count, dailyFact, dailyFindings, dash, defaultLayout, resultLabel, type Fact, type Tone } from './daily-metrics';
+import { accountResult, cash, count, dailyFact, dailyFindings, dash, defaultLayout, percent, ratio, resultLabel, type Fact, type Tone } from './daily-metrics';
 
 type Entry = { account: MetaAccount; report?: Report; error?: string };
+type Priority = NonNullable<PresentedFinding['priority']>;
 export type DailyPresentation = { layouts?: Record<string,ClientLayout>; exclusions?: Exclusion[]; template?: DailyTemplate; skill?: import('../skills/report-types').SkillVersion };
 const escape = (v: unknown) => String(v ?? '').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!));
 const icon={crit:'🔴',warn:'⚠️',ok:'✓'};
-const headerLogo='<div class="logo-mark" aria-hidden="true"><svg viewBox="0 0 18 18" fill="white"><rect x="2" y="9" width="3" height="7" rx="1"/><rect x="7.5" y="5" width="3" height="11" rx="1"/><rect x="13" y="2" width="3" height="14" rx="1"/></svg></div>';
+const headerLogo='<div class="logo-mark"><img src="'+escape(BRAND_ICON_DATA_URI)+'" width="32" height="32" alt="Tossdown"></div>';
 const day = (v: string,year=false) => new Intl.DateTimeFormat('en-US',{month:'short',day:'numeric',...(year?{year:'numeric' as const}:{}),timeZone:'UTC'}).format(new Date(v.slice(0,10)+'T00:00:00Z'));
 const title = (v:string) => '<p class="section-label">'+escape(v)+'</p>';
 const empty = (v:string) => '<p class="empty">'+escape(v)+'</p>';
 const badge=(v:string,tone='blue')=>'<span class="badge badge-'+tone+'">'+escape(v)+'</span>';
+const severity = {crit:0,warn:1,ok:2};
+const priorityRank = {now:0,next:1,monitor:2};
+const priorityLabels: Record<Priority,string> = {now:'Now — Review first',next:'Next — Plan the next step',monitor:'Monitor — Keep under review'};
+const priorities: Priority[] = ['now','next','monitor'];
+const priorityOf = (f:PresentedFinding): Priority => f.priority ?? ({crit:'now',warn:'next',ok:'monitor'} as const)[f.tone];
+const interpretation = (f:PresentedFinding) => f.interpretation?.trim() || f.detail;
+const compareText = (a:string,b:string) => a<b?-1:a>b?1:0;
+const compareFindings = (a:PresentedFinding,b:PresentedFinding) => priorityRank[priorityOf(a)]-priorityRank[priorityOf(b)] || severity[a.tone]-severity[b.tone] || compareText(a.title,b.title) || compareText(a.action,b.action) || compareText(a.reason,b.reason) || compareText(a.detail,b.detail) || compareText(a.interpretation??'',b.interpretation??'') || compareText(JSON.stringify(a.evidence??[]),JSON.stringify(b.evidence??[]));
+const coverage = '<p class="coverage-note">Coverage: reported Meta metrics, current settings and supplied ad copy. Images and videos are available for your review; this skill does not visually analyse them.</p>';
+const categoryOf=(f:PresentedFinding)=>f.category??(f.tone==='ok'?'win':'concern');
 
 function tile(item: Fact, style='') {
   return '<div class="kpi-card '+style+'"><div class="kpi-label">'+escape(item.label)+'</div><div class="kpi-value'+(item.value.length>15?' long':'')+'">'+escape(item.value)+'</div><div class="kpi-sub">'+escape(item.detail)+'</div></div>';
@@ -21,13 +34,37 @@ function tile(item: Fact, style='') {
 function issue(tone: Tone,heading:string,detail:string) {
   return '<div class="issue-row '+tone+'"><div class="issue-icon" aria-hidden="true">'+icon[tone]+'</div><div><div class="issue-title">'+escape(heading)+'</div><div class="issue-detail">'+escape(detail)+'</div></div></div>';
 }
+function supportingEvidence(f:PresentedFinding) {
+  const evidence=[...new Set((f.evidence??[]).filter(item=>item.trim()))];
+  if (!evidence.length) return '';
+  const items=(values:string[])=>'<ul>'+values.map(value=>'<li>'+escape(value)+'</li>').join('')+'</ul>';
+  return '<div class="finding-evidence"><p class="evidence-label">Measured support</p>'+items(evidence.slice(0,2))+
+    (evidence.length>2?'<details class="evidence-more"><summary>More supporting evidence ('+(evidence.length-2)+')</summary>'+items(evidence.slice(2))+'</details>':'')+'</div>';
+}
+function findingCard(f:PresentedFinding,accountName?:string) {
+  return '<article class="issue-row '+f.tone+'"><div class="issue-icon" aria-hidden="true">'+icon[f.tone]+'</div><div class="finding-content">'+
+    (accountName?'<p class="finding-account">'+escape(accountName)+'</p>':'')+'<h3 class="issue-title">'+escape(f.title)+'</h3><p class="issue-detail">'+escape(interpretation(f))+'</p>'+supportingEvidence(f)+'</div></article>';
+}
+function findingSection(label:string,findings:PresentedFinding[],fallback:string) {
+  return '<section class="finding-section" aria-label="'+escape(label)+'">'+title(label)+'<div class="issues-grid">'+(findings.map(f=>findingCard(f)).join('')||empty(fallback))+'</div></section>';
+}
+function dataNotes(p:Snapshot) {
+  return [...new Set([...p.notes,...p.reviewNotes??[]].filter(note=>note.trim()))];
+}
+function availability(p:Snapshot,findings:PresentedFinding[]=[]) {
+  const notes=dataNotes(p);
+  return '<section class="availability-section" aria-label="Data availability and review limits">'+title('Data availability & review limits')+coverage+
+    (notes.length?'<ul class="review-notes">'+notes.map(note=>'<li>'+escape(note)+'</li>').join('')+'</ul>':empty('No additional data-availability notes were supplied.'))+
+    findings.filter(f=>categoryOf(f)==='data_gap'||categoryOf(f)==='observation').map(f=>findingCard(f)).join('')+'</section>';
+}
 function campaignPreview(p: Snapshot, currency: string, scope: string) {
   return campaignCards(p.campaigns.map(c=>({...c,stats:c})),p.details,currency,scope);
 }
 function accountView(entry: Entry,p:Snapshot,layout:ClientLayout|undefined,i:number) {
   const account=entry.account, name=layout?.name||account.name, market=layout?.market||account.timezone||'';
   const spec=layout?.periods?.[i]||defaultLayout(p,layout?.type);
-  const findings=p.analysis?.findings ?? dailyFindings(account,p),tone=findings[0]?.tone||'ok';
+  const findings:PresentedFinding[]=p.analysis?.findings ?? dailyFindings(account,p);
+  const tone:Tone=findings.some(f=>f.tone==='crit')?'crit':findings.some(f=>f.tone==='warn')?'warn':'ok';
   const fact=(label:string)=>dailyFact(label,account,p,layout,spec.columns,findings,spec.scopes?.[label]);
   const type=layout?.type||({SALES:'Sales',LEADS:'Lead Gen',VISITS:'Profile Visits',MIXED:'Mixed objectives',MIXROAS:'Sales + Engagement'}[spec.columns]);
   const summary=accountResult(p,spec.columns,type);
@@ -43,6 +80,66 @@ function accountView(entry: Entry,p:Snapshot,layout:ClientLayout|undefined,i:num
   return {account,p,spec,name,market,type,findings,tone,fact,summary,summaryResult,summaryCost,comparison:[compare('ROAS',2),compare('CTR',3),compare('Freq',4)]};
 }
 type View = ReturnType<typeof accountView>;
+type QueuedAction = { view:View; finding:PresentedFinding; accountIndex:number };
+function actionQueue(views:View[]) {
+  const sorted:QueuedAction[]=views.flatMap((view,accountIndex)=>view.findings.filter(f=>f.action.trim()).map(finding=>({view,finding,accountIndex})));
+  sorted.sort((a,b)=>priorityRank[priorityOf(a.finding)]-priorityRank[priorityOf(b.finding)] || severity[a.finding.tone]-severity[b.finding.tone] ||
+    compareText(a.view.name,b.view.name) || compareText(a.view.account.id,b.view.account.id) || compareFindings(a.finding,b.finding));
+  const seen=new Set<string>();
+  return sorted.filter(item=>{
+    const key=JSON.stringify([item.view.account.id,item.finding.action]);
+    if (seen.has(key)) return false;
+    seen.add(key); return true;
+  });
+}
+function prioritizedActions(views:View[],portfolio=false) {
+  const fullQueue=actionQueue(views),queue=portfolio?fullQueue.slice(0,10):fullQueue;
+  return '<section class="actions-section" aria-label="'+(portfolio?'Portfolio action queue':'Prioritized actions')+'">'+title(portfolio?'Portfolio action queue':'Prioritized actions')+
+    '<p class="section-intro">'+(portfolio?'Actions from each account’s findings, ordered by priority, then concern severity. This is a work queue, not a comparative performance ranking.':'Suggested follow-ups, ordered by priority, then concern severity. Review the evidence before making changes.')+'</p>'+
+    (portfolio&&fullQueue.length>queue.length?'<p class="section-intro">Showing '+queue.length+' of '+fullQueue.length+' proposed actions. Open an account for its complete action list.</p>':'')+(queue.length?priorities.map(priority=>{
+      const group=queue.filter(item=>priorityOf(item.finding)===priority);
+      if (!group.length) return '';
+      return '<div class="priority-group priority-'+priority+'"><h3 class="priority-heading">'+escape(priorityLabels[priority])+'</h3><div class="action-list">'+group.map(({view,finding:f,accountIndex})=>
+        '<article class="rec-card" data-priority="'+priority+'" data-tone="'+f.tone+'"><div class="rec-meta">'+(portfolio?'<button type="button" class="row-link action-account" data-open="'+accountIndex+'">'+escape(view.name)+'</button>':'')+
+        '<span class="issue-chip chip-'+f.tone+'">'+escape({crit:'Critical concern',warn:'Review concern',ok:'Follow-up'}[f.tone])+'</span></div><h4 class="rec-title">'+escape(f.action)+'</h4><p class="rec-body">'+escape(f.reason)+'</p>'+supportingEvidence(f)+'</article>'
+      ).join('')+'</div></div>';
+    }).join(''):empty('No actions were supplied for this period.'))+'</section>';
+}
+function periodComparison(p:Snapshot,currency:string) {
+  const previous=p.previous;
+  if (!previous) return '';
+  const days=(window:Snapshot['window'])=>validDay(window.since)&&validDay(window.until)?Math.round((Date.parse(window.until)-Date.parse(window.since))/86400000)+1:0;
+  const currentDays=days(p.window),previousDays=days(previous.window);
+  if (currentDays<=0 || previousDays<=0) return '';
+  const comparable=currentDays===previousDays && previous.window.until<p.window.since;
+  const range=(window:Snapshot['window'])=>day(window.since,true)+' – '+day(window.until,true);
+  const labels={spend:'Spend',leads:'Leads',purchases:'Purchases',ctr:'CTR',cpc:'CPC',roas:'ROAS'};
+  type Metric = keyof typeof labels;
+  const format=(key:Metric,value:number|null|undefined)=>key==='spend'||key==='cpc'?cash(value,currency):key==='ctr'?percent(value):key==='roas'?ratio(value):count(value);
+  const rows=(Object.keys(labels) as Metric[]).map(key=>{
+    const current=p.totals?.[key],prior=previous.totals?.[key];
+    let change=dash;
+    if (comparable && current!=null && prior!=null) {
+      const delta=current-prior;
+      change=delta===0?'No change':(delta>0?'+':'−')+(key==='ctr'?Math.abs(delta).toFixed(2)+' pp':format(key,Math.abs(delta)));
+    }
+    return '<tr><th scope="row">'+labels[key]+'</th><td>'+escape(format(key,current))+'</td><td>'+escape(format(key,prior))+'</td><td>'+escape(change)+'</td></tr>';
+  }).join('');
+  return '<section class="comparison-section" aria-label="Period comparison">'+title('Period comparison')+
+    '<p class="section-intro">'+(comparable?'Two separate '+currentDays+'-day windows. Changes describe the reported metrics; direction alone does not show whether a target was met.':'Changes are unavailable because these windows overlap or differ in length.')+'</p>'+
+    '<div class="table-wrap"><table class="period-comparison"><thead><tr><th scope="col">Metric</th><th scope="col">Current<span class="table-period">'+escape(range(p.window))+'</span></th><th scope="col">Previous<span class="table-period">'+escape(range(previous.window))+'</span></th><th scope="col">Change</th></tr></thead><tbody>'+rows+'</tbody></table></div></section>';
+}
+function budgetPacing(p:Snapshot,currency:string) {
+  const pacing=p.pacing;
+  if (!pacing) return '';
+  return '<section class="pacing-section" aria-label="Monthly budget pacing">'+title('Monthly budget pacing — '+pacing.month)+
+    '<p class="section-intro">Month-to-date coverage: '+escape(pacing.elapsedDays)+' of '+escape(pacing.monthDays)+' days. The month-end projection is an estimate.</p><div class="kpi-grid">'+[
+      {label:'Monthly budget',value:cash(pacing.budget,currency),detail:'Supplied budget'},
+      {label:'Spent to date',value:cash(pacing.spent,currency),detail:'Month-to-date spend'},
+      {label:'Expected spend to date',value:cash(pacing.expectedSpend,currency),detail:'Supplied pacing benchmark'},
+      {label:'Projected month-end spend',value:cash(pacing.projectedSpend,currency),detail:'Estimated full-month spend'},
+    ].map(f=>tile(f)).join('')+'</div></section>';
+}
 function clientCard(v:View,index:number) {
   return '<button type="button" class="account-card" data-open="'+index+'"><span class="ac-header"><span><span class="ac-name" style="display:block">'+escape(v.name)+'</span><span class="ac-currency">'+escape([v.account.currency,v.market].filter(Boolean).join(' · '))+'</span></span>'+badge(v.type)+'</span><span class="ac-metrics">'+v.spec.cards.map(label=>{
     const k=v.fact(label);
@@ -51,11 +148,11 @@ function clientCard(v:View,index:number) {
 }
 function detail(v:View,periodName:string) {
   const active=v.p.inventory?.active;
-  const actions=new Map(v.findings.map(f=>[f.action,f.reason]));
+  const wins=v.findings.filter(f=>categoryOf(f)==='win'),concerns=v.findings.filter(f=>categoryOf(f)==='concern').sort((a,b)=>severity[a.tone]-severity[b.tone] || compareFindings(a,b));
   return '<div class="overview-bar"><div><div class="overview-name">'+escape(v.name)+'</div><div class="overview-meta">'+escape(['Account '+v.account.id.replace(/^act_/,''),v.account.currency,v.market].filter(Boolean).join(' · '))+'</div></div><div class="overview-tags">'+(active!=null?badge(active+' Active','green'):'')+badge(v.type)+'</div></div>'+
     title(periodName+' — KPIs')+'<div class="kpi-grid">'+v.spec.kpis.map((label,i)=>tile(v.fact(label),i===0?'highlight':label==='Status'&&v.tone==='crit'?'crit':'')).join('')+'</div>'+
-    title('Issues & Flags')+'<div class="issues-grid">'+v.findings.map(f=>issue(f.tone,f.title,f.detail)).join('')+v.p.notes.map(n=>issue('warn','Data availability',n)).join('')+'</div>'+
-    title('Recommendations')+Array.from(actions,([name,reason],i)=>'<div class="rec-card"><div class="rec-number">Action '+String(i+1).padStart(2,'0')+'</div><div class="rec-title">'+escape(name)+'</div><div class="rec-body">'+escape(reason)+'</div></div>').join('')+
+    '<div class="findings-columns">'+findingSection('Wins',wins,'No positive findings were supplied for this period.')+findingSection('Concerns',concerns,'No performance concerns were flagged in the supplied findings.')+'</div>'+
+    prioritizedActions([v])+periodComparison(v.p,v.account.currency)+budgetPacing(v.p,v.account.currency)+availability(v.p,v.findings)+
     title('Campaign Performance — '+periodName)+campaignPreview(v.p,v.account.currency,v.account.id+'-'+v.p.window.since+'-'+v.p.window.until);
 }
 function overview(views:View[],exclusions:Exclusion[],periodName:string) {
@@ -73,13 +170,20 @@ function overview(views:View[],exclusions:Exclusion[],periodName:string) {
     }).join('');
     return {kpi:tile({label:currency+' Spend',value:sum,detail:values.length+' of '+members.length+' accounts reporting spend'},'highlight'),rows:'<tr><td colspan="7" class="group-heading">'+escape(currency+' accounts · '+sum+' total')+'</td></tr>'+rows};
   });
-  const flags=views.flatMap(v=>v.findings.filter(f=>f.tone==='crit').map(f=>issue('crit',v.name+' — '+f.title,f.detail)));
-  const warnings=views.reduce((n,v)=>n+v.findings.filter(f=>f.tone==='warn').length+v.p.notes.length,0);
+  const flags=views.flatMap(v=>v.findings.filter(f=>f.tone==='crit'));
+  const warnings=views.reduce((n,v)=>n+v.findings.filter(f=>f.tone==='warn').length,0);
+  const findings=views.flatMap(v=>v.findings.map(f=>({view:v,finding:f}))).sort((a,b)=>severity[a.finding.tone]-severity[b.finding.tone] || compareText(a.view.name,b.view.name) || compareText(a.view.account.id,b.view.account.id) || compareFindings(a.finding,b.finding));
+  const summarySection=(label:string,positive:boolean)=>'<section class="finding-section" aria-label="'+label+'">'+title(label)+'<div class="issues-grid">'+
+    (findings.filter(item=>categoryOf(item.finding)===(positive?'win':'concern')).slice(0,6).map(({view,finding})=>findingCard(finding,view.name)).join('')||empty(positive?'No positive findings were supplied for this period.':'No performance concerns were flagged in the supplied findings.'))+'</div><p class="section-intro">Open an account to read all of its findings.</p></section>';
+  const groupedNotes=new Map<string,string[]>();
+  for(const v of views)for(const note of dataNotes(v.p))groupedNotes.set(note,[...groupedNotes.get(note)??[],v.name]);
+  const notes=[...groupedNotes].map(([note,names])=>'<li>'+escape(note)+' <strong>'+escape(names.length===views.length?'All accounts':names.join(', '))+'</strong></li>');
   return title('All Accounts — '+periodName)+'<div class="all-accounts-grid">'+views.map(clientCard).join('')+'</div><div class="kpi-grid">'+groups.map(g=>g.kpi).join('')+
     tile({label:'Critical Flags',value:String(flags.length),detail:'Across all accounts'},'crit')+tile({label:'Warnings',value:String(warnings),detail:'Across all accounts'})+
     tile({label:'Accounts',value:String(views.length),detail:exclusions.length+' outside this report'})+'</div><hr class="divider">'+title('Side-by-side — '+periodName+' (click a row to open the account)')+
     '<div class="table-wrap"><table class="cmp"><thead><tr>'+['Account','Spend','Results','Cost / Result','ROAS','CTR','Frequency'].map(v=>'<th>'+v+'</th>').join('')+'</tr></thead><tbody>'+groups.map(g=>g.rows).join('')+'</tbody></table></div>'+
-    title('Critical Flags — '+periodName)+'<div class="issues-grid">'+(flags.join('')||empty('No critical flags for this period.'))+'</div>'+
+    prioritizedActions(views,true)+'<div class="findings-columns">'+summarySection('Wins',true)+summarySection('Concerns',false)+'</div>'+
+    '<section class="availability-section" aria-label="Data availability and review limits">'+title('Data availability & review limits')+coverage+(notes.length?'<ul class="review-notes">'+notes.join('')+'</ul>':empty('No additional data-availability notes were supplied.'))+'</section>'+
     title('Not in this report ('+exclusions.length+' brands)')+'<div class="issues-grid">'+(exclusions.map(e=>issue('warn',e.name,e.reason)).join('')||empty('All expected accounts are included.'))+'</div>';
 }
 // This script is identical for every report. All source text is escaped in the HTML.
@@ -136,6 +240,16 @@ const controls = `
   window.addEventListener('message', function (event) {
     if (event.source === parent && event.data === 'print-daily-report') window.print();
   });
+  var printEvidence = [];
+  window.addEventListener('beforeprint', function () {
+    elements('details.evidence-more').forEach(function (details) {
+      if (!details.open) { printEvidence.push(details); details.open = true; }
+    });
+  });
+  window.addEventListener('afterprint', function () {
+    printEvidence.forEach(function (details) { details.open = false; });
+    printEvidence = [];
+  });
   readHash();
 })();`;
 
@@ -149,7 +263,7 @@ export function renderDailyDocument(entries:Entry[],end:string,presentation:Dail
   const valid=entries.filter(e=>e.report?.periods.length===2);
   const periods=windows.map((_,i)=>valid.map(e=>accountView(e,e.report!.periods[i],presentation.layouts?.[e.account.id],i)));
   const both=(fn:(i:number)=>string)=>periods.map((_,i)=>'<div data-period="'+i+'"'+(i?' hidden':'')+'>'+fn(i)+'</div>').join('');
-  return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Meta Ads — Daily Report</title><style>'+dailyStyles+detailStyles+'.group-heading{background:var(--surface2);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}</style></head><body>'+
+  return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" type="image/png" href="'+escape(BRAND_ICON_DATA_URI)+'"><title>Meta Ads — Daily Report</title><style>'+dailyStyles+detailStyles+'.group-heading{background:var(--surface2);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}</style></head><body>'+
     '<header class="header"><div class="header-inner"><div class="logo-area">'+headerLogo+'<div><div class="header-title">Meta Ads — Daily Report</div><div class="header-subtitle">'+both(i=>escape(names[i]+' · '+ranges[i]))+'</div></div></div><div class="header-meta"><div class="period" role="group" aria-label="Date range"><button data-window="0" class="on" aria-pressed="true">Last 7 days</button><button data-window="1" aria-pressed="false">Last 30 days</button></div>'+badge(valid.length+' Accounts')+badge('Generated '+day(generated,true),'green')+'</div></div></header>'+
     '<div class="tabs-bar">'+both(i=>'<nav class="tabs" aria-label="Report accounts"><button class="tab active" data-key="overview" data-open="overview">Overview</button>'+periods[i].map((v,n)=>'<button class="tab" data-key="'+escape(v.account.id)+'" data-open="'+n+'">'+escape(v.name)+(v.tone==='ok'?'':'<span class="flag-dot '+v.tone+'"></span>')+'</button>').join('')+'</nav>')+'</div>'+
     '<main class="main">'+both(i=>'<h2 class="print-only">'+escape(names[i]+' · '+ranges[i])+'</h2><section class="tab-panel" data-panel="overview">'+overview(periods[i],exclusions,names[i])+'</section>'+periods[i].map((v,n)=>'<section class="tab-panel" data-panel="'+n+'" hidden>'+detail(v,names[i])+'</section>').join(''))+'</main>'+

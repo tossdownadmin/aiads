@@ -171,6 +171,10 @@ export type Ad = {
     cpc: string;
     frequency: string;
     impressions: string;
+    spend?: string;
+    clicks?: string;
+    purchases?: number|null;
+    leads?: number|null;
   }[];
 };
 export type AdSet = {
@@ -406,7 +410,7 @@ export async function readDetails(
       const periodNotes: string[] = [];
       async function insights(level: "ad" | "adset", daily = false) {
         const fields = daily
-          ? "campaign_id,adset_id,ad_id,impressions,ctr,cpc,frequency"
+          ? "campaign_id,adset_id,ad_id,spend,clicks,actions,impressions,ctr,cpc,frequency"
           : statFields +
             (level === "ad" ? ",ad_id,ad_name,adset_name" : ",adset_name");
         try {
@@ -518,7 +522,7 @@ export async function readDetails(
         if (ad) ad.stats = metrics(r);
       }
       for (const r of days) {
-        const ad = byAd.get(words(r.ad_id));
+        const ad = insertAd(r, words(r.ad_id), r.ad_name);
         if (ad)
           (ad.days ??= []).push({
             day: words(r.date_start),
@@ -526,6 +530,10 @@ export async function readDetails(
             cpc: words(r.cpc),
             frequency: words(r.frequency),
             impressions: words(r.impressions),
+            spend: words(r.spend),
+            clicks: words(r.clicks),
+            purchases: metrics(r).purchases,
+            leads: metrics(r).leads,
           });
       }
       for (const id of group) hierarchy[id].notes = [...notes, ...periodNotes];

@@ -1,10 +1,11 @@
-import { readDetails } from '../meta/campaign-detail';
+import { readDetails, limitation } from '../meta/campaign-detail';
 import { fetchAllPages, getCampaigns, type MetaAccount } from '../meta/read';
-import { joinCampaigns, metrics, type Row, type DeliverySettings, type Snapshot, type Tracking, type Window } from './model';
+import { joinCampaigns, metrics, previousWindow, type Row, type DeliverySettings, type Snapshot, type Tracking, type Window } from './model';
+import type { DailyClientContext } from './client-context';
 
 const fields = 'spend,impressions,reach,frequency,clicks,ctr,cpc,actions,conversions,action_values,purchase_roas,video_thruplay_watched_actions';
 
-export async function readReportWindows(account: MetaAccount, windows: Window[]): Promise<Snapshot[]> {
+export async function readReportWindows(account: MetaAccount, windows: Window[], dailyReview=false): Promise<Snapshot[]> {
   const [inventory, adsets] = await Promise.all([
     getCampaigns(account.id).catch(() => null),
     fetchAllPages<{ campaign_id: string; optimization_goal?: string; bid_strategy?: string }>(account.id + '/adsets', {
@@ -43,7 +44,7 @@ export async function readReportWindows(account: MetaAccount, windows: Window[])
     return { window, inventory: inventory ? { total: inventory.length, active: inventory.filter(c => c.effective_status === 'ACTIVE').length } : undefined, totals: accountRows?.[0] ? metrics(accountRows[0]) : null, campaigns: joinCampaigns(inventory ?? [], rows, window, settings), notes };
   }));
   const ids = [...new Set(snapshots.flatMap(p => p.campaigns.map(c => c.id)))];
-  const details = await readDetails(account.id, account.currency, ids, windows);
+  const details = await readDetails(account.id, account.currency, ids, windows, dailyReview);
   return snapshots.map((p,i) => ({...p, details:details[i],campaigns:p.campaigns.map(c=>{
     const reported=details[i]?.[c.id]?.sets.filter(set=>set.stats)||[];
     // Page-visit results can be available only at ad-set level. Roll up complete
@@ -54,6 +55,78 @@ export async function readReportWindows(account: MetaAccount, windows: Window[])
     }
     return filled;
   })}));
+}
+
+/** Equal-length, nonoverlapping history; no historical state is inferred from today's switches. */
+async function readPrevious(account:MetaAccount,window:Window):Promise<{value:NonNullable<Snapshot['previous']>;notes:string[]}> {
+  const params={time_range:JSON.stringify(window),use_unified_attribution_setting:'true',limit:'200'};
+  const notes:string[]=[];
+  async function insights(level:'campaign'|'account') {
+    const base=(level==='campaign'?'campaign_id,campaign_name,objective,':'')+fields;
+    try{return await fetchAllPages<Row>(account.id+'/insights',{...params,level,fields:base+',instagram_profile_visits'});}
+    catch(e){
+      if(!(e instanceof Error)||!/instagram_profile_visits|not a valid.*field|invalid metric/i.test(e.message))throw e;
+      notes.push('Previous-period direct Instagram visits unavailable.');
+      return fetchAllPages<Row>(account.id+'/insights',{...params,level,fields:base});
+    }
+  }
+  const [campaignResult,accountResult]=await Promise.allSettled([insights('campaign'),insights('account')]);
+  const rows=campaignResult.status==='fulfilled'?campaignResult.value:[];
+  const totals=accountResult.status==='fulfilled'?accountResult.value:null;
+  if(campaignResult.status==='rejected')notes.push(limitation('Previous-period campaign metrics',campaignResult.reason));
+  if(accountResult.status==='rejected')notes.push(limitation('Previous-period account totals',accountResult.reason));
+  const campaigns=joinCampaigns([],rows,window);
+  // Facebook Page visits can be an ad-set-only primary result. Join by campaign
+  // and never sum attribution alternatives or add ad rows to ad-set rows.
+  for(let offset=0;offset<campaigns.length;offset+=40){
+    const group=campaigns.slice(offset,offset+40);
+    try {
+      const sets=await fetchAllPages<Row>(account.id+'/insights',{...params,level:'adset',fields:'campaign_id,adset_id,spend,actions,results',filtering:JSON.stringify([{field:'campaign.id',operator:'IN',value:group.map(c=>c.id)}])});
+      for(const c of group){
+        const matched=sets.filter(s=>s.campaign_id===c.id).map(s=>metrics(s));
+        for(const key of ['facebookVisits','instagramVisits'] as const)if(c[key]===null&&matched.length&&matched.every(s=>s[key]!==null))c[key]=matched.reduce((n,s)=>n+s[key]!,0);
+      }
+    }catch(e){notes.push(limitation('Previous-period profile visit results',e));}
+  }
+  if(totals&&!totals.length)notes.push('No account-level row returned for the previous period; this is not a verified zero.');
+  return {value:{window,totals:totals?.[0]?metrics(totals[0]):null,campaigns},notes};
+}
+
+export async function readDailyReview(account:MetaAccount,windows:Window[],context:DailyClientContext|null=null):Promise<Snapshot[]> {
+  const contextMismatch=!!context&&(context.accountId!==account.id||context.currency!==account.currency);
+  if(contextMismatch)context=null;
+  const [periods,previous]=await Promise.all([
+    readReportWindows(account,windows,true),
+    Promise.all(windows.map(async w=>{
+      const window=previousWindow(w);
+      try{return await readPrevious(account,window);}
+      catch(e){return {value:{window,totals:null,campaigns:[]},notes:[limitation('Previous-period comparison',e)]};}
+    })),
+  ]);
+  let pacing:Snapshot['pacing'];
+  const budgetNotes:string[]=[];
+  const end=windows[0]?.until, month=end?.slice(0,7);
+  if(context?.monthlyBudget&&context.budgetMonth===month&&context.currency===account.currency){
+    try {
+      const result=await readComparison(account.id,{since:month+'-01',until:end});
+      if(result.totals?.spend!=null){
+        const elapsedDays=Number(end.slice(-2)),monthDays=new Date(Date.UTC(Number(month.slice(0,4)),Number(month.slice(5,7)),0)).getUTCDate();
+        pacing={month,budget:context.monthlyBudget,spent:result.totals.spend,elapsedDays,monthDays,expectedSpend:context.monthlyBudget*elapsedDays/monthDays,projectedSpend:result.totals.spend/elapsedDays*monthDays};
+      }else budgetNotes.push('Month-to-date spend was not returned; budget pacing is unavailable.');
+    }catch(e){budgetNotes.push(limitation('Approved budget pacing',e));}
+  }else budgetNotes.push(context?.monthlyBudget?'The saved budget does not match this reporting month or currency.':'No approved monthly budget supplied; pacing is unavailable.');
+  return periods.map((p,i)=>({
+    ...p,previous:previous[i].value,pacing,
+    reviewNotes:[...new Set([
+      ...previous[i].notes,...budgetNotes,
+      ...Object.values(p.details??{}).flatMap(d=>d.notes),
+      ...(!context?.businessGoal?['No client business goal supplied.']:[]),
+      ...(contextMismatch?['Saved targets were ignored because their account or currency did not match this Meta account. Review and resave the client context.']:[]),
+      ...(!context?.targetCpa&&!context?.targetCpl&&!context?.targetRoas?['No approved CPA, CPL or ROAS targets supplied.']:[]),
+      'Lead qualification, offline sales and margins are not verified by a connected CRM or store.',
+      'Ad analysis uses measured performance, settings and supplied copy; full images and videos are available for review, not visually analysed by this skill.',
+    ])],
+  }));
 }
 
 export async function readTracking(accountId: string): Promise<Tracking> {

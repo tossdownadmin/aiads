@@ -95,7 +95,7 @@ export function getReportingSkills(): ReportingSkill[] {
   });
 }
 const capabilities = {
-  daily: ["meta-report-windows", "meta-ad-details"],
+  daily: ["meta-report-windows", "meta-ad-details", "meta-comparison", "client-report-context"],
   monthly: [
     "meta-report-windows",
     "meta-ad-details",

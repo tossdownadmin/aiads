@@ -23,8 +23,14 @@ export type ReportFinding = {
   detail: string;
   action: string;
   reason: string;
+  interpretation?: string;
+  evidence?: string[];
+  evidenceIds?: string[];
+  priority?: "now" | "next" | "monitor";
+  category?: "win" | "concern" | "observation" | "data_gap";
 };
 export type DailyAnalysis = {
   run: SkillRun;
+  supportingRuns?: SkillRun[];
   periods: { periodId: string; findings: ReportFinding[] }[];
 };

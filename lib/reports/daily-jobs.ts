@@ -14,8 +14,9 @@ import {
   type DailyTemplate,
 } from "./daily-template";
 import { renderDailyDocument } from "./daily-document";
-import { readReportWindows } from "./read";
-import { analyzeDailyReport } from "./daily-analysis";
+import { readDailyReview } from "./read";
+import {readClientContext} from './client-context';
+import { analyzeDailyReport,DailyReviewProgress,type DailyReviewCheckpoint } from "./daily-analysis";
 import { selectReportSkill } from "../skills/report-runner";
 import { skillVersion, type ReportingSkill } from "../skills/report-packages";
 import type { SkillRun } from "../skills/report-types";
@@ -26,6 +27,7 @@ const savedPath = "reports/daily/latest-v1.json",
   jobPath = "reports/daily/pending-v1.json";
 export class DailyConflict extends Error {}
 export class DailyInputError extends Error {}
+class DailyContextUnavailable extends Error {}
 type Entry = { account: MetaAccount; report: Report; run: SkillRun };
 type DailyJob = {
   id: string;
@@ -41,6 +43,7 @@ type DailyJob = {
   completed: { id: string; name: string; path: string; run: SkillRun }[];
   lease?: { token: string; until: number };
   error?: string;
+  currentReview?:{done:number;total:number};
 };
 export type PublicDailyJob = {
   id: string;
@@ -52,6 +55,7 @@ export type PublicDailyJob = {
   skill: ReturnType<typeof skillVersion>;
   leaseUntil?: number;
   error?: string;
+  currentReview?:{done:number;total:number};
 };
 const publicJob = (job: DailyJob): PublicDailyJob => ({
   id: job.id,
@@ -63,6 +67,7 @@ const publicJob = (job: DailyJob): PublicDailyJob => ({
   skill: skillVersion(job.skill),
   leaseUntil: job.lease?.until,
   error: job.error,
+  currentReview:job.currentReview,
 });
 async function read<T>(
   path: string,
@@ -258,21 +263,37 @@ export async function advanceDaily(id: string) {
       const path = "reports/daily/jobs/" + job.id + "/" + nextId + ".json";
       let entry = (await read<Entry>(path)).value;
       if (!entry) {
-        const generated = new Date().toISOString(),
-          periods = await readReportWindows(
+        const inputPath=path.replace(/\.json$/,'-input.json');
+        let prepared=(await read<{report:Report;skillHash:string}>(inputPath)).value;
+        if(!prepared){
+          let reviewContext:Report['reviewContext'];
+          try {
+            reviewContext=await readClientContext(account.id);
+          } catch {
+            throw new DailyContextUnavailable('Saved business context could not be loaded.');
+          }
+          const generated = new Date().toISOString(),periods = await readDailyReview(
             account,
             dailyWindows(job.date, shiftDay(job.date, 1)),
+            reviewContext,
           );
-        if (
+          if (
           periods.some((p) =>
             p.notes.includes(
               "Account totals were unavailable. Campaign rows remain available.",
             ),
           )
-        )
-          throw Error("Account totals unavailable");
-        const report: Report = { account, generated, periods };
-        const analysis = await analyzeDailyReport(report, job.skill);
+          )throw Error("Account totals unavailable");
+          prepared={report:{ account, generated, periods, reviewContext },skillHash:skillVersion(job.skill).packageHash};
+          await write(inputPath,prepared,null);
+        }
+        if(prepared.skillHash!==skillVersion(job.skill).packageHash)throw Error('Prepared evidence does not match the pinned skill');
+        const report=prepared.report;
+        const checkpoint:DailyReviewCheckpoint={
+          load:async key=>(await read<Awaited<ReturnType<DailyReviewCheckpoint['load']>>>(path.replace(/\.json$/,'')+'/batches/'+key+'.json')).value,
+          save:async(key,value)=>{await write(path.replace(/\.json$/,'')+'/batches/'+key+'.json',value,null);},
+        };
+        const analysis = await analyzeDailyReport(report, job.skill,checkpoint);
         report.periods = report.periods.map((p, i) => ({
           ...p,
           analysis: {
@@ -292,6 +313,7 @@ export async function advanceDaily(id: string) {
         ...job.completed,
         { id: nextId, name: entry.account.name, path, run: entry.run },
       ];
+      leased.currentReview=undefined;
     }
     if (leased.completed.length < job.accountIds.length) {
       const next = {
@@ -348,6 +370,11 @@ export async function advanceDaily(id: string) {
     );
     return { saved, version, job: publicJob(complete) };
   } catch (error) {
+    if(error instanceof DailyReviewProgress){
+      const next={...leased,lease:undefined,currentReview:{done:error.done,total:error.total},updatedAt:new Date().toISOString()};
+      await write(jobPath,next,leaseVersion);
+      return {job:publicJob(next)};
+    }
     if (error instanceof DailyConflict) {
       await write(
         jobPath,
@@ -373,7 +400,9 @@ export async function advanceDaily(id: string) {
       lease: undefined,
       error:
         (failedAccount ? failedAccount + ": " : "") +
-        "The evidence or skill analysis could not complete. Your last saved report is unchanged. Resume to retry.",
+        (error instanceof DailyContextUnavailable
+          ? "Saved business context could not be loaded. Your last saved report is unchanged. Resume to retry loading the saved goals and targets."
+          : "The evidence or skill analysis could not complete. Your last saved report is unchanged. Resume to retry."),
       updatedAt: new Date().toISOString(),
     };
     await write(jobPath, failed, leaseVersion);

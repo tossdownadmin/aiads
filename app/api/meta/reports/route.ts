@@ -7,9 +7,10 @@ import { searchForeplay, searchSavedCompetitors } from '../../../../lib/competit
 import { getAdAccounts, fetchAllPages } from '../../../../lib/meta/read';
 import { comparisonWindow, accountToday, dailyWindows, planningWindow, validDay, type Report } from '../../../../lib/reports/model';
 import {selectReportSkill} from '../../../../lib/skills/report-runner';
-import {analyzeDailyReport} from '../../../../lib/reports/daily-analysis';
+import {analyzeDailyReport,dailyEvidence,partitionDailyEvidence} from '../../../../lib/reports/daily-analysis';
 import { draftPlan } from '../../../../lib/reports/plan';
-import { readComparison, readReportWindows, readTracking } from '../../../../lib/reports/read';
+import { readComparison, readReportWindows, readDailyReview, readTracking } from '../../../../lib/reports/read';
+import {readClientContext} from '../../../../lib/reports/client-context';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -56,13 +57,24 @@ export async function POST(request: Request) {
     } catch (error) {
       return json({ error: (error as Error).message }, 400);
     }
+    let reviewContext:Report['reviewContext'];
+    if(data.mode==='daily') {
+      try {
+        reviewContext=await readClientContext(account.id);
+      } catch {
+        return json({error:'Saved business context could not be loaded. Retry the daily report to use the saved goals and targets.'},503);
+      }
+    }
     const [periods, tracking, comparison] = await Promise.all([
-      readReportWindows(account, windows),
+      data.mode==='daily'?readDailyReview(account, windows,reviewContext):readReportWindows(account, windows),
       data.mode === 'plan' ? readTracking(account.id) : undefined,
       data.mode === 'plan' ? readComparison(account.id,comparisonWindow(windows[0])).catch(()=>({window:comparisonWindow(windows[0]),totals:null})) : undefined,
     ]);
-    const report: Report = { account, generated: now.toISOString(), periods, tracking, comparison };
-    if(data.mode==='daily') {const analysis=await analyzeDailyReport(report,skill!);report.periods=report.periods.map((p,i)=>({...p,analysis:{findings:analysis.periods.find(a=>a.periodId==='window'+i)!.findings}}));report.dailySkillRun=analysis.run;}
+    const report: Report = { account, generated: now.toISOString(), periods, tracking, comparison, reviewContext };
+    if(data.mode==='daily') {
+      if(partitionDailyEvidence(dailyEvidence(report)).length>1) return json({error:'This account requires multiple analysis batches. Use saved daily report update for resumable analysis.'},409);
+      const analysis=await analyzeDailyReport(report,skill!);report.periods=report.periods.map((p,i)=>({...p,analysis:{findings:analysis.periods.find(a=>a.periodId==='window'+i)!.findings}}));report.dailySkillRun=analysis.run;
+    }
     if (data.mode === 'plan' && data.researchClient) {
       const client = researchClient;
       if(!client)return json({error:'Choose a client from the current competitor library.'},400);

@@ -7,7 +7,7 @@
 5. Purchase ROAS below 1 means reported attributed purchase value is below spend. It does not establish margin, net profitability, tracking accuracy or causality. Check attribution and order reconciliation before proposing action.
 6. Describe creative trends only when individual ad IDs and comparable daily evidence are supplied. A preview or transcript excerpt does not mean the full image/video was examined. Do not infer audience or placement performance without breakdowns.
 7. Sort findings by urgency. Use crit for substantiated material delivery/measurement concerns, warn for investigations and data gaps, ok for neutral observations or well-supported positive delivery. Do not assign a performance grade without a rubric.
-8. Actions are human review recommendations. Never pause, change budgets or promise outcomes. Keep interpretations concise and avoid repeating raw metric numbers: cited evidence is expanded with exact application-calculated values in the report.
+8. Actions are human review recommendations. Never execute pauses, budget changes or promise outcomes. Keep interpretations concise: include one or two supplied measurements when they make the finding useful, then explain the practical significance. Full supporting evidence is available separately; do not narrate every cited field. Propose a specific next check or controlled test and give a review priority. Do not recommend an arbitrary 20–30% scale-up or a new campaign without considering the supplied goal, target, conversion sample and approved budget.
 
 ## Missing reporting rows
 

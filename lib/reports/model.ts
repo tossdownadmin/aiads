@@ -4,10 +4,10 @@ export type Window = { since: string; until: string; partial?: boolean };
 export type Row = Record<string, unknown>;
 export type Metrics = ReturnType<typeof metrics>;
 export type CampaignRow = ReturnType<typeof joinCampaigns>[number];
-export type Snapshot = { details?: import("../meta/campaign-detail").DetailMap; analysis?: {findings:import('../skills/report-types').ReportFinding[]}; window: Window; totals: Metrics | null; campaigns: CampaignRow[]; notes: string[]; inventory?: {total: number; active: number} };
+export type Snapshot = { details?: import("../meta/campaign-detail").DetailMap; analysis?: {findings:import('../skills/report-types').ReportFinding[]}; window: Window; totals: Metrics | null; campaigns: CampaignRow[]; notes: string[]; inventory?: {total: number; active: number}; previous?: {window:Window;totals:Metrics|null;campaigns:CampaignRow[]}; reviewNotes?:string[]; pacing?:{month:string;budget:number;spent:number;elapsedDays:number;monthDays:number;expectedSpend:number;projectedSpend:number} };
 export type Pixel = { name: string; lastFired: string | null; sources: string[] | null };
 export type Tracking = { checkedAt: string; pixels: Pixel[] | null; since: string };
-export type Report = { dailySkillRun?: import('../skills/report-types').SkillRun; account: MetaAccount; generated: string; periods: Snapshot[]; tracking?: Tracking; comparison?: {window:Window; totals:Metrics|null}; competitorEvidence?: { client: string; checkedAt: string; coverage: string; ads: { id: string; advertiser: string; text: string; url?: string; format?:string; cta?:string; transcript?:string }[] } };
+export type Report = { dailySkillRun?: import('../skills/report-types').SkillRun; reviewContext?:import('./client-context').DailyClientContext|null; account: MetaAccount; generated: string; periods: Snapshot[]; tracking?: Tracking; comparison?: {window:Window; totals:Metrics|null}; competitorEvidence?: { client: string; checkedAt: string; coverage: string; ads: { id: string; advertiser: string; text: string; url?: string; format?:string; cta?:string; transcript?:string }[] } };
 export type PlanInputs = { cap?: number; previousCap?: number; brief: string; competitors: string; event: string };
 export type Proposal = {
   skillRun?: import('../skills/report-types').SkillRun;
@@ -33,6 +33,10 @@ export function accountToday(timezone?: string, now = new Date()) {
 export function dailyWindows(end: string, today: string): Window[] {
   if (!validDay(end) || end >= today) throw new Error('Choose a completed reporting day in the account time zone.');
   return [7, 30].map(days => ({ since: shiftDay(end, 1 - days), until: end }));
+}
+export function previousWindow(window:Window):Window {
+  const length=Math.round((Date.parse(window.until)-Date.parse(window.since))/86400000)+1;
+  return {since:shiftDay(window.since,-length),until:shiftDay(window.since,-1)};
 }
 export function planningWindow(month: string, today: string): Window {
   const first = month + '-01';

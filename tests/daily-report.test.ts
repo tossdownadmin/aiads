@@ -46,7 +46,7 @@ describe('daily template and live reports',()=>{
   it('exports both working windows, offline navigation, target portfolio exclusions, and escaped source text',()=>{
     const layout=importDailyTemplate(reference).clients[0];
     const doc=renderDailyDocument([{account,report:{account,generated:'2026-11-11',periods}},{account:{...account,id:'act_999',name:'Closed'},error:'Access denied'}],end,{layouts:{act_123:layout},exclusions:[{name:'Other',reason:'Unavailable'}]});
-    for(const label of ['data-window="0"','data-window="1"','data-panel="overview"','Issues &amp; Flags','Recommendations','Cost / Result','Critical Flags','Not in this report (2 brands)','Nov 4 – Nov 10, 2026','Oct 12 – Nov 10, 2026','Access denied']) expect(doc).toContain(label);
+    for(const label of ['data-window="0"','data-window="1"','data-panel="overview"','Wins','Concerns','Prioritized actions','Portfolio action queue','Cost / Result','Critical Flags','Not in this report (2 brands)','Nov 4 – Nov 10, 2026','Oct 12 – Nov 10, 2026','Access denied']) expect(doc).toContain(label);
     expect(doc).toContain('Message &lt;b&gt;us&lt;/b&gt;');expect(doc).not.toContain('Message <b>us</b>');
     expect(doc).not.toContain('$900 old');
   });
