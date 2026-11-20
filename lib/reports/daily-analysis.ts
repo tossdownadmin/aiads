@@ -152,6 +152,8 @@ export function dailyEvidence(report: Report) {
     return {
       id,
       window: p.window,
+      confirmedZeroDelivery:
+        p.totals?.spend === 0 && p.totals?.impressions === 0,
       campaigns: p.campaigns.map((c) => ({
         id: c.id,
         name: c.name,
@@ -217,6 +219,16 @@ export function validateDailyAnalysis(
     seen.add(p.periodId);
     const findings: ReportFinding[] = p.findings
       .map((f) => {
+        const window = evidence.periods.find((item) => item.id === p.periodId)!;
+        if (
+          !window.confirmedZeroDelivery &&
+          /\b(?:no ads (?:were |are )?(?:delivering|running)|no ads ran|no delivery occurred|zero spend|zero delivery|no spending occurred)\b/i.test(
+            f.interpretation,
+          )
+        )
+          throw Error(
+            "No explicit zero delivery was supplied for this window. A missing reporting row or current inactive inventory cannot prove historical zero delivery. Describe the missing evidence instead.",
+          );
         const cited = f.evidenceIds.map((id) => facts.get(id));
         if (cited.some((fact) => !fact || fact.periodId !== p.periodId)) {
           const invalid = f.evidenceIds.filter(

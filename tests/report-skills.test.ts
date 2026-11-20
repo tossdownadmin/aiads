@@ -49,3 +49,9 @@ it('rejects unsupported fatigue and tracking diagnoses in planning output',()=>{
  expect(()=>validateProposal({...base,summary:'The campaign shows audience fatigue at high frequency.'},[])).toThrow('fatigue');
  expect(()=>validateProposal({...base,summary:'No conversion tracking is active.'},[])).toThrow('configuration');
 });
+
+it('does not accept a historical zero-delivery claim based on missing reporting',()=>{
+ const unknown={...report,periods:report.periods.map(p=>({...p,totals:null}))};
+ const bad={periods:answer.periods.map(p=>({...p,findings:p.findings.map(f=>({...f,interpretation:'No ads were delivering during these dates.'}))}))};
+ expect(()=>validateDailyAnalysis(bad,dailyEvidence(unknown))).toThrow('missing reporting row');
+});
