@@ -27,7 +27,7 @@ it('sends the actual skill and reference contents to Claude and retains private 
 it('validates window coverage and citations before retaining a successful result',async()=>{
  const evidence=dailyEvidence(report);expect(()=>validateDailyAnalysis({periods:[answer.periods[0]]},evidence)).toThrow('every');
  expect(()=>validateDailyAnalysis({periods:[answer.periods[0],{...answer.periods[1],findings:[{...answer.periods[1].findings[0],evidenceIds:['window0:account:spend']}]}]},evidence)).toThrow('outside');
- api.model.mockResolvedValue({periods:[]});await expect(analyzeDailyReport(report,getReportingSkills()[0])).rejects.toThrow();expect(api.put).not.toHaveBeenCalled();
+ api.model.mockResolvedValue({periods:[]});await expect(analyzeDailyReport(report,getReportingSkills()[0])).rejects.toThrow();expect(api.put.mock.calls.every(c=>JSON.parse(c[1]).status==='failed')).toBe(true);
 });
 it('uses skill findings while keeping measured KPI values and template structure',async()=>{
  const before=JSON.stringify(report);const analysis=await analyzeDailyReport(report,getReportingSkills()[0]);expect(JSON.stringify(report)).toBe(before);
@@ -41,7 +41,7 @@ it('uses skill findings while keeping measured KPI values and template structure
 it('monthly planning runs its reporting skill and validates actual campaign IDs before storage',async()=>{
  const monthly=getReportingSkills()[1];api.model.mockResolvedValue({summary:'Measured plan',financialReview:'No approved cap.',performance:[],competitors:[],event:'No event evidence.',allocation:[],concepts:[],takeaways:[],gaps:[]});
  const result=await draftPlan(report,'2026-12',{brief:'',competitors:'',event:''},monthly);expect(result.skillRun?.skill.name).toBe('monthly-meta-plan');expect(api.model.mock.calls[0][0]).toContain(monthly.resources[0].content);
- api.put.mockClear();api.model.mockResolvedValue({summary:'Plan',financialReview:'Review',performance:[],competitors:[],event:'None',allocation:[],concepts:[{campaignId:'invented',concept:'x',format:'x',visual:'x',copy:'x'}],takeaways:[],gaps:[]});await expect(draftPlan(report,'2026-12',{brief:'',competitors:'',event:''},monthly)).rejects.toThrow('Unknown creative');expect(api.put).not.toHaveBeenCalled();
+ api.put.mockClear();api.model.mockResolvedValue({summary:'Plan',financialReview:'Review',performance:[],competitors:[],event:'None',allocation:[],concepts:[{campaignId:'invented',concept:'x',format:'x',visual:'x',copy:'x'}],takeaways:[],gaps:[]});await expect(draftPlan(report,'2026-12',{brief:'',competitors:'',event:''},monthly)).rejects.toThrow('report format or evidence checks');expect(api.put.mock.calls.every(c=>JSON.parse(c[1]).status==='failed')).toBe(true);
 });
 
 it('rejects unsupported fatigue and tracking diagnoses in planning output',()=>{

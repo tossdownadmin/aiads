@@ -22,6 +22,7 @@ import { skillVersion, type ReportingSkill } from "../skills/report-packages";
 import type { SkillRun } from "../skills/report-types";
 import type { SavedDaily } from "./saved-daily";
 import { activePortfolio, activePortfolioId, activeReportTemplate } from '../../config/active-clients';
+import {describeDailyFailure,type DailyFailure,type DailyStage} from './daily-failure';
 
 const savedPath = "reports/daily/latest-v1.json",
   jobPath = "reports/daily/pending-v1.json";
@@ -44,6 +45,7 @@ type DailyJob = {
   lease?: { token: string; until: number };
   error?: string;
   currentReview?:{done:number;total:number};
+  failure?:DailyFailure;
 };
 export type PublicDailyJob = {
   id: string;
@@ -56,6 +58,7 @@ export type PublicDailyJob = {
   leaseUntil?: number;
   error?: string;
   currentReview?:{done:number;total:number};
+  failure?:DailyFailure;
 };
 const publicJob = (job: DailyJob): PublicDailyJob => ({
   id: job.id,
@@ -68,6 +71,7 @@ const publicJob = (job: DailyJob): PublicDailyJob => ({
   leaseUntil: job.lease?.until,
   error: job.error,
   currentReview:job.currentReview,
+  failure:job.failure,
 });
 async function read<T>(
   path: string,
@@ -217,6 +221,7 @@ export async function discardDaily(id: string) {
     ...current.value,
     status: "cancelled" as const,
     error: undefined,
+    failure:undefined,
   };
   await write(jobPath, job, current.version);
   return { job: publicJob(job) };
@@ -247,10 +252,12 @@ export async function advanceDaily(id: string) {
     status: "running" as const,
     lease,
     error: undefined,
+    failure:undefined,
     updatedAt: new Date().toISOString(),
   };
   const leaseVersion = await write(jobPath, leased, current.version);
   let failedAccount = "";
+  let stage:DailyStage='accounts';
   try {
     const accounts = await getAdAccounts(),
       byId = new Map(accounts.map((a) => [a.id, a]));
@@ -261,17 +268,20 @@ export async function advanceDaily(id: string) {
       const account = byId.get(nextId)!;
       failedAccount = account.name;
       const path = "reports/daily/jobs/" + job.id + "/" + nextId + ".json";
+      stage='saving';
       let entry = (await read<Entry>(path)).value;
       if (!entry) {
         const inputPath=path.replace(/\.json$/,'-input.json');
         let prepared=(await read<{report:Report;skillHash:string}>(inputPath)).value;
         if(!prepared){
+          stage='context';
           let reviewContext:Report['reviewContext'];
           try {
             reviewContext=await readClientContext(account.id);
           } catch {
             throw new DailyContextUnavailable('Saved business context could not be loaded.');
           }
+          stage='evidence';
           const generated = new Date().toISOString(),periods = await readDailyReview(
             account,
             dailyWindows(job.date, shiftDay(job.date, 1)),
@@ -285,6 +295,7 @@ export async function advanceDaily(id: string) {
           )
           )throw Error("Account totals unavailable");
           prepared={report:{ account, generated, periods, reviewContext },skillHash:skillVersion(job.skill).packageHash};
+          stage='saving';
           await write(inputPath,prepared,null);
         }
         if(prepared.skillHash!==skillVersion(job.skill).packageHash)throw Error('Prepared evidence does not match the pinned skill');
@@ -293,6 +304,7 @@ export async function advanceDaily(id: string) {
           load:async key=>(await read<Awaited<ReturnType<DailyReviewCheckpoint['load']>>>(path.replace(/\.json$/,'')+'/batches/'+key+'.json')).value,
           save:async(key,value)=>{await write(path.replace(/\.json$/,'')+'/batches/'+key+'.json',value,null);},
         };
+        stage='analysis';
         const analysis = await analyzeDailyReport(report, job.skill,checkpoint);
         report.periods = report.periods.map((p, i) => ({
           ...p,
@@ -302,6 +314,7 @@ export async function advanceDaily(id: string) {
           },
         }));
         entry = { account, report, run: analysis.run };
+        stage='saving';
         await write(path, entry, null);
       }
       if (
@@ -325,6 +338,7 @@ export async function advanceDaily(id: string) {
       return { job: publicJob(next) };
     }
     const entries: Entry[] = [];
+    stage='saving';
     for (const item of leased.completed) {
       const file = await read<Entry>(item.path);
       if (!file.value) throw Error("An account result is missing");
@@ -389,20 +403,21 @@ export async function advanceDaily(id: string) {
       ).catch(() => {});
       throw error;
     }
+    const failure=describeDailyFailure(stage,error);
     console.error("Daily skill batch failed", {
       name: error instanceof Error ? error.name : "Unknown",
       account: failedAccount,
       reason: error instanceof Error ? error.message.slice(0, 400) : "Unknown",
+      stage:failure.stage,code:failure.code,reference:failure.reference,
     });
     const failed = {
       ...leased,
       status: "failed" as const,
       lease: undefined,
+      failure,
       error:
         (failedAccount ? failedAccount + ": " : "") +
-        (error instanceof DailyContextUnavailable
-          ? "Saved business context could not be loaded. Your last saved report is unchanged. Resume to retry loading the saved goals and targets."
-          : "The evidence or skill analysis could not complete. Your last saved report is unchanged. Resume to retry."),
+        failure.message+' Your last saved report is unchanged.',
       updatedAt: new Date().toISOString(),
     };
     await write(jobPath, failed, leaseVersion);

@@ -1,4 +1,5 @@
 import { BedrockRuntimeClient, ConverseCommand } from '@aws-sdk/client-bedrock-runtime';
+import {ReportModelError} from '../skills/report-errors';
 
 export type AuditAnalysis = {
   status: 'complete' | 'not_configured' | 'unavailable';
@@ -117,18 +118,24 @@ export async function analyzeCompetitorAds(skillBody: string, search: { terms: s
 export async function invokeReportModel(instructions: string, evidence: string): Promise<unknown> {
   const bedrock = getClient();
   const modelId = process.env.BEDROCK_MODEL_ID;
-  if (!bedrock || !modelId) throw new Error('Monthly plan analysis is not configured.');
+  if (!bedrock || !modelId) throw new ReportModelError('model_configuration','The reporting analysis service is not configured.');
+  let response;
   try {
-    const response = await bedrock.send(new ConverseCommand({
+    response = await bedrock.send(new ConverseCommand({
       modelId, system: [{ text: instructions }], messages: [{ role: 'user', content: [{ text: evidence }] }],
       inferenceConfig: { maxTokens: 8192, temperature: 0.2 },
     }));
-    const output = response.output?.message?.content?.map(block => block.text || '').join('') || '';
-    const start = output.indexOf('{'), end = output.lastIndexOf('}');
-    if (start < 0 || end < start) throw new Error('Missing plan JSON');
-    return JSON.parse(output.slice(start, end + 1));
   } catch (error) {
-    logBedrockFailure('monthly plan', error);
-    throw new Error(describeBedrockFailure(error));
+    logBedrockFailure('report', error);
+    const e=error as {name?:string;$metadata?:{httpStatusCode?:number}};
+    const code=e.name==='AccessDeniedException'||e.$metadata?.httpStatusCode===403?'model_access':e.name==='ValidationException'||e.$metadata?.httpStatusCode===400?'model_request':'model_unavailable';
+    throw new ReportModelError(code,describeBedrockFailure(error));
   }
+  const output=response.output?.message?.content?.map(block=>block.text||'').join('')||'';
+  const start=output.indexOf('{'),end=output.lastIndexOf('}');
+  if(response.stopReason==='max_tokens')throw new ReportModelError('model_response','The AI response was cut off before its report was complete.');
+  try{
+    if(start<0||end<start)throw Error('No JSON');
+    return JSON.parse(output.slice(start,end+1));
+  }catch{throw new ReportModelError('model_response','The AI response was not a complete report JSON object.');}
 }
