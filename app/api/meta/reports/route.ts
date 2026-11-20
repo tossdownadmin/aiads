@@ -73,7 +73,7 @@ export async function POST(request: Request) {
     const report: Report = { account, generated: now.toISOString(), periods, tracking, comparison, reviewContext };
     if(data.mode==='daily') {
       if(partitionDailyEvidence(dailyEvidence(report)).length>1) return json({error:'This account requires multiple analysis batches. Use saved daily report update for resumable analysis.'},409);
-      const analysis=await analyzeDailyReport(report,skill!);report.periods=report.periods.map((p,i)=>({...p,analysis:{findings:analysis.periods.find(a=>a.periodId==='window'+i)!.findings}}));report.dailySkillRun=analysis.run;
+      const analysis=await analyzeDailyReport(report,skill!);report.periods=report.periods.map((p,i)=>({...p,analysis:{findings:analysis.periods.find(a=>a.periodId==='window'+i)!.findings,notes:analysis.periods.find(a=>a.periodId==='window'+i)?.notes}}));report.dailySkillRun=analysis.run;
     }
     if (data.mode === 'plan' && data.researchClient) {
       const client = researchClient;

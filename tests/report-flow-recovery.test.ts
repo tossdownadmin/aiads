@@ -59,7 +59,7 @@ it('retains failed output privately with a safe reference and exposes a useful s
  const evidence=dailyEvidence(report);let error:unknown;
  try{await runReportSkill(getReportingSkills()[0],evidence,raw=>validateDailyAnalysis(raw,evidence));}catch(e){error=e;}
  expect(error).toBeInstanceOf(ReportSkillError);
- const failed=JSON.parse(api.put.mock.calls[0][1]);expect(failed.status).toBe('failed');expect(failed.attempts).toHaveLength(2);
+ const failed=JSON.parse(api.put.mock.calls.find(c=>String(c[0]).endsWith('/output.json'))![1]);expect(failed.status).toBe('failed');expect(failed.attempts).toHaveLength(2);
  const publicFailure=describeDailyFailure('analysis',error);expect(publicFailure.code).toBe('analysis_validation');expect(publicFailure.runId).toBe(failed.reference);
  expect(JSON.stringify(describeDailyFailure('evidence',Object.assign(Error('Bearer secret-token'),{status:403})))).not.toContain('secret-token');
  expect(describeDailyFailure('evidence',Object.assign(Error('Denied'),{status:403})).code).toBe('meta_access');

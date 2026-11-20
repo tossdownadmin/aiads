@@ -16,6 +16,7 @@ export type SkillRun = {
   evidenceHash: string;
   evidencePath: string;
   outputPath: string;
+  reviewStatus?: "limited";
 };
 export type ReportFinding = {
   tone: "ok" | "warn" | "crit";
@@ -32,5 +33,5 @@ export type ReportFinding = {
 export type DailyAnalysis = {
   run: SkillRun;
   supportingRuns?: SkillRun[];
-  periods: { periodId: string; findings: ReportFinding[] }[];
+  periods: { periodId: string; findings: ReportFinding[]; notes?:string[] }[];
 };

@@ -311,6 +311,7 @@ export async function advanceDaily(id: string) {
           analysis: {
             findings: analysis.periods.find((a) => a.periodId === "window" + i)!
               .findings,
+            notes:analysis.periods.find(a=>a.periodId==='window'+i)?.notes,
           },
         }));
         entry = { account, report, run: analysis.run };

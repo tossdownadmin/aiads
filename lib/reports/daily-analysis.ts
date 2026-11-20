@@ -201,7 +201,7 @@ export function dailyEvidence(report: Report) {
     periods,
     facts,
     instructions:
-      "Review each window against its supplied previous-window only. Return three to five concise prioritized findings per window when material evidence supports them; fewer is valid. Cover measured wins as well as meaningful concerns without manufacturing either. Use priority now, next or monitor. COPY exact evidence IDs from facts; never invent a metric ID. Cite at most five IDs per finding. Include one or two supplied measurements in the interpretation for readability, but do not calculate new KPI values. Do not treat seven and thirty overlapping days as independent comparison periods. Ad-set settings are current configuration, not performance breakdowns. Missing outcomes are import gaps, not proven tracking failures. Never call leads qualified without independently verified qualification evidence.",
+      "Review each window against its supplied previous-window only. Return three to five concise prioritized findings per window when material evidence supports them; fewer is valid. Cover measured wins as well as meaningful concerns without manufacturing either. Use priority now, next or monitor. COPY exact evidence IDs from facts; never invent a metric ID. Cite at most five IDs per finding. Respect each fact label: cost per ThruPlay is not cost per reach, lead or purchase. Include supplied measurements only when their metric, value and unit are explicit; do not calculate new KPI values. Do not bind a whole ad/ad-set object as a scalar number. Describe unverified daily comparisons qualitatively or omit them. Do not treat seven and thirty overlapping days as independent comparison periods. Ad-set settings are current configuration, not performance breakdowns. Missing outcomes are import gaps, not proven tracking failures. Never call leads qualified without independently verified qualification evidence.",
   };
 }
 const text = (max: number) => z.string().trim().min(1).max(max);
@@ -238,7 +238,7 @@ function claimsZeroDelivery(text:string) {
 export function validateDailyAnalysis(
   raw: unknown,
   evidence: ReturnType<typeof dailyEvidence>,
-) {
+):DailyAnalysis['periods'] {
   const parsed = schema.parse(raw),
     expected = new Set(evidence.periods.map((p) => p.id)),
     seen = new Set<string>();
@@ -286,6 +286,18 @@ export function validateDailyAnalysis(
               allowed.join(", "),
           );
         }
+        // Scalar provenance alone does not make different result units
+        // interchangeable. Preserve the server-selected outcome label.
+        for(const fact of cited){
+          if(!fact?.id.endsWith(':cost-per-result'))continue;
+          const unit=fact.display.split(' — cost per ').at(-1)?.split(': ')[0];
+          const wrongBinding=[f.title,f.interpretation,f.action,f.reason].some(prose=>{
+            const token='{{'+fact.id+'}}',index=prose.indexOf(token);if(index<0)return false;
+            return /\bcost per (?:reach|person reached|lead|purchase)(?:\s+(?:was|is|at|of))?\s*$/i.test(prose.slice(0,index))||/^\s*(?:as |for )?cost per (?:reach|person reached|lead|purchase)\b/i.test(prose.slice(index+token.length));
+          });
+          if(unit&&/thruplays?/i.test(unit)&&wrongBinding)
+            throw Error('The cited cost per ThruPlay cannot substantiate cost per reach, lead or purchase. Keep the supplied outcome unit.');
+        }
         validateReviewClaims(f);
         if(f.category==='win'&&f.tone!=='ok')throw Error('A measured win must use ok tone; concerns and data gaps are not wins.');
         const render=(prose:string,proposal=false)=>bindMeasuredText(prose,f.evidenceIds,facts,evidence,proposal);
@@ -313,6 +325,50 @@ export function validateDailyAnalysis(
     return { periodId: p.periodId, findings };
   });
 }
+/** Retain strictly verified observations from complete, known window envelopes.
+ * Empty or wholly unsupported windows still fail; no invented fallback prose. */
+export function recoverDailyFindings(responses:unknown[],evidence:ReturnType<typeof dailyEvidence>){
+  const envelope=z.object({periods:z.array(z.object({periodId:text(40),findings:z.array(z.unknown()).min(1).max(100)})).min(1).max(2)});
+  const valid=new Map(evidence.periods.map(p=>[p.id,new Map<string,ReportFinding>()]));
+  const rejected=new Map<string,{periodId:string;title:string;reason:string}>();
+  const expected=new Set(evidence.periods.map(p=>p.id));
+  const key=(title:string)=>title.trim().toLowerCase();
+  for(const raw of [...responses].reverse()){
+    const parsed=envelope.safeParse(raw);if(!parsed.success)continue;
+    if(parsed.data.periods.length!==expected.size||new Set(parsed.data.periods.map(p=>p.periodId)).size!==expected.size||parsed.data.periods.some(p=>!expected.has(p.periodId)))continue;
+    for(const p of parsed.data.periods){
+      const subset={...evidence,periods:evidence.periods.filter(window=>window.id===p.periodId),facts:evidence.facts.filter(f=>f.periodId===p.periodId)};
+      for(const [index,finding] of p.findings.entries()){
+        const title=finding&&typeof finding==='object'&&'title' in finding&&typeof finding.title==='string'?finding.title:'Unstructured observation '+index;
+        const identity=key(title);
+        try{
+          const checked=validateDailyAnalysis({periods:[{periodId:p.periodId,findings:[finding]}]},subset)[0].findings[0];
+          if(!valid.get(p.periodId)!.has(identity))valid.get(p.periodId)!.set(identity,checked);
+        }catch(error){
+          const id=p.periodId+':'+identity;
+          if(!rejected.has(id))rejected.set(id,{periodId:p.periodId,title,reason:error instanceof Error?error.message.slice(0,1800):'Verification failed'});
+        }
+      }
+    }
+  }
+  const omitted=[...rejected.values()].filter(item=>!valid.get(item.periodId)?.has(key(item.title)));
+  const periods=evidence.periods.map(p=>{
+    const verified=[...valid.get(p.id)!.values()];
+    if(!verified.length)throw Error('No verified AI finding was available for '+p.id+'. The account review remains incomplete.');
+    const count=omitted.filter(item=>item.periodId===p.id).length;
+    return {periodId:p.id,findings:verified.sort((a,b)=>({crit:0,warn:1,ok:2})[a.tone]-({crit:0,warn:1,ok:2})[b.tone]).slice(0,6),notes:[count?'AI review with limitations: '+count+' proposed observation'+(count===1?' was':'s were')+' omitted because '+(count===1?'it did':'they did')+' not pass evidence checks. Only verified findings are shown.':'The AI review required correction. Only findings that passed the evidence checks are shown.']};
+  });
+  return {periods,rejected:omitted};
+}
+
+function executeDailyReview(skill:ReportingSkill,input:unknown,evidence:ReturnType<typeof dailyEvidence>,upstreamNotes=new Map<string,string[]>()){
+  const annotate=(periods:DailyAnalysis['periods'])=>periods.map(p=>({...p,...((p.notes?.length||upstreamNotes.get(p.periodId)?.length)?{notes:[...new Set([...p.notes??[],...upstreamNotes.get(p.periodId)??[]])]}:{})}));
+  return runReportSkill(skill,input,raw=>annotate(validateDailyAnalysis(raw,evidence)),{
+    upstreamLimited:[...upstreamNotes.values()].some(notes=>notes.length>0),
+    recover:responses=>{const result=recoverDailyFindings(responses,evidence);return {output:annotate(result.periods),validation:{rejected:result.rejected}};},
+  });
+}
+
 export async function analyzeDailyReport(
   report: Report,
   skill: ReportingSkill,
@@ -321,7 +377,7 @@ export async function analyzeDailyReport(
   const evidence = dailyEvidence(report);
   const batches=partitionDailyEvidence(evidence);
   if(batches.length===1){
-    const result=await runReportSkill(skill,modelInput(evidence),raw=>validateDailyAnalysis(raw,evidence));
+    const result=await executeDailyReview(skill,modelInput(evidence),evidence);
     return {run:result.run,periods:result.output};
   }
   const reviewed:(ReviewedBatch|null)[]=Array(batches.length).fill(null);
@@ -336,7 +392,7 @@ export async function analyzeDailyReport(
   const scheduled=checkpoint?pending.slice(0,2):pending;
   for(let i=0;i<scheduled.length;i+=2){
     await Promise.all(scheduled.slice(i,i+2).map(async index=>{
-      const batch=batches[index],result=await runReportSkill(skill,modelInput(batch),raw=>validateDailyAnalysis(raw,batch));
+      const batch=batches[index],result=await executeDailyReview(skill,modelInput(batch),batch);
       if(checkpoint)await checkpoint.save(keys[index],result);
       reviewed[index]=result;
     }));
@@ -346,7 +402,8 @@ export async function analyzeDailyReport(
   if(checkpoint&&scheduled.length)throw new DailyReviewProgress(reviewed.filter(Boolean).length,batches.length+1);
   const complete=reviewed as ReviewedBatch[];
   const {input,evidence:synthesis}=boundedSynthesis(evidence,complete);
-  const result=await runReportSkill(skill,input,raw=>validateDailyAnalysis(raw,synthesis));
+  const upstreamNotes=new Map(evidence.periods.map(p=>[p.id,complete.some(batch=>batch.output.some(period=>period.periodId===p.id&&period.notes?.length))?['Supporting AI reviews omitted observations that did not pass evidence checks. Only verified findings were used in this summary.']:[]]));
+  const result=await executeDailyReview(skill,input,synthesis,upstreamNotes);
   return {run:result.run,periods:result.output,supportingRuns:complete.map(r=>r.run)};
 }
 
@@ -358,10 +415,13 @@ export class DailyReviewProgress extends Error {
 
 function modelInput(evidence:ReturnType<typeof dailyEvidence>,compact=false){
   return {...evidence,facts:evidence.facts.map(({display,periodId,...fact})=>{
-    if(!compact||!/:ad:/.test(fact.id)||!fact.value||typeof fact.value!=='object')return fact;
+    // Preserve the metric's meaning. A generic cost-per-result number without
+    // its label can otherwise be mistaken for cost per reach, lead or view.
+    const labelled={...fact,label:display.split(' — ').at(-1)!.split(': ')[0]};
+    if(!compact||!/:ad:/.test(fact.id)||!fact.value||typeof fact.value!=='object')return labelled;
     const value=fact.value as {days?:Record<string,unknown>[]};
     const keys=['day','spend','impressions','clicks','ctr','cpc','frequency','purchases','leads'];
-    return {...fact,value:{...value,dayColumns:keys,days:(value.days??[]).map(row=>keys.map(k=>row[k]??null))}};
+    return {...labelled,value:{...value,dayColumns:keys,days:(value.days??[]).map(row=>keys.map(k=>row[k]??null))}};
   })};
 }
 
@@ -448,6 +508,7 @@ function groundLiteralMeasurements(prose:string,cited:string[],facts:Map<string,
     'cost-per-result':/\b(?:cost|at|each|per result)\b/gi,
     'cost-per-purchase':/\b(?:cpa|cpp|cost per purchase|per purchase|at|each)\b/gi,'cost-per-lead':/\b(?:cpl|cost per lead|per lead|at|each)\b/gi,
     'cost-per-visit':/\b(?:cpv|cost per (?:page |profile )?visit|per visit|at|each)\b/gi,
+    'cost-per-thruplay':/\b(?:cost per thruplays?|per thruplays?|cost per result|at|each)\b/gi,
     targetCpa:/\b(?:target cpa|cpa target|approved cpa)\b/gi,targetCpl:/\b(?:target cpl|cpl target|approved cpl)\b/gi,targetRoas:/\b(?:target roas|roas target|approved roas)\b/gi,
   };
   const numberFromDisplay=(display:string)=>Number(display.replace(/[^\d.+−-]/g,'').replace('−','-'));
@@ -458,7 +519,7 @@ function groundLiteralMeasurements(prose:string,cited:string[],facts:Map<string,
     let key=id.split(':').at(-1)!;
     if(key==='cost-per-result'){
       const outcome=fact.display.split(' — cost per ').at(-1)?.split(': ')[0].toLowerCase()??'';
-      key=/lead/.test(outcome)?'cost-per-lead':/purchase/.test(outcome)?'cost-per-purchase':/visit/.test(outcome)?'cost-per-visit':key;
+      key=/lead/.test(outcome)?'cost-per-lead':/purchase/.test(outcome)?'cost-per-purchase':/visit/.test(outcome)?'cost-per-visit':/thruplay/.test(outcome)?'cost-per-thruplay':key;
     }
     if(typeof fact.value==='number'&&aliases[key])values.push({key,value:fact.value,shown:numberFromDisplay(fact.display.slice(fact.display.lastIndexOf(': ')+2))});
     if(fact.value&&typeof fact.value==='object'){

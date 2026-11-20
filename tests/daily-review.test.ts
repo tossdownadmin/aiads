@@ -129,6 +129,23 @@ it('binds quantitative prose to supplied scalar facts and rejects arbitrary numb
  expect(bound[1].findings[0].interpretation).toBe('Spend was CAD $100.00.');
 });
 
+it('preserves a supporting batch limitation through the final synthesis and persisted provenance',async()=>{
+ api.model.mockImplementation(async(_system,encoded)=>{
+  const supplied=JSON.parse(encoded);
+  return {periods:supplied.periods.map((p:any)=>({periodId:p.id,findings:[
+   {tone:'ok',title:'Measured delivery',interpretation:'Spend was {{'+p.id+':account:spend}}.',evidenceIds:[p.id+':account:spend'],action:'Review the brief',reason:'No target was supplied.'},
+   ...supplied.stage==='final-synthesis'?[]:[{tone:'warn',title:'Unverified numeric trend',interpretation:'CTR remained above 6% on most days.',evidenceIds:[p.id+':account:spend'],action:'Review',reason:'Confirm before acting.'}],
+  ]}))};
+ });
+ const result=await analyzeDailyReport(makeReport(150),getReportingSkills()[0]);
+ expect(result.supportingRuns!.every(run=>run.reviewStatus==='limited')).toBe(true);
+ expect(result.run.reviewStatus).toBe('limited');
+ expect(result.periods.every(p=>p.notes?.some(n=>n.includes('Supporting AI reviews omitted')))).toBe(true);
+ expect(result.periods.every(p=>p.findings.length===1)).toBe(true);
+ const saved=JSON.parse(api.put.mock.calls.at(-2)![1]);
+ expect(saved.validation.status).toBe('limited');expect(saved.output[0].notes).toBeDefined();
+});
+
 it('bounds final synthesis for hundreds of fully dated ads and retains campaign-zero guard dependencies',async()=>{
  const report=makeReport(80);
  for(const p of report.periods){

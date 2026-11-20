@@ -49,7 +49,7 @@ function findingSection(label:string,findings:PresentedFinding[],fallback:string
   return '<section class="finding-section" aria-label="'+escape(label)+'">'+title(label)+'<div class="issues-grid">'+(findings.map(f=>findingCard(f)).join('')||empty(fallback))+'</div></section>';
 }
 function dataNotes(p:Snapshot) {
-  return [...new Set([...p.notes,...p.reviewNotes??[]].filter(note=>note.trim()))];
+  return [...new Set([...p.notes,...p.reviewNotes??[],...p.analysis?.notes??[]].filter(note=>note.trim()))];
 }
 function availability(p:Snapshot,findings:PresentedFinding[]=[]) {
   const notes=dataNotes(p);
@@ -150,6 +150,7 @@ function detail(v:View,periodName:string) {
   const active=v.p.inventory?.active;
   const wins=v.findings.filter(f=>categoryOf(f)==='win'),concerns=v.findings.filter(f=>categoryOf(f)==='concern').sort((a,b)=>severity[a.tone]-severity[b.tone] || compareFindings(a,b));
   return '<div class="overview-bar"><div><div class="overview-name">'+escape(v.name)+'</div><div class="overview-meta">'+escape(['Account '+v.account.id.replace(/^act_/,''),v.account.currency,v.market].filter(Boolean).join(' · '))+'</div></div><div class="overview-tags">'+(active!=null?badge(active+' Active','green'):'')+badge(v.type)+'</div></div>'+
+    (v.p.analysis?.notes?.length?'<div class="review-limited" role="note">'+issue('warn','AI review with limitations',v.p.analysis.notes.join(' '))+'</div>':'')+
     title(periodName+' — KPIs')+'<div class="kpi-grid">'+v.spec.kpis.map((label,i)=>tile(v.fact(label),i===0?'highlight':label==='Status'&&v.tone==='crit'?'crit':'')).join('')+'</div>'+
     '<div class="findings-columns">'+findingSection('Wins',wins,'No positive findings were supplied for this period.')+findingSection('Concerns',concerns,'No performance concerns were flagged in the supplied findings.')+'</div>'+
     prioritizedActions([v])+periodComparison(v.p,v.account.currency)+budgetPacing(v.p,v.account.currency)+availability(v.p,v.findings)+

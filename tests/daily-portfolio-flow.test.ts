@@ -72,3 +72,40 @@ it('automatically repairs a malformed first AI response and finishes the account
  const result=await (await call({action:'advance',jobId:started.job.id})).json();
  expect(result.job.status).toBe('complete');expect(result.saved.accountIds).toHaveLength(1);expect(api.model).toHaveBeenCalledTimes(2);
 });
+
+it('finishes all fifteen accounts with visible omissions when optional AI observations repeatedly fail verification',async()=>{
+ const generate=api.model.getMockImplementation()!;
+ api.model.mockImplementation(async(...args)=>{
+  const response=await generate(...args);
+  for(const p of response.periods)p.findings.push({...p.findings[0],tone:'warn',category:'concern',title:'Unverified daily trend',interpretation:'CTR remained above 6% on most days.'});
+  return response;
+ });
+ const started=await (await call({action:'start',version:'v1',date:'2026-11-19'})).json();
+ let saved;
+ for(let count=0;count<15;count++){
+  const result=await (await call({action:'advance',jobId:started.job.id})).json();
+  expect(result.job.status).not.toBe('failed');expect(result.job.done).toBe(count+1);
+  if(count<14)expect(blobs.get(savedPath)!.value.html).toBe('previous saved report');else saved=result.saved;
+ }
+ expect(saved.accountIds).toEqual(activeClients.map(c=>c.accountId));
+ expect(saved.runs.every((r:any)=>r.reviewStatus==='limited')).toBe(true);
+ expect(saved.html).toContain('AI review with limitations');expect(saved.html).toContain('1 proposed observation was omitted');
+ expect(saved.html).toContain('5 leads during this 7-day review');expect(saved.html).not.toContain('CTR remained above 6%');
+ const reopened=await (await GET()).json();expect(reopened.saved.html).toBe(saved.html);expect(api.model).toHaveBeenCalledTimes(30);
+});
+
+it('preserves the old report when an entire reporting window has no verified findings and successfully resumes after correction',async()=>{
+ const generate=api.model.getMockImplementation()!;
+ api.model.mockImplementation(async(...args)=>{
+  const response=await generate(...args);response.periods[1].findings[0].interpretation='999 purchases were reported.';return response;
+ });
+ const started=await (await call({action:'start',version:'v1',accountIds:[activeClients[0].accountId],date:'2026-11-19'})).json();
+ const failed=await (await call({action:'advance',jobId:started.job.id})).json();
+ expect(failed.job.status).toBe('failed');expect(failed.job.done).toBe(0);expect(blobs.get(savedPath)!.value.html).toBe('previous saved report');
+ expect(failed.job.failure.code).toBe('analysis_validation');
+ const runPrefix='reports/skill-runs/'+failed.job.failure.runId;
+ expect(blobs.has(runPrefix+'/evidence.json')).toBe(true);expect(blobs.get(runPrefix+'/output.json')?.value.status).toBe('failed');
+ api.model.mockImplementation(generate);
+ const resumed=await (await call({action:'advance',jobId:started.job.id})).json();
+ expect(resumed.job.status).toBe('complete');expect(resumed.saved.accountIds).toHaveLength(1);expect(resumed.saved.html).toContain('Leads reported');
+});

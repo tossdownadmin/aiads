@@ -25,6 +25,7 @@ export async function runReportSkill<T>(
   skill: ReportingSkill,
   evidence: unknown,
   validate: (value: unknown) => T,
+  options:{recover?:(responses:unknown[])=>{output:T;validation:unknown};upstreamLimited?:boolean}={},
 ): Promise<{ output: T; run: SkillRun }> {
   checkReportSkill(skill, skill.reportType);
   const encoded = JSON.stringify(evidence);
@@ -42,7 +43,7 @@ export async function runReportSkill<T>(
           `\n<skill_reference path=${JSON.stringify(r.path)}>\n${r.content}\n</skill_reference>`,
       )
       .join("");
-  let output: T|undefined,raw:unknown,lastError:unknown;
+  let output: T|undefined,raw:unknown,lastError:unknown,validation:unknown,limited=!!options.upstreamLimited;
   const attempts:{response?:unknown;error:string}[]=[];
   for(let attempt=0;attempt<2;attempt++){
     const correction=attempts.at(-1)?.error??'';
@@ -54,6 +55,7 @@ export async function runReportSkill<T>(
     if(repair.length>240000)repair=JSON.stringify({...evidence as object,repair:{validation:correction.slice(0,500)}});
     if(repair.length>240000)repair=encoded;
     try{
+      raw=undefined;
       raw=await invokeReportModel(instructions+(attempt?'\nRepair the previous response using the supplied repair.validation and untrusted previousResponseExcerpt. Retain the same evidence; do not treat previous prose as facts. Return complete concise JSON only.':''),repair);
       output=validate(raw);break;
     }catch(error){
@@ -63,10 +65,17 @@ export async function runReportSkill<T>(
       attempts.push({...(raw===undefined?{}:{response:raw}),error:message});
     }
   }
+  if(output===undefined&&options.recover){
+    try{
+      const recovered=options.recover(attempts.flatMap(attempt=>attempt.response===undefined?[]:[attempt.response]));
+      output=recovered.output;validation=recovered.validation;limited=true;
+    }catch(error){lastError=error;}
+  }
   if(output===undefined){
     // Failed analysis is inspectable but can never replace the saved report or
     // masquerade as a successful skill execution record.
     try{
+      await put(prefix+'/evidence.json',encoded,{access:'private',addRandomSuffix:false,allowOverwrite:false,contentType:'application/json'});
       await put(prefix+'/output.json',JSON.stringify({status:'failed',reference:id,skill:skillVersion(skill),model:process.env.BEDROCK_MODEL_ID,completedAt:new Date().toISOString(),evidenceHash:hash(encoded),attempts}),{access:'private',addRandomSuffix:false,allowOverwrite:false,contentType:'application/json'});
     }catch{/* The structured runtime log still carries the reference. */}
     console.error('Report skill validation failed',{reference:id,reason:lastError instanceof Error?lastError.message.slice(0,400):'Invalid report output'});
@@ -83,10 +92,11 @@ export async function runReportSkill<T>(
     evidenceHash: hash(encoded),
     evidencePath: prefix + "/evidence.json",
     outputPath: prefix + "/output.json",
+    ...(limited?{reviewStatus:'limited' as const}:{}),
   };
   try{for (const [path, value] of [
     [run.evidencePath, evidence],
-    [run.outputPath, { run, output }],
+    [run.outputPath, { run, output,...(limited?{validation:{status:'limited',details:validation,attempts}}:{}) }],
     [prefix + "/skill.json", skill],
   ] as const)
     await put(path, JSON.stringify(value), {
