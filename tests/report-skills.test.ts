@@ -64,6 +64,14 @@ it('accepts a missing-data disclaimer that explicitly says zero delivery is unco
  expect(()=>validateDailyAnalysis(findings('The cause is unknown. No ads were delivering.'),dailyEvidence(unknown))).toThrow('missing reporting row');
 });
 
+it('accepts a zero-delivery finding scoped to cited zero campaigns while the account has spend',()=>{
+ const scoped={...report,periods:report.periods.map(p=>({...p,campaigns:[{id:'paused',name:'Paused campaign',status:'PAUSED',objective:'OUTCOME_SALES',hasInsights:true,start:null,stop:null,settings:undefined,...metrics({spend:'0',impressions:'0'})}]}))};
+ const raw={periods:answer.periods.map(p=>({...p,findings:p.findings.map(f=>({...f,interpretation:'The paused campaign shows explicit zero spend and zero delivery.',evidenceIds:[p.periodId+':campaign:paused:spend',p.periodId+':campaign:paused:impressions']}))}))};
+ expect(validateDailyAnalysis(raw,dailyEvidence(scoped))).toHaveLength(2);
+ const delivered={...scoped,periods:scoped.periods.map(p=>({...p,campaigns:p.campaigns.map(c=>({...c,impressions:10}))}))};
+ expect(()=>validateDailyAnalysis(raw,dailyEvidence(delivered))).toThrow('missing reporting row');
+});
+
 it('labels an unreported outcome as an import gap instead of a recording failure',()=>{
  const evidence=dailyEvidence(report);
  const findings=(title:string)=>({periods:answer.periods.map(p=>({...p,findings:p.findings.map(f=>({...f,title,interpretation:'This metric was not returned in the imported evidence.',evidenceIds:[p.periodId+':account:facebookVisits']}))}))});

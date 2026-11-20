@@ -225,14 +225,17 @@ export function validateDailyAnalysis(
     const findings: ReportFinding[] = p.findings
       .map((f) => {
         const window = evidence.periods.find((item) => item.id === p.periodId)!;
+        const cited = f.evidenceIds.map((id) => facts.get(id));
+        const campaignSubjects=[...new Set(f.evidenceIds.flatMap(id=>id.match(/^(window\d+:campaign:[^:]+):/)?.[1]||[]))];
+        const citedCampaignZeros=campaignSubjects.length>0&&campaignSubjects.every(subject=>facts.get(subject+':spend')?.value===0&&facts.get(subject+':impressions')?.value===0);
         if (
           !window.confirmedZeroDelivery &&
+          !citedCampaignZeros &&
           claimsZeroDelivery(f.interpretation)
         )
           throw Error(
-            "No explicit zero delivery was supplied for this window. A missing reporting row or current inactive inventory cannot prove historical zero delivery. Describe the missing evidence instead. Rejected wording: "+f.interpretation.slice(0,220),
+            "No explicit zero delivery was supplied for this cited account or campaign. A missing reporting row or current inactive inventory cannot prove historical zero delivery. Cite the exact zero-spend and zero-impression campaign evidence, or describe the missing evidence instead. Rejected wording: "+f.interpretation.slice(0,220),
           );
-        const cited = f.evidenceIds.map((id) => facts.get(id));
         if(cited.some(fact=>fact?.value===null)&&(
           /\b(?:not recording|not tracking|tracking (?:failure|broken|missing)|untracked (?:visits|conversions))\b/i.test(f.title)||
           /\b(?:outcome|result|visit|conversion) (?:metric )?is not being captured\b/i.test(f.interpretation)
