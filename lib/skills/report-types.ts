@@ -11,6 +11,7 @@ export type SkillRun = {
   id: string;
   skill: SkillVersion;
   model: string;
+  applicationCommit?: string;
   completedAt: string;
   evidenceHash: string;
   evidencePath: string;

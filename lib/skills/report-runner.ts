@@ -63,6 +63,7 @@ export async function runReportSkill<T>(
     id,
     skill: skillVersion(skill),
     model,
+    applicationCommit: process.env.VERCEL_GIT_COMMIT_SHA || "local",
     completedAt: new Date().toISOString(),
     evidenceHash: hash(encoded),
     evidencePath: prefix + "/evidence.json",

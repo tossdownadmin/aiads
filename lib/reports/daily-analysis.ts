@@ -172,7 +172,7 @@ export function dailyEvidence(report: Report) {
     periods,
     facts,
     instructions:
-      "Review each window independently. Return one to four prioritized findings per window. Use evidence IDs for metrics rather than restating numbers. Do not treat seven and thirty overlapping days as independent comparison periods.",
+      "Review each window independently. Return one to four prioritized findings per window. COPY exact evidence IDs from facts, including the window prefix and metric suffix; never invent a metric ID. Use evidence IDs for metrics rather than restating numbers. Do not treat seven and thirty overlapping days as independent comparison periods.",
   };
 }
 const text = (max: number) => z.string().trim().min(1).max(max);
@@ -218,10 +218,23 @@ export function validateDailyAnalysis(
     const findings: ReportFinding[] = p.findings
       .map((f) => {
         const cited = f.evidenceIds.map((id) => facts.get(id));
-        if (cited.some((fact) => !fact || fact.periodId !== p.periodId))
-          throw Error(
-            "The skill cited evidence outside this reporting window.",
+        if (cited.some((fact) => !fact || fact.periodId !== p.periodId)) {
+          const invalid = f.evidenceIds.filter(
+            (id) => !facts.get(id) || facts.get(id)!.periodId !== p.periodId,
           );
+          const allowed = evidence.facts
+            .filter((fact) => fact.periodId === p.periodId)
+            .slice(0, 5)
+            .map((fact) => fact.id);
+          throw Error(
+            "Evidence outside or unknown for " +
+              p.periodId +
+              ": " +
+              invalid.slice(0, 3).join(", ") +
+              ". Copy exact IDs from this window, including the metric suffix. Examples: " +
+              allowed.join(", "),
+          );
+        }
         return {
           tone: f.tone,
           title: f.title,
