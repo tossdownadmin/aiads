@@ -25,6 +25,8 @@ describe('report dates and metrics', () => {
     expect(metrics({results:[{indicator:'actions:page_visit_view',values:[{value:'0'}]}]}).facebookVisits).toBe(0);
     expect(metrics({results:[{indicator:'page_visit_view',values:[{value:'90'},{value:'85'}]}]}).facebookVisits).toBeNull();
     expect(metrics({results:[{indicator:'profile_visit_view',values:[{value:'90'}]}]}).facebookVisits).toBeNull();
+    expect(metrics({results:[{indicator:'profile_visit_view',values:[{value:'90'}]}]}).instagramVisits).toBe(90);
+    expect(metrics({actions:[{action_type:'page_visit',value:'80'}],results:[{indicator:'page_visit_view',values:[{value:'90'}]}]}).facebookVisits).toBe(90);
   });
   it('joins on IDs and preserves historical delivery, orphaned insight rows and active no-row campaigns', () => {
     const cfg = (id:string,status:string,start:string) => ({ id,name:id,status,effective_status:status,start_time:start });

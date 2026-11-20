@@ -45,12 +45,14 @@ export async function readReportWindows(account: MetaAccount, windows: Window[])
   const ids = [...new Set(snapshots.flatMap(p => p.campaigns.map(c => c.id)))];
   const details = await readDetails(account.id, account.currency, ids, windows);
   return snapshots.map((p,i) => ({...p, details:details[i],campaigns:p.campaigns.map(c=>{
-    if(c.facebookVisits!==null)return c;
     const reported=details[i]?.[c.id]?.sets.filter(set=>set.stats)||[];
     // Page-visit results can be available only at ad-set level. Roll up complete
     // reporting rows once; do not also add the same ads or attribution variants.
-    if(!reported.length||reported.some(set=>set.stats!.facebookVisits===null))return c;
-    return {...c,facebookVisits:reported.reduce((total,set)=>total+set.stats!.facebookVisits!,0)};
+    const filled={...c};
+    for(const key of ['facebookVisits','instagramVisits'] as const) {
+      if(filled[key]===null&&reported.length&&!reported.some(set=>set.stats![key]===null))filled[key]=reported.reduce((total,set)=>total+set.stats![key]!,0);
+    }
+    return filled;
   })}));
 }
 
