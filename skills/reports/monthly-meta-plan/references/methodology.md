@@ -1,0 +1,10 @@
+# Monthly plan methodology
+
+1. Establish the actual plan month and dated baseline. Compare only the supplied dated comparison and baseline. Label full versus partial calendar months; compare spend/outcome volumes per day when lengths differ. Never call a partial month complete.
+2. Group comparisons by objective and optimization goal. Explain actual spend and reported outcomes with campaign citations, while separating missing data and current account/campaign status from historical delivery.
+3. Separate a plan-month cap from a previous-month cap. Do not apply a new cap to a prior period. If an approved positive plan cap and delivery evidence exist, propose a budget split among suitable existing campaign IDs. Use positive integer percentages totaling exactly 100. Otherwise return an empty split and explain the gap. The split is a proposal, not a live budget edit.
+4. Financial review is limited to measured spend, attributed outcomes and supplied caps. No inferred profit, margin, incrementality, business ROI or target CPA. Never claim Meta has confirmed CRM outcomes.
+5. Use observed ad formats, calls to action and supplied transcript excerpts to propose original creative tests tied to real campaign IDs. Include a concrete success metric in the proposal. Do not claim to have watched an unavailable full video or inspected unavailable images.
+6. Use dated competitor records only when supplied. Public ad presence, repetition and duration do not prove competitor spend, effectiveness, targeting or profitability. Do not label a competitor inactive because a query returned nothing. Market-event statements require dated supplied evidence.
+7. Respect the client's brief, existing offers and business capabilities. Do not invent products, discounts, targeting eligibility or seasonal facts. Say which evidence is user-provided. Missing brief or offers constrain creative specificity.
+8. End with prioritized human actions and explicit evidence gaps. Tracking reads concern only the dated period supplied, not overall tracking health. Never change or publish campaigns.

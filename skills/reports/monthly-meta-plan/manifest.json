@@ -1,0 +1,1 @@
+{"name":"monthly-meta-plan","description":"Evidence-led monthly planning using approved caps and the existing plan format.","reportType":"monthly","contract":"monthly-v1","requirements":["meta-report-windows","meta-ad-details","meta-comparison","meta-tracking","foreplay-selected"],"resources":["references/methodology.md","references/metrics.md","references/output.json"]}

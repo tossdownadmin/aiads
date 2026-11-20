@@ -1,0 +1,1 @@
+{"periods":[{"periodId":"supplied reporting window ID","findings":[{"tone":"crit|warn|ok","title":"concise client-readable finding","interpretation":"explain the observation without inventing or repeating metric numbers","evidenceIds":["supplied evidence ID for this window"],"action":"human next check","reason":"why this check matters"}]}]}

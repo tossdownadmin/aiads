@@ -6,6 +6,8 @@ import { readClientBoard, readCompetitors, readClientCatalog } from '../../../..
 import { searchForeplay, searchSavedCompetitors } from '../../../../lib/competitors/foreplay';
 import { getAdAccounts } from '../../../../lib/meta/read';
 import { comparisonWindow, accountToday, dailyWindows, planningWindow, type Report } from '../../../../lib/reports/model';
+import {selectReportSkill} from '../../../../lib/skills/report-runner';
+import {analyzeDailyReport} from '../../../../lib/reports/daily-analysis';
 import { draftPlan } from '../../../../lib/reports/plan';
 import { readComparison, readReportWindows, readTracking } from '../../../../lib/reports/read';
 
@@ -15,8 +17,8 @@ const accountId = z.string().regex(/^act_\d+$/);
 const cap = z.number().positive().max(100000000000).optional();
 const inputs = z.object({ cap, previousCap: cap, brief: z.string().trim().max(4000), competitors: z.string().trim().max(4000), event: z.string().trim().max(2000) });
 const schema = z.discriminatedUnion('mode', [
-  z.object({ mode: z.literal('daily'), accountId, end: z.string().length(10) }),
-  z.object({ mode: z.literal('plan'), accountId, month: z.string().length(7), researchClient: clientIdSchema.optional(), inputs, draft: z.boolean().default(true) }),
+  z.object({ mode: z.literal('daily'), accountId, skillName:z.string().min(1).max(120).optional(), end: z.string().length(10) }),
+  z.object({ mode: z.literal('plan'), accountId, month: z.string().length(7), researchClient: clientIdSchema.optional(), skillName:z.string().min(1).max(120).optional(), inputs, draft: z.boolean().default(true) }),
 ]);
 const json = (body: unknown, status = 200) => NextResponse.json(body, { status, headers: { 'Cache-Control': 'private, no-store' } });
 export async function POST(request: Request) {
@@ -31,6 +33,7 @@ export async function POST(request: Request) {
     const researchClient=data.mode==='plan'&&data.researchClient?(await readClientCatalog()).value.clients.find(c=>c.id===data.researchClient):undefined;
     if(data.mode==='plan'&&data.researchClient&&!researchClient)return json({error:'Choose a client from the current competitor library.'},400);
     if(researchClient?.metaAccountId&&researchClient.metaAccountId!==account.id)return json({error:'The competitor library belongs to a different Meta ad account.'},400);
+    const skill=data.mode==='daily'?await selectReportSkill('daily',data.skillName):data.draft?await selectReportSkill('monthly',data.skillName):undefined;
     const now = new Date();
     const today = accountToday(account.timezone, now);
     let windows;
@@ -45,6 +48,7 @@ export async function POST(request: Request) {
       data.mode === 'plan' ? readComparison(account.id,comparisonWindow(windows[0])).catch(()=>({window:comparisonWindow(windows[0]),totals:null})) : undefined,
     ]);
     const report: Report = { account, generated: now.toISOString(), periods, tracking, comparison };
+    if(data.mode==='daily') {const analysis=await analyzeDailyReport(report,skill!);report.periods=report.periods.map((p,i)=>({...p,analysis:{findings:analysis.periods.find(a=>a.periodId==='window'+i)!.findings}}));report.dailySkillRun=analysis.run;}
     if (data.mode === 'plan' && data.researchClient) {
       const client = researchClient;
       if(!client)return json({error:'Choose a client from the current competitor library.'},400);
@@ -62,7 +66,7 @@ export async function POST(request: Request) {
     }
     if (data.mode === 'plan' && data.draft) {
       try {
-        return json({ report, plan: await draftPlan(report, data.month, data.inputs) });
+        return json({ report, plan: await draftPlan(report, data.month, data.inputs,skill) });
       } catch (error) {
         console.error('Report plan unavailable', { name: error instanceof Error ? error.name : 'Unknown' });
         return json({ report, planError: 'The planning draft could not be generated. The measured report is available. Retry the plan to generate the narrative.' });

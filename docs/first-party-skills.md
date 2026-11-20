@@ -26,6 +26,13 @@ The archive's `competitive-ads-extractor` language about scraping, “successful
 
 ## Client reports
 
+Daily and monthly generation execute `daily-meta-review` and `monthly-meta-plan` packages from `skills/reports/`, including their SKILL.md, declared resources and JSON contracts. They appear in the registry and report selector. The application fetches declared read-only evidence, invokes Claude through Bedrock, validates the response and renders the existing templates. This is a controlled application runtime; it does not execute arbitrary commands from uploaded skills or provide an unrestricted Claude tool session.
+
+Daily updates are resumable private-Blob jobs with one account per HTTP batch and pinned skill contents. The browser advances queued accounts while open; reopening the page offers resume. Each account reviews both 7-/30-day windows with evidence citations. Metrics, outcome definitions, cards and campaign galleries remain application-calculated. Old saved HTML stays available until all accounts pass and the final conditional write succeeds. Old reports are visibly identified as earlier reports until updated.
+
+Each successful analysis retains a private skill snapshot, evidence, validated output, model ID, evidence hash and skill version. Authenticated execution-record links allow inspection. Monthly narrative and creative/budget proposals use the selected monthly skill rather than a separate embedded planning prompt. Optional Foreplay reads remain an explicit user choice.
+
+
 The Client reports page reads fixed-date campaign and account insights for all delivery in the selected period. Daily reports cover trailing 7- and 30-day windows. Monthly plans use the previous calendar month, disclose partial baselines, show visible dataset activity, and accept period-specific caps, brand guidelines and dated market evidence. A selected research client can supply live Foreplay records for its reviewed advertisers. Each report can be downloaded as HTML or printed to PDF.
 
 ## Operating notes

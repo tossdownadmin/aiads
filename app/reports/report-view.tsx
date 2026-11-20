@@ -43,7 +43,7 @@ function monthly(run: Run) {
     {plan && <p>{plan.financialReview}</p>}{plan?.allocation.length ? <div className="rep-scroll"><table><thead><tr><th>Existing campaign</th><th>Proposed share</th><th>Budget</th><th>Reason</th></tr></thead><tbody>{plan.allocation.map((a,i) => <tr key={a.campaignId}><th>{names.get(a.campaignId)}</th><td>{a.percent}%</td><td>{money(values[i] ?? null,currency)}</td><td>{a.rationale}</td></tr>)}</tbody></table></div> : <p>No budget allocation proposed.</p>}
     <h3>New ads for existing campaigns</h3>{plan?.concepts.length ? plan.concepts.map((ad,i) => <section className="rep-concept" key={i}><h4>{ad.concept}</h4><small>{names.get(ad.campaignId)} · {ad.format}</small><p>{ad.visual}</p><p>{ad.copy}</p></section>) : <p>No creative draft available.</p>}
     <h3>Takeaways and gaps</h3>{plan && <>{bullets(plan.takeaways)}{bullets(plan.gaps)}</>}
-    <p className="rep-footnote">Source · Meta Marketing API. Budget allocations and creative concepts are planning proposals. Client inputs are shown as supplied.</p>
+    <p className="rep-footnote">Source · Meta Marketing API. Budget allocations and creative concepts are planning proposals. Client inputs are shown as supplied. {plan?.skillRun && <>Skill: {plan.skillRun.skill.name} · version {plan.skillRun.skill.sha.slice(0,8)} · <a href={"/api/meta/reports/runs?runId="+plan.skillRun.id} target="_blank" rel="noreferrer">Analysis record ↗</a></>}</p>
   </>;
 }
 export default function ReportView({run}:{run:Run}) {

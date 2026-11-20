@@ -4,12 +4,13 @@ export type Window = { since: string; until: string; partial?: boolean };
 export type Row = Record<string, unknown>;
 export type Metrics = ReturnType<typeof metrics>;
 export type CampaignRow = ReturnType<typeof joinCampaigns>[number];
-export type Snapshot = { details?: import("../meta/campaign-detail").DetailMap; window: Window; totals: Metrics | null; campaigns: CampaignRow[]; notes: string[]; inventory?: {total: number; active: number} };
+export type Snapshot = { details?: import("../meta/campaign-detail").DetailMap; analysis?: {findings:import('../skills/report-types').ReportFinding[]}; window: Window; totals: Metrics | null; campaigns: CampaignRow[]; notes: string[]; inventory?: {total: number; active: number} };
 export type Pixel = { name: string; lastFired: string | null; sources: string[] | null };
 export type Tracking = { checkedAt: string; pixels: Pixel[] | null; since: string };
-export type Report = { account: MetaAccount; generated: string; periods: Snapshot[]; tracking?: Tracking; comparison?: {window:Window; totals:Metrics|null}; competitorEvidence?: { client: string; checkedAt: string; coverage: string; ads: { id: string; advertiser: string; text: string; url?: string; format?:string; cta?:string; transcript?:string }[] } };
+export type Report = { dailySkillRun?: import('../skills/report-types').SkillRun; account: MetaAccount; generated: string; periods: Snapshot[]; tracking?: Tracking; comparison?: {window:Window; totals:Metrics|null}; competitorEvidence?: { client: string; checkedAt: string; coverage: string; ads: { id: string; advertiser: string; text: string; url?: string; format?:string; cta?:string; transcript?:string }[] } };
 export type PlanInputs = { cap?: number; previousCap?: number; brief: string; competitors: string; event: string };
 export type Proposal = {
+  skillRun?: import('../skills/report-types').SkillRun;
   summary: string; financialReview: string; performance: string[]; competitors: string[];
   event: string; allocation: { campaignId: string; percent: number; rationale: string }[];
   concepts: { campaignId: string; concept: string; format: string; visual: string; copy: string }[];

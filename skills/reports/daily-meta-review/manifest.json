@@ -1,0 +1,1 @@
+{"name":"daily-meta-review","description":"Evidence-cited daily account review for the existing report layout.","reportType":"daily","contract":"daily-v1","requirements":["meta-report-windows","meta-ad-details"],"resources":["references/methodology.md","references/metrics.md","references/output.json"]}

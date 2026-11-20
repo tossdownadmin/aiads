@@ -121,7 +121,7 @@ export async function invokeReportModel(instructions: string, evidence: string):
   try {
     const response = await bedrock.send(new ConverseCommand({
       modelId, system: [{ text: instructions }], messages: [{ role: 'user', content: [{ text: evidence }] }],
-      inferenceConfig: { maxTokens: 3500, temperature: 0.2 },
+      inferenceConfig: { maxTokens: 4096, temperature: 0.2 },
     }));
     const output = response.output?.message?.content?.map(block => block.text || '').join('') || '';
     const start = output.indexOf('{'), end = output.lastIndexOf('}');

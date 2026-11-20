@@ -6,4 +6,7 @@ export type SavedDaily = {
   accountIds: string[];
   template?: DailyTemplate;
   html: string;
+  skill?: import('../skills/report-types').SkillVersion;
+  runs?: import('../skills/report-types').SkillRun[];
+  jobId?: string;
 };

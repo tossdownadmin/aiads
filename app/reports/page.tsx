@@ -9,6 +9,7 @@ import { accountToday, shiftDay, type PlanInputs } from '../../lib/reports/model
 import {galleryScript} from '../../lib/reports/detail-view';
 import ReportView, { type Run } from './report-view';
 import { importDailyTemplate, matchPortfolio, readStoredTemplate, templateKey, type DailyTemplate } from '../../lib/reports/daily-template';
+import type {PublicDailyJob} from '../../lib/reports/daily-jobs';
 import type { SavedDaily } from '../../lib/reports/saved-daily';
 import './reports.css';
 
@@ -41,6 +42,11 @@ export default function Reports() {
   const [dailyReady,setDailyReady]=useState(false);
   const [dailyError,setDailyError]=useState('');
   const [editing,setEditing]=useState(false);
+  const [job,setJob]=useState<PublicDailyJob|null>(null);
+  const [reportSkills,setReportSkills]=useState<Array<{name:string;description:string;sha:string;reportType:'daily'|'monthly'}>>([]);
+  const [dailySkill,setDailySkill]=useState('daily-meta-review'),[monthlySkill,setMonthlySkill]=useState('monthly-meta-plan');
+  const live=useRef(true);
+  useEffect(()=>{live.current=true;return()=>{live.current=false;};},[]);
   const dailyHtml=saved?.html||'';
   async function openDaily() {
     setDailyError('');
@@ -49,23 +55,44 @@ export default function Reports() {
       if (r.status===401) {setDenied(true);return;}
       if (!r.ok) throw new Error();
       const result=await r.json();
-      setSaved(result.saved);setVersion(result.version);setDailyReady(true);
+      setSaved(result.saved);setVersion(result.version);setJob(result.job);setDailyReady(true);if(result.saved?.skill?.name)setDailySkill(result.saved.skill.name);
     } catch {setDailyReady(false);setDailyError('The saved report could not be opened.');}
   }
   useEffect(()=>{
     if (!saved || !loaded) return;
     setSelected(saved.accountIds);setTemplate(saved.template);
   },[saved,loaded]);
+  async function continueDaily(jobId:string) {
+    while(live.current) {
+      const response=await fetch('/api/meta/reports/daily',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'advance',jobId})});
+      const result=await response.json();
+      if(!response.ok)throw Error(result.error||'The skill-based report update failed.');
+      if(!live.current)return;
+      setJob(result.job);
+      if(result.saved){setSaved(result.saved);setVersion(result.version);setEditing(false);return;}
+      if(result.job?.status==='failed')throw Error(result.job.error||'The skill analysis failed. Resume to retry.');
+      if(result.processing)await new Promise(resolve=>setTimeout(resolve,5000));
+    }
+  }
   async function saveDaily(refresh:boolean) {
-    if(locked.current || !dailyReady) return;
+    if(locked.current||!dailyReady)return;
     locked.current=true;setBusy(true);setDailyError('');
     try {
-      const response=await fetch('/api/meta/reports/daily',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(refresh?{version}:{version,date:end,accountIds:selected,template})});
-      const result=await response.json();
-      if(!response.ok) throw new Error(result.error||'Could not save the report.');
-      setSaved(result.saved);setVersion(result.version);setEditing(false);
-    } catch(e) {setDailyError(e instanceof Error?e.message:'Could not save the report.');}
-    finally {locked.current=false;setBusy(false);}
+      const response=await fetch('/api/meta/reports/daily',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'start',skillName:dailySkill,...(refresh?{version}:{version,date:end,accountIds:selected,template})})});
+      const result=await response.json();if(!response.ok)throw Error(result.error||'Could not start the update.');
+      setJob(result.job);await continueDaily(result.job.id);
+    }catch(e){setDailyError(e instanceof Error?e.message:'Could not update the report.');}
+    finally{locked.current=false;if(live.current)setBusy(false);}
+  }
+  async function resumeDaily() {
+    if(!job||locked.current)return;locked.current=true;setBusy(true);setDailyError('');
+    try{await continueDaily(job.id);}catch(e){setDailyError(e instanceof Error?e.message:'Could not resume.');}
+    finally{locked.current=false;if(live.current)setBusy(false);}
+  }
+  async function discardPending() {
+    if(!job||busy)return;
+    try{const response=await fetch('/api/meta/reports/daily',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'discard',jobId:job.id})});const result=await response.json();if(!response.ok)throw Error(result.error);setJob(result.job);setDailyError('');}
+    catch(e){setDailyError(e instanceof Error?e.message:'Could not discard this update.');}
   }
   const [dailyUrl,setDailyUrl] = useState('');
   useEffect(()=>{
@@ -112,6 +139,7 @@ export default function Reports() {
   useEffect(() => {
     if(new URLSearchParams(window.location.search).get('view')==='monthly') setMode('plan');
     void connect();void openDaily();
+    void fetch('/api/skills/approved',{cache:'no-store'}).then(async response=>{const data=await response.json();if(!response.ok)throw Error('Reporting skills could not be loaded.');setReportSkills((data.skills||[]).filter((s:{reportType?:string})=>s.reportType==='daily'||s.reportType==='monthly'));}).catch(e=>setDailyError(e.message));
     void fetch('/api/competitors/clients',{cache:'no-store'}).then(async response=>{if(response.ok)setResearchClients((await response.json()).clients);}).catch(()=>{});
   },[]);
   const chosen = accounts.filter(a => mode === 'daily' ? selected.includes(a.id) : a.id === monthlyId);
@@ -122,7 +150,7 @@ export default function Reports() {
     locked.current=true;setBusy(true);setError('');setRun(null);
     const account=chosen[0], date=String(new FormData(form).get('month')||'');
     try {
-      const response=await fetch('/api/meta/reports',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode,accountId:account.id,month:date,inputs,researchClient:researchClient||undefined})});
+      const response=await fetch('/api/meta/reports',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode,accountId:account.id,month:date,inputs,skillName:monthlySkill,researchClient:researchClient||undefined})});
       const data=await response.json();
       if(!response.ok) throw new Error(data.error||'Report unavailable.');
       setRun({mode,date,inputs:{...inputs},entries:[{account,report:data.report,plan:data.plan,planError:data.planError}]});
@@ -153,9 +181,12 @@ export default function Reports() {
     <header><h1>Client reports</h1><p>Review account delivery or prepare a monthly campaign plan.</p></header>
     <nav className="rep-mode rep-nav" aria-label="Report type">{(['daily','plan'] as const).map(m=><button type="button" key={m} disabled={busy} aria-pressed={m===mode} onClick={()=>{setMode(m);setQuery('');window.history.replaceState(null,'',m==='daily'?'/reports':'/reports?view=monthly');}}>{m==='daily'?'Daily report':'Monthly plan'}</button>)}</nav>
     {mode==='daily' && dailyError && <p role="alert">{dailyError} <button type="button" onClick={()=>void openDaily()}>Reload saved report</button></p>}
-    {mode==='daily' && saved && <section className="workspace-card rep-saved"><div><strong>Daily report through {saved.date}</strong><small>{saved.accountIds.length} accounts · Saved {new Date(saved.savedAt).toLocaleString()}</small></div><button type="button" disabled={busy || !dailyReady} onClick={()=>void saveDaily(true)}>{busy?'Updating…':'Update report'}</button><button type="button" disabled={busy} aria-expanded={editing} onClick={()=>setEditing(!editing)}>{editing?'Close settings':'Report settings'}</button></section>}
+    {mode==='daily' && saved && <section className="workspace-card rep-saved"><div><strong>Daily report through {saved.date}</strong><small>{saved.accountIds.length} accounts · Saved {new Date(saved.savedAt).toLocaleString()} · {saved.skill?'Skill '+saved.skill.name+' · v'+saved.skill.sha.slice(0,8):'Earlier report — update to run the reporting skill'}</small></div><button type="button" disabled={busy || !dailyReady || job?.status==='running' || job?.status==='failed' || !reportSkills.some(s=>s.name===dailySkill)} onClick={()=>void saveDaily(true)}>{busy?'Updating…':'Update report'}</button><button type="button" disabled={busy} aria-expanded={editing} onClick={()=>setEditing(!editing)}>{editing?'Close settings':'Report settings'}</button></section>}
+    {mode==='daily' && job && (job.status==='running'||job.status==='failed') && <section className="workspace-card" aria-label="Daily update progress"><p role="status"><strong>{job.done} of {job.total} accounts reviewed</strong> · Skill {job.skill.name} · Through {job.date}</p><p>{busy?'Reviewing evidence and running the skill. Keep this page open to continue the queued accounts.':'The pending update is saved. Resume it to continue.'} Your last saved report remains available.</p>{job.error&&<p role="alert">{job.error}</p>}<progress value={job.done} max={job.total} aria-label="Accounts reviewed"/><div className="workspace-actions"><button type="button" disabled={busy} onClick={()=>void resumeDaily()}>Resume update</button><button type="button" disabled={busy} onClick={()=>void discardPending()}>Discard pending update</button></div></section>}
+    {mode==='daily'&&saved?.runs?.length ? <details className="rep-paste-template"><summary>Skill execution records</summary><p>Each record identifies the actual skill version, model, evidence hash and validated output.</p><ul>{saved.runs.map((r,i)=><li key={r.id}>{accounts.find(a=>a.id===saved.accountIds[i])?.name||saved.accountIds[i]} · <a href={'/api/meta/reports/runs?runId='+r.id} target="_blank" rel="noreferrer">Analysis record ↗</a> · <a href={'/api/meta/reports/runs?runId='+r.id+'&file=evidence'} target="_blank" rel="noreferrer">Evidence ↗</a></li>)}</ul></details>:null}
     {(mode==='plan' || editing || !saved) && (!loaded ? <section className="workspace-card"><p>{denied ? 'Use your approved Google account to open reports.' : error || 'Loading Meta accounts…'}</p>{denied ? <button onClick={() => void signIn('google',{callbackUrl:'/reports'})}>Sign in with Google</button> : error && <button onClick={() => void connect()}>Retry</button>}</section> :
     <form className="workspace-card rep-form" onSubmit={e => { e.preventDefault(); void generate(e.currentTarget); }}><fieldset disabled={busy}><legend>Report setup</legend>
+      <label>Reporting skill<select value={mode==='daily'?dailySkill:monthlySkill} onChange={e=>mode==='daily'?setDailySkill(e.target.value):setMonthlySkill(e.target.value)}>{reportSkills.filter(s=>s.reportType===(mode==='daily'?'daily':'monthly')).map(s=><option key={s.name} value={s.name}>{s.name.split('-').map(w=>w[0].toUpperCase()+w.slice(1)).join(' ')} · version {s.sha.slice(0,8)}</option>)}</select><small>The selected skill and its reference files drive the written review. Metrics and layout use the report template.</small></label>
 
       {mode === 'daily' ? <>
         <div className="rep-inputs"><label>Through date<input type="date" name="end" defaultValue={end} required onInput={e=>setEnd(e.currentTarget.value)}/></label><label>Find ad accounts<input type="search" value={query} placeholder="Name or account ID" onChange={e=>setQuery(e.target.value)}/></label></div>
@@ -169,7 +200,7 @@ export default function Reports() {
       <label>Client brief<textarea value={inputs.brief} maxLength={4000} placeholder="Goals, market, approved offers and brand voice" onChange={e=>setInputs({...inputs,brief:e.target.value})}/></label>
       <div className="rep-inputs"><label>Competitor evidence<textarea maxLength={4000} value={inputs.competitors} placeholder="Observed ad, source link and date" onChange={e=>setInputs({...inputs,competitors:e.target.value})}/><a href="/competitors" target="_blank" rel="noreferrer">Open competitor research ↗</a></label>
       <label>Market event<textarea maxLength={2000} value={inputs.event} placeholder="Event, date, market and source" onChange={e=>setInputs({...inputs,event:e.target.value})}/></label></div></>}
-      <button className="rep-primary" disabled={!chosen.length || busy || (mode==='daily' && !dailyReady)} type="submit">{busy ? 'Preparing report…' : mode==='daily' ? 'Generate and save report' : 'Draft monthly plan'}</button>
+      <button className="rep-primary" disabled={!chosen.length || busy || (mode==='daily' && (!dailyReady || job?.status==='running' || job?.status==='failed')) || !reportSkills.some(s=>s.name===(mode==='daily'?dailySkill:monthlySkill))} type="submit">{busy ? 'Preparing report…' : mode==='daily' ? 'Generate and save report' : 'Draft monthly plan'}</button>
       </fieldset></form>)}
     {mode==='plan' && loaded && error && <p role="alert">{error}</p>}
     {mode==='daily' && saved && dailyHtml && <section className="rep-daily-preview"><div className="rep-exports">{dailyUrl && <><a href={dailyUrl} target="_blank" rel="noopener noreferrer">Open full report ↗</a><a href={dailyUrl} download={'tossdown-daily-'+saved.date+'.html'}>Download HTML</a></>}<button onClick={()=>frame.current?.contentWindow?.postMessage('print-daily-report','*')}>Print / save PDF</button></div><iframe ref={frame} title="Meta Ads daily report" sandbox="allow-scripts allow-modals" srcDoc={dailyHtml}/></section>}
