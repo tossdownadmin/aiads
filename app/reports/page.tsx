@@ -96,6 +96,7 @@ export default function Reports() {
     catch(e){setDailyError(e instanceof Error?e.message:'Could not discard this update.');}
   }
   const [dailyUrl,setDailyUrl] = useState('');
+  const [monthlyUrl,setMonthlyUrl]=useState('');
   useEffect(()=>{
     if (!dailyHtml) { setDailyUrl(''); return; }
     const url=URL.createObjectURL(new Blob([dailyHtml],{type:'text/html;charset=utf-8'}));
@@ -165,25 +166,28 @@ export default function Reports() {
     finally {locked.current=false;setBusy(false);}
   }
 
-  function download() {
-    const content = paper.current?.querySelector('article')?.cloneNode(true) as HTMLElement | undefined;
-    if (!content || !run) return;
+  function monthlyDownload() {
+    const content = paper.current?.querySelector('.report-paper')?.cloneNode(true) as HTMLElement | undefined;
+    if (!content || !run) return '';
     const doc = document.implementation.createHTMLDocument('Tossdown · ' + (run.mode === 'daily' ? 'Daily account report' : 'Next-month ad plan'));
     const meta = doc.createElement('meta'); meta.setAttribute('charset','utf-8'); doc.head.prepend(meta);
     const viewport = doc.createElement('meta'); viewport.name='viewport'; viewport.content='width=device-width, initial-scale=1'; doc.head.append(viewport);
     const style = doc.createElement('style');
     const rules: string[] = [];
     for (const sheet of Array.from(document.styleSheets)) {
-      try { for (const rule of Array.from(sheet.cssRules)) if (/report-paper|rep-|window-week|window-month/.test(rule.cssText)) rules.push(rule.cssText); } catch { /* skip unrelated cross-origin styles */ }
+      try { for (const rule of Array.from(sheet.cssRules)) if (/report-paper|rep-|cg-|window-week|window-month/.test(rule.cssText)) rules.push(rule.cssText); } catch { /* skip unrelated cross-origin styles */ }
     }
     style.textContent = 'body{margin:20px auto;max-width:1250px;padding:8px;font:15px system-ui,sans-serif;color:#173b33}*{box-sizing:border-box}' + rules.join('\n');
     doc.head.append(style); doc.body.append(content);
     const controls=doc.createElement('script');controls.textContent=galleryScript;doc.body.append(controls);
     const file = new Blob(['<!doctype html>\n',doc.documentElement.outerHTML],{type:'text/html;charset=utf-8'});
-    const url = URL.createObjectURL(file), link=document.createElement('a');
-    link.href=url;link.download='tossdown-' + run.mode + '-' + run.date + '.html';link.click();
-    setTimeout(() => URL.revokeObjectURL(url),1000);
+    return URL.createObjectURL(file);
   }
+  useEffect(()=>{
+    if(!run){setMonthlyUrl('');return;}
+    const url=monthlyDownload();setMonthlyUrl(url);
+    return()=>{if(url)URL.revokeObjectURL(url);};
+  },[run]);
   return <WorkspaceShell active="reports" status={loaded ? 'Connected' : undefined}><div className="rep-workspace">
     <header><h1>Client reports</h1><p>Review account delivery or prepare a monthly campaign plan.</p></header>
     <nav className="rep-mode rep-nav" aria-label="Report type">{(['daily','plan'] as const).map(m=><button type="button" key={m} disabled={busy} aria-pressed={m===mode} onClick={()=>{setMode(m);setQuery('');window.history.replaceState(null,'',m==='daily'?'/reports':'/reports?view=monthly');}}>{m==='daily'?'Daily report':'Monthly plan'}</button>)}</nav>
@@ -212,6 +216,6 @@ export default function Reports() {
       </fieldset></form>)}
     {mode==='plan' && loaded && error && <p role="alert">{error}</p>}
     {mode==='daily' && saved && dailyHtml && <section className="rep-daily-preview"><div className="rep-exports">{dailyUrl && <><a href={dailyUrl} target="_blank" rel="noopener noreferrer">Open full report ↗</a><a href={dailyUrl} download={'tossdown-daily-'+saved.date+'.html'}>Download HTML</a></>}<button onClick={()=>frame.current?.contentWindow?.postMessage('print-daily-report','*')}>Print / save PDF</button></div><iframe ref={frame} title="Meta Ads daily report" sandbox="allow-scripts allow-modals" srcDoc={dailyHtml}/></section>}
-    {mode==='plan' && run?.mode==='plan' && <section ref={paper}><div className="rep-exports"><button onClick={download}>Download HTML</button><button onClick={()=>window.print()}>Print / save PDF</button></div><ReportView run={run}/></section>}
+    {mode==='plan' && run?.mode==='plan' && <section ref={paper}><div className="rep-exports">{monthlyUrl&&<a href={monthlyUrl} download={'tossdown-plan-'+run.date+'.html'}>Download HTML</a>}<button onClick={()=>window.print()}>Print / save PDF</button></div><ReportView run={run}/></section>}
     </div></WorkspaceShell>;
 }
