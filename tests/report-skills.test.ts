@@ -3,7 +3,7 @@ import {getReportingSkills,skillVersion,checkReportSkill} from '../lib/skills/re
 import {dailyEvidence,validateDailyAnalysis,analyzeDailyReport} from '../lib/reports/daily-analysis';
 import {renderDailyDocument} from '../lib/reports/daily-document';
 import {metrics,type Report} from '../lib/reports/model';
-import {draftPlan} from '../lib/reports/plan';
+import {draftPlan,validateProposal} from '../lib/reports/plan';
 const api=vi.hoisted(()=>({model:vi.fn(),put:vi.fn()}));
 vi.mock('../lib/ai/bedrock',()=>({invokeReportModel:api.model}));
 vi.mock('@vercel/blob',()=>({put:api.put}));
@@ -41,4 +41,11 @@ it('monthly planning runs its reporting skill and validates actual campaign IDs 
  const monthly=getReportingSkills()[1];api.model.mockResolvedValue({summary:'Measured plan',financialReview:'No approved cap.',performance:[],competitors:[],event:'No event evidence.',allocation:[],concepts:[],takeaways:[],gaps:[]});
  const result=await draftPlan(report,'2026-12',{brief:'',competitors:'',event:''},monthly);expect(result.skillRun?.skill.name).toBe('monthly-meta-plan');expect(api.model.mock.calls[0][0]).toContain(monthly.resources[0].content);
  api.put.mockClear();api.model.mockResolvedValue({summary:'Plan',financialReview:'Review',performance:[],competitors:[],event:'None',allocation:[],concepts:[{campaignId:'invented',concept:'x',format:'x',visual:'x',copy:'x'}],takeaways:[],gaps:[]});await expect(draftPlan(report,'2026-12',{brief:'',competitors:'',event:''},monthly)).rejects.toThrow('Unknown creative');expect(api.put).not.toHaveBeenCalled();
+});
+
+it('rejects unsupported fatigue and tracking diagnoses in planning output',()=>{
+ const base={summary:'Measured plan',financialReview:'No cap',performance:[],competitors:[],event:'None',allocation:[],concepts:[],takeaways:[],gaps:[]};
+
+ expect(()=>validateProposal({...base,summary:'The campaign shows audience fatigue at high frequency.'},[])).toThrow('fatigue');
+ expect(()=>validateProposal({...base,summary:'No conversion tracking is active.'},[])).toThrow('configuration');
 });

@@ -8,7 +8,7 @@ import type { MetaAccount } from '../../lib/meta/read';
 import { accountToday, shiftDay, type PlanInputs } from '../../lib/reports/model';
 import {galleryScript} from '../../lib/reports/detail-view';
 import ReportView, { type Run } from './report-view';
-import { importDailyTemplate, matchPortfolio, readStoredTemplate, templateKey, type DailyTemplate } from '../../lib/reports/daily-template';
+import { importDailyTemplate, matchPortfolio, templateKey, type DailyTemplate } from '../../lib/reports/daily-template';
 import type {PublicDailyJob} from '../../lib/reports/daily-jobs';
 import type { SavedDaily } from '../../lib/reports/saved-daily';
 import './reports.css';
@@ -41,6 +41,7 @@ export default function Reports() {
   const [version,setVersion]=useState<string|null>(null);
   const [dailyReady,setDailyReady]=useState(false);
   const [dailyError,setDailyError]=useState('');
+  const [skillError,setSkillError]=useState('');
   const [editing,setEditing]=useState(false);
   const [job,setJob]=useState<PublicDailyJob|null>(null);
   const [reportSkills,setReportSkills]=useState<Array<{name:string;description:string;sha:string;reportType:'daily'|'monthly'}>>([]);
@@ -78,8 +79,8 @@ export default function Reports() {
     if(locked.current||!dailyReady)return;
     locked.current=true;setBusy(true);setDailyError('');
     try {
-      const response=await fetch('/api/meta/reports/daily',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'start',skillName:dailySkill,...(refresh?{version}:{version,date:end,accountIds:selected,template})})});
-      const result=await response.json();if(!response.ok)throw Error(result.error||'Could not start the update.');
+      const response=await fetch('/api/meta/reports/daily',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'start',skillName:dailySkill,skillSha:reportSkills.find(s=>s.name===dailySkill)?.sha,...(refresh?{version}:{version,date:end,accountIds:selected,template})})});
+      const result=await response.json();if(!response.ok){if(result.error?.includes('skill version'))void loadReportingSkills();throw Error(result.error||'Could not start the update.');}
       setJob(result.job);await continueDaily(result.job.id);
     }catch(e){setDailyError(e instanceof Error?e.message:'Could not update the report.');}
     finally{locked.current=false;if(live.current)setBusy(false);}
@@ -127,7 +128,7 @@ export default function Reports() {
       if (!r.ok) throw new Error();
       const {accounts: list} = await r.json() as {accounts: MetaAccount[]};
       setAccounts(list.sort((a,b) => a.name.localeCompare(b.name)));
-      try { const saved=readStoredTemplate(localStorage.getItem(templateKey)); if(saved) useTemplate(saved,list); } catch { /* Browser storage can be unavailable. */ }
+      // Restore account selection only from the shared saved report; applying a template is explicit.
       const today = accountToday(Intl.DateTimeFormat().resolvedOptions().timeZone);
       setEnd(shiftDay(today,-1));
       const next = new Date(today.slice(0,7) + '-01T00:00:00Z');
@@ -136,10 +137,15 @@ export default function Reports() {
       setLoaded(true);
     } catch { setError('The account list could not be read.'); }
   }
+  async function loadReportingSkills() {
+    setSkillError('');
+    try {const response=await fetch('/api/skills/approved',{cache:'no-store'}),data=await response.json();if(!response.ok)throw Error('Reporting skills could not be loaded.');setReportSkills((data.skills||[]).filter((s:{reportType?:string})=>s.reportType==='daily'||s.reportType==='monthly'));}
+    catch(e){setSkillError(e instanceof Error?e.message:'Reporting skills could not be loaded.');}
+  }
   useEffect(() => {
     if(new URLSearchParams(window.location.search).get('view')==='monthly') setMode('plan');
     void connect();void openDaily();
-    void fetch('/api/skills/approved',{cache:'no-store'}).then(async response=>{const data=await response.json();if(!response.ok)throw Error('Reporting skills could not be loaded.');setReportSkills((data.skills||[]).filter((s:{reportType?:string})=>s.reportType==='daily'||s.reportType==='monthly'));}).catch(e=>setDailyError(e.message));
+    void loadReportingSkills();
     void fetch('/api/competitors/clients',{cache:'no-store'}).then(async response=>{if(response.ok)setResearchClients((await response.json()).clients);}).catch(()=>{});
   },[]);
   const chosen = accounts.filter(a => mode === 'daily' ? selected.includes(a.id) : a.id === monthlyId);
@@ -150,9 +156,9 @@ export default function Reports() {
     locked.current=true;setBusy(true);setError('');setRun(null);
     const account=chosen[0], date=String(new FormData(form).get('month')||'');
     try {
-      const response=await fetch('/api/meta/reports',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode,accountId:account.id,month:date,inputs,skillName:monthlySkill,researchClient:researchClient||undefined})});
+      const response=await fetch('/api/meta/reports',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode,accountId:account.id,month:date,inputs,skillName:monthlySkill,skillSha:reportSkills.find(s=>s.name===monthlySkill)?.sha,researchClient:researchClient||undefined})});
       const data=await response.json();
-      if(!response.ok) throw new Error(data.error||'Report unavailable.');
+      if(!response.ok){if(data.error?.includes('skill version'))void loadReportingSkills();throw new Error(data.error||'Report unavailable.');}
       setRun({mode,date,inputs:{...inputs},entries:[{account,report:data.report,plan:data.plan,planError:data.planError}]});
     } catch(e) {setError(e instanceof Error?e.message:'Plan unavailable.');}
     finally {locked.current=false;setBusy(false);}
@@ -180,13 +186,14 @@ export default function Reports() {
   return <WorkspaceShell active="reports" status={loaded ? 'Connected' : undefined}><div className="rep-workspace">
     <header><h1>Client reports</h1><p>Review account delivery or prepare a monthly campaign plan.</p></header>
     <nav className="rep-mode rep-nav" aria-label="Report type">{(['daily','plan'] as const).map(m=><button type="button" key={m} disabled={busy} aria-pressed={m===mode} onClick={()=>{setMode(m);setQuery('');window.history.replaceState(null,'',m==='daily'?'/reports':'/reports?view=monthly');}}>{m==='daily'?'Daily report':'Monthly plan'}</button>)}</nav>
+    {skillError&&<p role="alert">{skillError} <button type="button" onClick={()=>void loadReportingSkills()}>Retry skill loading</button></p>}
     {mode==='daily' && dailyError && <p role="alert">{dailyError} <button type="button" onClick={()=>void openDaily()}>Reload saved report</button></p>}
     {mode==='daily' && saved && <section className="workspace-card rep-saved"><div><strong>Daily report through {saved.date}</strong><small>{saved.accountIds.length} accounts · Saved {new Date(saved.savedAt).toLocaleString()} · {saved.skill?'Skill '+saved.skill.name+' · v'+saved.skill.sha.slice(0,8):'Earlier report — update to run the reporting skill'}</small></div><button type="button" disabled={busy || !dailyReady || job?.status==='running' || job?.status==='failed' || !reportSkills.some(s=>s.name===dailySkill)} onClick={()=>void saveDaily(true)}>{busy?'Updating…':'Update report'}</button><button type="button" disabled={busy} aria-expanded={editing} onClick={()=>setEditing(!editing)}>{editing?'Close settings':'Report settings'}</button></section>}
     {mode==='daily' && job && (job.status==='running'||job.status==='failed') && <section className="workspace-card" aria-label="Daily update progress"><p role="status"><strong>{job.done} of {job.total} accounts reviewed</strong> · Skill {job.skill.name} · Through {job.date}</p><p>{busy?'Reviewing evidence and running the skill. Keep this page open to continue the queued accounts.':'The pending update is saved. Resume it to continue.'} Your last saved report remains available.</p>{job.error&&<p role="alert">{job.error}</p>}<progress value={job.done} max={job.total} aria-label="Accounts reviewed"/><div className="workspace-actions"><button type="button" disabled={busy} onClick={()=>void resumeDaily()}>Resume update</button><button type="button" disabled={busy} onClick={()=>void discardPending()}>Discard pending update</button></div></section>}
     {mode==='daily'&&saved?.runs?.length ? <details className="rep-paste-template"><summary>Skill execution records</summary><p>Each record identifies the actual skill version, model, evidence hash and validated output.</p><ul>{saved.runs.map((r,i)=><li key={r.id}>{accounts.find(a=>a.id===saved.accountIds[i])?.name||saved.accountIds[i]} · <a href={'/api/meta/reports/runs?runId='+r.id} target="_blank" rel="noreferrer">Analysis record ↗</a> · <a href={'/api/meta/reports/runs?runId='+r.id+'&file=evidence'} target="_blank" rel="noreferrer">Evidence ↗</a></li>)}</ul></details>:null}
     {(mode==='plan' || editing || !saved) && (!loaded ? <section className="workspace-card"><p>{denied ? 'Use your approved Google account to open reports.' : error || 'Loading Meta accounts…'}</p>{denied ? <button onClick={() => void signIn('google',{callbackUrl:'/reports'})}>Sign in with Google</button> : error && <button onClick={() => void connect()}>Retry</button>}</section> :
     <form className="workspace-card rep-form" onSubmit={e => { e.preventDefault(); void generate(e.currentTarget); }}><fieldset disabled={busy}><legend>Report setup</legend>
-      <label>Reporting skill<select value={mode==='daily'?dailySkill:monthlySkill} onChange={e=>mode==='daily'?setDailySkill(e.target.value):setMonthlySkill(e.target.value)}>{reportSkills.filter(s=>s.reportType===(mode==='daily'?'daily':'monthly')).map(s=><option key={s.name} value={s.name}>{s.name.split('-').map(w=>w[0].toUpperCase()+w.slice(1)).join(' ')} · version {s.sha.slice(0,8)}</option>)}</select><small>The selected skill and its reference files drive the written review. Metrics and layout use the report template.</small></label>
+      <label>Reporting skill<select disabled={!reportSkills.length} value={mode==='daily'?dailySkill:monthlySkill} onChange={e=>mode==='daily'?setDailySkill(e.target.value):setMonthlySkill(e.target.value)}><option value="">Choose a reporting skill</option>{reportSkills.filter(s=>s.reportType===(mode==='daily'?'daily':'monthly')).map(s=><option key={s.name} value={s.name}>{s.name.split('-').map(w=>w[0].toUpperCase()+w.slice(1)).join(' ')} · version {s.sha.slice(0,8)}</option>)}</select><small>The selected skill and its reference files drive the written review. Metrics and layout use the report template.</small></label>
 
       {mode === 'daily' ? <>
         <div className="rep-inputs"><label>Through date<input type="date" name="end" defaultValue={end} required onInput={e=>setEnd(e.currentTarget.value)}/></label><label>Find ad accounts<input type="search" value={query} placeholder="Name or account ID" onChange={e=>setQuery(e.target.value)}/></label></div>

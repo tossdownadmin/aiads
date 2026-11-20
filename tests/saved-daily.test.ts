@@ -51,3 +51,7 @@ it('honors active worker leases, rejects a stale final save and allows explicit 
 it('uses inclusive comparison windows with matched elapsed days',()=>{
  expect(comparisonWindow({since:'2025-01-01',until:'2025-01-11',partial:true})).toEqual({since:'2024-12-01',until:'2024-12-11'});expect(comparisonWindow({since:'2024-03-01',until:'2024-03-31'}).until).toBe('2024-02-29');
 });
+
+it('rejects an outdated selected skill version before starting a job',async()=>{
+ expect((await post({action:'start',version:'v1',skillSha:'old-version'})).status).toBe(400);expect(api.analyze).not.toHaveBeenCalled();expect(blobs.get(savedPath)!.value.html).toBe('previous');
+});

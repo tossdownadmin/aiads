@@ -126,6 +126,7 @@ export async function startDaily(input: {
   date?: string;
   template?: unknown;
   skillName?: string;
+  skillSha?: string;
 }) {
   const [previous, pending] = await Promise.all([
     read<SavedDaily>(savedPath),
@@ -168,6 +169,7 @@ export async function startDaily(input: {
     "daily",
     input.skillName || previous.value?.skill?.name,
   );
+  if(input.skillSha&&input.skillSha!==skill.sha)throw new DailyInputError('The reporting skill version changed. Reload the skill list and review the new version.');
   const portfolio = matchPortfolio(template, accounts),
     order = new Map(Array.from(portfolio.matches.keys(), (id, i) => [id, i]));
   chosen.sort(

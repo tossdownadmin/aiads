@@ -1,3 +1,4 @@
+import {validatePlanningClaims} from '../skills/report-claims';
 import { z } from 'zod';
 import {selectReportSkill,runReportSkill} from '../skills/report-runner';
 import type {ReportingSkill} from '../skills/report-packages';
@@ -14,6 +15,7 @@ const planSchema = z.object({
 
 export function validateProposal(raw: unknown, ids: string[], cap?: number): Proposal {
   const plan = planSchema.parse(raw);
+  validatePlanningClaims(plan);
   const allowed = new Set(ids);
   const seen = new Set<string>();
   for (const item of plan.allocation) {

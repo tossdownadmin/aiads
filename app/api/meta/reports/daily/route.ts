@@ -52,6 +52,7 @@ const shape = z.discriminatedUnion("action", [
     date: z.string().refine(validDay).optional(),
     template: z.unknown().optional(),
     skillName: z.string().min(1).max(120).optional(),
+    skillSha:z.string().min(1).max(200).optional(),
   }),
   z.object({ action: z.literal("advance"), jobId: z.string().uuid() }),
   z.object({ action: z.literal("discard"), jobId: z.string().uuid() }),

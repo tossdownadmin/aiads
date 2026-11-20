@@ -17,8 +17,8 @@ const accountId = z.string().regex(/^act_\d+$/);
 const cap = z.number().positive().max(100000000000).optional();
 const inputs = z.object({ cap, previousCap: cap, brief: z.string().trim().max(4000), competitors: z.string().trim().max(4000), event: z.string().trim().max(2000) });
 const schema = z.discriminatedUnion('mode', [
-  z.object({ mode: z.literal('daily'), accountId, skillName:z.string().min(1).max(120).optional(), end: z.string().length(10) }),
-  z.object({ mode: z.literal('plan'), accountId, month: z.string().length(7), researchClient: clientIdSchema.optional(), skillName:z.string().min(1).max(120).optional(), inputs, draft: z.boolean().default(true) }),
+  z.object({ mode: z.literal('daily'), accountId, skillName:z.string().min(1).max(120).optional(), skillSha:z.string().min(1).max(200).optional(), end: z.string().length(10) }),
+  z.object({ mode: z.literal('plan'), accountId, month: z.string().length(7), researchClient: clientIdSchema.optional(), skillName:z.string().min(1).max(120).optional(), skillSha:z.string().min(1).max(200).optional(), inputs, draft: z.boolean().default(true) }),
 ]);
 const json = (body: unknown, status = 200) => NextResponse.json(body, { status, headers: { 'Cache-Control': 'private, no-store' } });
 export async function POST(request: Request) {
@@ -34,6 +34,7 @@ export async function POST(request: Request) {
     if(data.mode==='plan'&&data.researchClient&&!researchClient)return json({error:'Choose a client from the current competitor library.'},400);
     if(researchClient?.metaAccountId&&researchClient.metaAccountId!==account.id)return json({error:'The competitor library belongs to a different Meta ad account.'},400);
     const skill=data.mode==='daily'?await selectReportSkill('daily',data.skillName):data.draft?await selectReportSkill('monthly',data.skillName):undefined;
+    if(data.skillSha&&skill&&data.skillSha!==skill.sha)return json({error:'The reporting skill version changed. Reload the skill list and review the new version.'},400);
     const now = new Date();
     const today = accountToday(account.timezone, now);
     let windows;
