@@ -109,3 +109,31 @@ it('preserves the old report when an entire reporting window has no verified fin
  const resumed=await (await call({action:'advance',jobId:started.job.id})).json();
  expect(resumed.job.status).toBe('complete');expect(resumed.saved.accountIds).toHaveLength(1);expect(resumed.saved.html).toContain('Leads reported');
 });
+
+it('continues from ten completed accounts through a missing current-window row and human-readable comparison dates',async()=>{
+ const missing=activeClients.find(c=>c.accountId==='act_274443229842051')!;
+ expect(activeClients.indexOf(missing)).toBe(10);
+ const reader=globalThis.fetch,generate=api.model.getMockImplementation()!;
+ vi.stubGlobal('fetch',async(input:URL)=>{
+  const url=new URL(input),range=url.searchParams.get('time_range');
+  if(url.pathname.includes('/'+missing.accountId+'/')&&url.pathname.endsWith('/insights')&&url.searchParams.get('level')==='account'&&range&&JSON.parse(range).since==='2026-11-16')return Response.json({data:[]});
+  return reader(input);
+ });
+ api.model.mockImplementation(async(...args)=>{
+  const evidence=JSON.parse(args[1]);if(evidence.account.id!==missing.accountId)return generate(...args);
+  const result=await generate(...args);
+  result.periods[0].findings=[{tone:'warn',category:'data_gap',title:'No account-level metrics returned for Nov 16–22',interpretation:'Spend is {{window0:account:spend}} and impressions are {{window0:account:impressions}}. Historical zero delivery cannot be confirmed.',evidenceIds:['window0:account:spend','window0:account:impressions','window0:coverage'],action:'Compare Nov 16–22 with Nov 9–15 in Ads Manager.',reason:'Reconcile missing imported metrics before diagnosing delivery.'}];
+  result.periods[1].findings.push({...result.periods[1].findings[0],title:'Unsupported claim',interpretation:'999 purchases were reported.'});
+  return result;
+ });
+ const started=await (await call({action:'start',version:'v1',date:'2026-11-22'})).json();let saved;
+ for(let count=0;count<15;count++){
+  const result=await (await call({action:'advance',jobId:started.job.id})).json();
+  expect(result.job.status).not.toBe('failed');expect(result.job.done).toBe(count+1);
+  if(count<14)expect(blobs.get(savedPath)!.value.html).toBe('previous saved report');else saved=result.saved;
+ }
+ expect(saved.accountIds).toEqual(activeClients.map(c=>c.accountId));expect(saved.date).toBe('2026-11-22');
+ expect(saved.html).toContain('No account-level metrics returned for Nov 16–22');expect(saved.html).toContain('Spend is Not reported');expect(saved.html).not.toContain('999 purchases');
+ expect(api.model.mock.calls.filter(c=>JSON.parse(c[1]).account.id!==missing.accountId)).toHaveLength(14);
+ expect(api.model.mock.calls.filter(c=>JSON.parse(c[1]).account.id===missing.accountId)).toHaveLength(2);
+});

@@ -3,7 +3,8 @@ import { runReportSkill } from "../skills/report-runner";
 import type { ReportingSkill } from "../skills/report-packages";
 import {hash,skillVersion} from '../skills/report-packages';
 import type { DailyAnalysis, ReportFinding, SkillRun } from "../skills/report-types";
-import type { Report, Metrics } from "./model";
+import type { Report, Metrics, Window } from "./model";
+import {maskReportingDates} from './daily-dates';
 import {
   cash,
   count,
@@ -333,14 +334,21 @@ export function recoverDailyFindings(responses:unknown[],evidence:ReturnType<typ
   const rejected=new Map<string,{periodId:string;title:string;reason:string}>();
   const expected=new Set(evidence.periods.map(p=>p.id));
   const key=(title:string)=>title.trim().toLowerCase();
+  const latestTitles=new Map<string,Set<string>>();
+  const titleOf=(finding:unknown,index:number)=>finding&&typeof finding==='object'&&'title' in finding&&typeof finding.title==='string'?finding.title:'Unstructured observation '+index;
   for(const raw of [...responses].reverse()){
     const parsed=envelope.safeParse(raw);if(!parsed.success)continue;
     if(parsed.data.periods.length!==expected.size||new Set(parsed.data.periods.map(p=>p.periodId)).size!==expected.size||parsed.data.periods.some(p=>!expected.has(p.periodId)))continue;
     for(const p of parsed.data.periods){
       const subset={...evidence,periods:evidence.periods.filter(window=>window.id===p.periodId),facts:evidence.facts.filter(f=>f.periodId===p.periodId)};
+      const newest=!latestTitles.has(p.periodId),empty=!valid.get(p.periodId)!.size;
+      if(newest)latestTitles.set(p.periodId,new Set(p.findings.map((f,i)=>key(titleOf(f,i)))));
       for(const [index,finding] of p.findings.entries()){
-        const title=finding&&typeof finding==='object'&&'title' in finding&&typeof finding.title==='string'?finding.title:'Unstructured observation '+index;
+        const title=titleOf(finding,index);
         const identity=key(title);
+        // An older draft may repair a rejected observation, but must not add
+        // duplicate or abandoned observations after the newer window is usable.
+        if(!newest&&!empty&&!latestTitles.get(p.periodId)!.has(identity))continue;
         try{
           const checked=validateDailyAnalysis({periods:[{periodId:p.periodId,findings:[finding]}]},subset)[0].findings[0];
           if(!valid.get(p.periodId)!.has(identity))valid.get(p.periodId)!.set(identity,checked);
@@ -469,10 +477,12 @@ function boundedSynthesis(evidence:ReturnType<typeof dailyEvidence>,reviewed:Rev
 /** Numbers in narrative must be bound to scalar supplied measurements. */
 function bindMeasuredText(prose:string,cited:string[],facts:Map<string,EvidenceFact>,evidence:ReturnType<typeof dailyEvidence>,proposal=false){
   const tokens:{key:string;display:string}[]=[];
-  const template=prose.replace(/\{\{([^{}]+)\}\}/g,(_match,id:string)=>{
+  const template=prose.replace(/\{\{([^{}]+)\}\}(%)?/g,(_match,id:string,suffix:string|undefined)=>{
     const fact=facts.get(id);
-    if(!cited.includes(id)||!fact||typeof fact.value!=='number'||!Number.isFinite(fact.value))throw Error('A measurement placeholder must bind a cited, supplied numeric metric.');
-    const display=fact.display.slice(fact.display.lastIndexOf(': ')+2);
+    const missingMetric=fact?.value===null&&/^window\d+:(?:(?:previous-)?account|(?:previous-)?campaign:[^:]+):[^:]+$/.test(id)&&/Not reported|—/.test(fact.display.slice(fact.display.lastIndexOf(': ')+2));
+    if(!cited.includes(id)||!fact||!missingMetric&&(typeof fact.value!=='number'||!Number.isFinite(fact.value)))throw Error('A measurement placeholder must bind a cited, supplied numeric metric or an explicitly unreported metric.');
+    const display=missingMetric?'Not reported':fact.display.slice(fact.display.lastIndexOf(': ')+2);
+    if(suffix&&!id.endsWith(':ctr'))throw Error('A percentage suffix must use a supplied percentage metric.');
     const key='__MEASURE_'+String.fromCharCode(65+tokens.length)+'__';tokens.push({key,display});return key;
   });
   let checked=template;
@@ -487,7 +497,8 @@ function bindMeasuredText(prose:string,cited:string[],facts:Map<string,EvidenceF
   if(period){
     const duration=Math.round((Date.parse(period.window.until)-Date.parse(period.window.since))/86400000)+1;
     checked=checked.replace(new RegExp('\\b'+duration+'(?:[- ]day(?:s)?|[- ]d)\\b','gi'),'REPORTING_PERIOD');
-    for(const date of [period.window.since,period.window.until])checked=checked.split(date).join('REPORTING_DATE');
+    const previous=facts.get(period.id+':previous-window')?.value as Window|undefined;
+    checked=maskReportingDates(checked,[period.window,...(previous?.since&&previous.until?[previous]:[])]);
   }
   if(proposal)checked=checked.replace(/\b(?:test|draft|prepare|produce|compare)\s+(?:[1-3]|one|two|three)(?:\s+(?:new|fresh))?\s+(?:creatives?|variants?|concepts?)\b/gi,'PROPOSED_CREATIVE_TEST');
   checked=groundLiteralMeasurements(checked,cited,facts,evidence.account.currency);

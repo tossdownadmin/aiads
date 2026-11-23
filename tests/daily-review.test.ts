@@ -123,7 +123,7 @@ it('binds quantitative prose to supplied scalar facts and rejects arbitrary numb
  const raw=(title:string,interpretation:string,evidenceIds=['window0:account:spend'])=>({periods:evidence.periods.map((p,i)=>({periodId:p.id,findings:[{tone:'warn',title,interpretation:interpretation.replaceAll('window0','window'+i),evidenceIds:evidenceIds.map(id=>id.replace('window0','window'+i)),action:'Review the goal',reason:'Confirm the expected outcome.'}]}))});
  expect(()=>validateDailyAnalysis(raw('Excellent purchases','999 purchases at a CPA of CAD 0.01.'),evidence)).toThrow('numeric');
  expect(()=>validateDailyAnalysis(raw('Zero delivery','Review the schedule.'),evidence)).toThrow('zero delivery');
- expect(()=>validateDailyAnalysis(raw('Measured purchases','Purchases: {{window0:account:purchases}}.', ['window0:account:purchases']),evidence)).toThrow('numeric metric');
+ expect(validateDailyAnalysis(raw('Measured purchases','Purchases: {{window0:account:purchases}}.', ['window0:account:purchases']),evidence)[0].findings[0].interpretation).toBe('Purchases: Not reported.');
  const bound=validateDailyAnalysis(raw('Measured spend','Spend was {{window0:account:spend}}.'),evidence);
  expect(bound[0].findings[0].interpretation).toBe('Spend was CAD $100.00.');
  expect(bound[1].findings[0].interpretation).toBe('Spend was CAD $100.00.');

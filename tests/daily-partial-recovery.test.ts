@@ -46,6 +46,15 @@ it('does not convert invalid schema or unknown, duplicate or incomplete windows 
  expect(()=>recoverDailyFindings([unsupported],evidence)).toThrow('window1');
 });
 
+it('does not reintroduce a renamed observation from an older draft once the newer window has verified findings',()=>{
+ const older=answer(),newer=answer();
+ older.periods[0].findings[0].title='Earlier title with a broader claim';
+ newer.periods[0].findings[0].title='Corrected narrower observation';
+ const recovered=recoverDailyFindings([older,newer],dailyEvidence(report));
+ expect(recovered.periods[0].findings).toHaveLength(1);
+ expect(recovered.periods[0].findings[0].title).toBe('Corrected narrower observation');
+});
+
 it('retains exact failed input as well as responses when no verified finding covers a window',async()=>{
  const response=answer();response.periods[1].findings=[finding('window1','999 purchases were reported.')];api.model.mockResolvedValue(response);
  await expect(analyzeDailyReport(report,getReportingSkills()[0])).rejects.toMatchObject({code:'analysis_validation'});
