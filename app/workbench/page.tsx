@@ -2,7 +2,7 @@
 
 import type { DetailMap } from '../../lib/meta/campaign-detail';
 import CampaignGallery from '../campaign-gallery';
-import {metrics} from '../../lib/reports/model';
+import type {CampaignRow} from '../../lib/reports/model';
 import { useEffect, useMemo, useState } from 'react';
 import { signIn } from 'next-auth/react';
 import WorkspaceShell from '../workspace-shell';
@@ -10,7 +10,7 @@ import WorkspaceShell from '../workspace-shell';
 type Skill = { name: string; description: string; source: string; categories: string[]; platforms: string[]; status: string; license?: string; sha: string };
 type Account = { id: string; name: string; status: number; currency: string; timezone?: string };
 type Finding = { title: string; severity: 'high' | 'medium' | 'low' | 'info'; evidence: string; recommendation: string };
-type Campaign = { id: string; name: string; effective_status: string; objective?: string; spend?: string|number; impressions?: string; reach?: string; clicks?: string; ctr?: string; cpc?: string; frequency?: string; daily_budget?: string; lifetime_budget?: string };
+type Campaign = CampaignRow & {effective_status:string};
 type AuditResult = {
   skill: { name: string; description: string; sha: string };
   account: { id: string; name: string; currency: string; timezone?: string };
@@ -130,7 +130,7 @@ export default function Workbench() {
         </div>
         <div className="metric-row">
           <div><small>{result.scope==='active'?'Selected active-campaign spend':'Account spend'}</small><strong>{result.summary.currency || ''} {result.summary.totalSpend===null?'Not reported':Number(result.summary.totalSpend).toLocaleString(undefined, { maximumFractionDigits: 2 })}</strong></div>
-          <div><small>Review flags</small><strong>{result.issues.length}</strong></div>
+          <div><small>Current delivery notices</small><strong>{result.deliveryNotices?.length??0}</strong></div>
         </div>
         {result.window&&<p>{result.window.since} – {result.window.until} · {result.account.timezone}</p>}
         {result.readiness&&<section className="finding"><strong>Client readiness: {result.readiness.status}</strong><p>{result.readiness.gaps.join(' · ')||'Approved strategy inputs are available.'}</p><a href={'/reports?context='+result.account.id}>Review business profile</a></section>}
@@ -146,13 +146,8 @@ export default function Workbench() {
           </article>)}
           {!!result.analysis.dataGaps?.length && <div className="finding"><strong>Data gaps</strong><ul>{result.analysis.dataGaps.map((gap, index) => <li key={index}>{gap}</li>)}</ul></div>}
         </> : <p className="empty">{result.analysis.message}</p>}
-        <h3>Deterministic review flags</h3>
-        {result.issues.length ? result.issues.map((issue, index) => <div className="finding" key={`${issue.campaign}-${issue.title}-${index}`}>
-          <strong>{issue.title}</strong><span>{issue.campaign}</span>
-          <small>Spend {issue.spend.toFixed(2)} · CTR {issue.ctr}% · frequency {issue.frequency}</small>
-        </div>) : <p className="empty">No threshold flags for this period. Review campaign metrics below.</p>}
         <h3>Campaign evidence for the selected scope</h3>
-        {result.campaigns.length ? <CampaignGallery campaigns={result.campaigns.map(c=>({id:c.id,name:c.name,status:c.effective_status,objective:c.objective||'',stats:metrics(c)}))} details={result.details} currency={result.account.currency} scope="audit"/> : <p className="empty">No campaigns were returned for the selected scope and dates.</p>}
+        {result.campaigns.length ? <CampaignGallery campaigns={result.campaigns.map(c=>({id:c.id,name:c.name,status:c.effective_status,objective:c.objective||'',stats:c}))} details={result.details} currency={result.account.currency} scope="audit"/> : <p className="empty">No campaigns were returned for the selected scope and dates.</p>}
         <details><summary>Raw campaign evidence</summary><pre>{JSON.stringify(result.campaigns, null, 2)}</pre></details>
         <p className="muted footnote">{result.notice}</p>
       </section>}
