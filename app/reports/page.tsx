@@ -190,7 +190,7 @@ export default function Reports() {
       panel.append(heading,gallery);changed=true;
     }
     const theme=doc.createElement('style');
-    theme.setAttribute('data-tossdown-brand','rose-poppins-v1');
+    theme.setAttribute('data-tossdown-brand','agency-inter-v1');
     theme.textContent=dailyStyles+detailStyles;
     doc.head.append(theme);changed=true;
     return changed?'<!doctype html>\n'+doc.documentElement.outerHTML:html;
@@ -327,7 +327,7 @@ export default function Reports() {
     for (const sheet of Array.from(document.styleSheets)) {
       try { for (const rule of Array.from(sheet.cssRules)) if (/report-paper|rep-|cg-|window-week|window-month|^:root/.test(rule.cssText)) rules.push(rule.cssText); } catch { /* skip unrelated cross-origin styles */ }
     }
-    style.textContent = portableFontStyles+'body{margin:20px auto;max-width:1250px;padding:8px;font:14px/1.6 Poppins,system-ui,sans-serif;color:#242124}*{box-sizing:border-box}' + rules.join('\n');
+    style.textContent = portableFontStyles+'body{margin:20px auto;max-width:1250px;padding:8px;font:14px/1.6 Inter,system-ui,sans-serif;color:#131922}*{box-sizing:border-box}' + rules.join('\n');
     doc.head.append(style); doc.body.append(content);
     const file = new Blob(['<!doctype html>\n',doc.documentElement.outerHTML],{type:'text/html;charset=utf-8'});
     return URL.createObjectURL(file);

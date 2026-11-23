@@ -2,14 +2,14 @@ import { portableFontStyles } from '../ui/report-font';
 // Presentation of the supplied daily report, scoped to its standalone document.
 export const dailyStyles = portableFontStyles + `:root{
   color-scheme:light;
-  --bg:#fdfbfa;--surface:#fff;--surface2:#f6f2ef;--border:#e5dfe2;
-  --fg:#242124;--fg2:#574e55;--fg3:#786d75;
+  --bg:#fafbfc;--surface:#fff;--surface2:#f0f2f5;--border:#dce1e8;
+  --fg:#131922;--fg2:#626c7a;--fg3:#626c7a;
   --accent:#bd1241;--accent-bg:#fff0f4;
   --good:#3d5877;--good-bg:#edf2f8;
   --warn:#d97706;--warn-bg:#fffbeb;
   --crit:#dc2626;--crit-bg:#fef2f2;
-  --font-body:'Poppins',ui-sans-serif,system-ui,sans-serif;
-  --font-mono:'Poppins',ui-sans-serif,system-ui,sans-serif;
+  --font-body:'Inter',ui-sans-serif,system-ui,sans-serif;
+  --font-mono:'Inter',ui-sans-serif,system-ui,sans-serif;
 }
 *,*::before,*::after{box-sizing:border-box}
 body{font-family:var(--font-body);background:var(--bg);color:var(--fg);margin:0;font-size:14px;line-height:1.5}
@@ -43,7 +43,7 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--fg);margin:0;
 .section-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--fg3);margin:0 0 10px}
 
 .kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:24px}
-.kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px}
+.kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px}
 .kpi-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--fg3);margin-bottom:4px}
 .kpi-value{font-family:var(--font-mono);font-size:22px;font-weight:500;line-height:1.2;font-variant-numeric:tabular-nums}
 .kpi-sub{font-size:11px;color:var(--fg3);margin-top:2px}
@@ -52,7 +52,7 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--fg);margin:0;
 .kpi-card.crit{border-color:#fecaca;background:var(--crit-bg)}
 .kpi-card.crit .kpi-value{color:var(--crit)}
 
-.table-wrap{overflow-x:auto;border-radius:10px;border:1px solid var(--border);background:var(--surface);margin-bottom:24px}
+.table-wrap{overflow-x:auto;border-radius:14px;border:1px solid var(--border);background:var(--surface);margin-bottom:24px}
 table{width:100%;border-collapse:collapse;font-size:13px;min-width:760px}
 thead tr{border-bottom:1px solid var(--border)}
 th{text-align:left;padding:10px 14px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--fg3);white-space:nowrap;background:var(--surface2)}
@@ -112,7 +112,7 @@ td.mono{font-family:var(--font-mono)}
 .period-comparison tbody th{background:var(--surface);font-size:12px;text-transform:none;letter-spacing:0;font-weight:500;border-bottom:1px solid var(--border)}
 .period-comparison tbody tr:last-child th{border-bottom:0}
 
-.rec-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:10px}
+.rec-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:10px}
 .rec-number{font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px}
 .rec-title{font-weight:600;font-size:13px;margin-bottom:4px}
 .rec-body{font-size:12px;color:var(--fg2);line-height:1.6}

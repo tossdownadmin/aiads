@@ -1,7 +1,7 @@
 "use client";
 
 import ForeplayLibrary from "./foreplay-library";
-import BrandIcon from "../brand-icon";
+import WorkspaceShell from "../workspace-shell";
 import type {
   ResearchAd as Ad,
   ResearchResult as SearchResult,
@@ -80,7 +80,6 @@ export default function CompetitorResearch() {
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisSkill, setAnalysisSkill] = useState("");
   const [brandQuery, setBrandQuery] = useState("");
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const headers = useMemo(() => ({ "Content-Type": "application/json" }), []);
 
   useEffect(() => {
@@ -218,64 +217,34 @@ export default function CompetitorResearch() {
   ].includes(country);
 
   return (
-    <main className="competitor-shell craft-shell">
-      <aside
-        className={`craft-sidebar ${sidebarOpen ? "open" : ""}`}
-        aria-label="Main navigation"
-      >
-        <a className="craft-brand" href="/">
-          <BrandIcon className="craft-brand-mark" />
-          <strong>Tossdown</strong>
-        </a>
-        <div className="craft-side-group">
-          <p>WORKSPACE</p>
-          <a href="/">
-            <span aria-hidden="true">⌂</span> Home
-          </a>
-          <a href="/workbench">
-            <span aria-hidden="true">▤</span> Account audits
-          </a>
-          <a href="/reports">
-            <span aria-hidden="true">▥</span> Client reports
-          </a>
-          <a className="active" href="/competitors" aria-current="page">
-            <span aria-hidden="true">↻</span>
-            <span>
-              Competitor research<small>Find and study public ads</small>
-            </span>
-          </a>
-          <a href="/registry">
-            <span aria-hidden="true">▦</span> Skills registry
-          </a>
-        </div>
-        <div className="craft-side-foot">
-          <BrandIcon className="craft-side-avatar" size={34} />
-          <span>
-            <strong>Tossdown Ads</strong>
-            <small>Research workspace</small>
-          </span>
-        </div>
-      </aside>
-      {sidebarOpen && (
-        <button
-          className="craft-sidebar-scrim"
-          type="button"
-          aria-label="Close navigation"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
-      <div className="craft-page">
-        <nav className="craft-topbar" aria-label="Workspace toolbar">
-          <button
-            className="craft-menu"
-            type="button"
-            aria-label="Toggle navigation"
-            aria-expanded={sidebarOpen}
-            onClick={() => setSidebarOpen((open) => !open)}
-          >
-            ☰
-          </button>
-          <div className="craft-brand-search">
+    <WorkspaceShell active="competitors" className="competitor-shell" status={sources.foreplay?.signedIn ? "Research connected" : "Research access pending"}>
+          <header className="craft-hero">
+            <p className="craft-crumb">CREATE / COMPETITOR RESEARCH</p>
+            <div className="craft-hero-main">
+              <span className="craft-hero-icon" aria-hidden="true">
+                ϟ
+              </span>
+              <div>
+                <h1>Research competitor ads</h1>
+                <p>
+                  Choose where to look, select the right advertisers, then study
+                  their ads.
+                </p>
+              </div>
+            </div>
+            <ol className="craft-steps" aria-label="Research steps">
+              <li className="active">
+                <span>1</span> Competitors &amp; source
+              </li>
+              <li className={result ? "active" : ""}>
+                <span>2</span> Competitor ads
+              </li>
+              <li className={analysis ? "active" : ""}>
+                <span>3</span> Analysis
+              </li>
+            </ol>
+          </header>
+          <div className="craft-brand-search craft-client-search">
             <span aria-hidden="true">⌕</span>
             <input
               aria-label="Jump to client brand"
@@ -312,54 +281,7 @@ export default function CompetitorResearch() {
               </div>
             )}
           </div>
-          <div className="craft-top-status">
-            <span
-              className={`status-light ${sources.foreplay?.signedIn ? "" : "pending"}`}
-            />
-            <span>
-              {sources.foreplay?.signedIn
-                ? "Research connected"
-                : "Research access pending"}
-            </span>
-          </div>
-        </nav>
-        <div className="craft-content">
-          <div className="craft-page-actions">
-            <a href="/">← &nbsp; Workspace home</a>
-            <div className="craft-page-tabs">
-              <a className="active" href="/competitors">
-                ✦ &nbsp; Research
-              </a>
-              <a href="/workbench">◎ &nbsp; Audits</a>
-              <a href="/registry">▤ &nbsp; Skills</a>
-            </div>
-          </div>
-          <header className="craft-hero">
-            <p className="craft-crumb">CREATE / COMPETITOR RESEARCH</p>
-            <div className="craft-hero-main">
-              <span className="craft-hero-icon" aria-hidden="true">
-                ϟ
-              </span>
-              <div>
-                <h1>Research competitor ads</h1>
-                <p>
-                  Choose where to look, select the right advertisers, then study
-                  their ads.
-                </p>
-              </div>
-            </div>
-            <ol className="craft-steps" aria-label="Research steps">
-              <li className="active">
-                <span>1</span> Competitors &amp; source
-              </li>
-              <li className={result ? "active" : ""}>
-                <span>2</span> Competitor ads
-              </li>
-              <li className={analysis ? "active" : ""}>
-                <span>3</span> Analysis
-              </li>
-            </ol>
-          </header>
+
 
           <div
             className={`craft-body-grid ${source === "foreplay" ? "foreplay-mode" : ""}`}
@@ -908,8 +830,6 @@ export default function CompetitorResearch() {
             </div>
             <a href="/">Back to workspace ↗</a>
           </section>
-        </div>
-      </div>
-    </main>
+    </WorkspaceShell>
   );
 }
