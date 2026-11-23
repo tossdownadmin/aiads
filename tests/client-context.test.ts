@@ -107,6 +107,11 @@ describe('authenticated context API',()=>{
     for (const field of ['targetCpa','targetCpl','targetRoas','monthlyBudget','budgetMonth']) expect(stored).not.toHaveProperty(field);
   });
 
+  it('rejects approval validity that ends before approval',async()=>{
+    expect((await save({...context,approvedOn:'2026-11-20',validUntil:'2026-11-01'})).status).toBe(400);
+    expect(api.put).not.toHaveBeenCalled();
+  });
+
   it('accepts the text limits, fractional positive targets and month-only context',async()=>{
     expect((await save({businessGoal:'a'.repeat(1200),qualificationNotes:'b'.repeat(1200),targetCpa:0.001,targetCpl:0.5,targetRoas:1.5,budgetMonth:'2026-02'})).status).toBe(200);
   });

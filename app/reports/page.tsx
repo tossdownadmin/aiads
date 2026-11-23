@@ -19,18 +19,20 @@ import {BRAND_ICON_DATA_URI} from '../../lib/ui/brand-icon';
 import type { DailyClientContext, DailyClientContextInput } from '../../lib/reports/client-context';
 
 const emptyInputs: PlanInputs = { brief: '', competitors: '', event: '' };
-type ContextDraft = { businessGoal: string; qualificationNotes: string; targetCpa: string; targetCpl: string; targetRoas: string; monthlyBudget: string; budgetMonth: string };
+type ContextDraft = Record<ProfileField,string> & { businessGoal: string; qualificationNotes: string; targetCpa: string; targetCpl: string; targetRoas: string; monthlyBudget: string; budgetMonth: string };
+type ProfileField='primaryOutcome'|'conversionDefinition'|'markets'|'approvedOffers'|'creativeRestrictions'|'targetOwner'|'approvedOn'|'validUntil'|'targetCostPerResult';
 const contextDraft = (context: DailyClientContext | null): ContextDraft => ({
   businessGoal: context?.businessGoal ?? '',
+  ...Object.fromEntries(['primaryOutcome','conversionDefinition','markets','approvedOffers','creativeRestrictions','targetOwner','approvedOn','validUntil','targetCostPerResult'].map(key=>[key,String(context?.[key as keyof DailyClientContext]??'')])),
   qualificationNotes: context?.qualificationNotes ?? '',
   targetCpa: context?.targetCpa?.toString() ?? '',
   targetCpl: context?.targetCpl?.toString() ?? '',
   targetRoas: context?.targetRoas?.toString() ?? '',
   monthlyBudget: context?.monthlyBudget?.toString() ?? '',
   budgetMonth: context?.budgetMonth ?? '',
-});
+} as ContextDraft);
 
-function DailyContextEditor({ account }: { account: MetaAccount }) {
+function DailyContextEditor({ account,onSaved }: { account: MetaAccount;onSaved?:()=>void }) {
   const [draft,setDraft] = useState<ContextDraft>(()=>contextDraft(null));
   const [record,setRecord] = useState<{ context: DailyClientContext | null; version: string | null; currency: string } | null>(null);
   const [loading,setLoading] = useState(true), [saving,setSaving] = useState(false);
@@ -63,12 +65,14 @@ function DailyContextEditor({ account }: { account: MetaAccount }) {
   async function save() {
     if (!record || loading || conflict || savingLock.current) return;
     const context: DailyClientContextInput = {businessGoal:draft.businessGoal,qualificationNotes:draft.qualificationNotes};
-    for (const field of ['targetCpa','targetCpl','targetRoas','monthlyBudget'] as const) {
+    for (const field of ['targetCpa','targetCpl','targetRoas','monthlyBudget','targetCostPerResult'] as const) {
       if (!draft[field].trim()) continue;
       const value = Number(draft[field]);
       if (!Number.isFinite(value) || value <= 0) {setError('Targets and monthly budget must be greater than zero, or left blank.');return;}
       context[field]=value;
     }
+    for(const key of ['conversionDefinition','markets','approvedOffers','creativeRestrictions','targetOwner','approvedOn','validUntil'] as const)if(draft[key].trim())context[key]=draft[key].trim();
+    if(draft.primaryOutcome)context.primaryOutcome=draft.primaryOutcome as DailyClientContext['primaryOutcome'];
     if (draft.budgetMonth) context.budgetMonth=draft.budgetMonth;
     if (context.monthlyBudget !== undefined && !context.budgetMonth) {setError('Choose a budget month when setting a monthly budget.');return;}
     savingLock.current=true;setSaving(true);setError('');setStatus('');
@@ -80,7 +84,7 @@ function DailyContextEditor({ account }: { account: MetaAccount }) {
       if (result.account?.id !== account.id || result.context?.accountId !== account.id) throw Error('The saved context does not match this account. Reload it.');
       setRecord({context:result.context,version:result.version,currency:result.account.currency});
       setDraft(contextDraft(result.context));
-      setStatus('Context saved. It applies when a new daily report or update is started.');
+      setStatus('Business profile saved. It applies to new audits, reports and plans.');onSaved?.();
     } catch (e) {
       if (mounted.current) setError(e instanceof Error ? e.message : 'The context could not be saved.');
     } finally {savingLock.current=false;if(mounted.current)setSaving(false);}
@@ -106,6 +110,9 @@ function DailyContextEditor({ account }: { account: MetaAccount }) {
         <label>Approved monthly budget ({record.currency})<input type="number" min="0" step="any" value={draft.monthlyBudget} placeholder="Optional" onChange={e=>setDraft({...draft,monthlyBudget:e.target.value})}/></label>
         <label>Budget month<input type="month" value={draft.budgetMonth} required={!!draft.monthlyBudget.trim()} onChange={e=>setDraft({...draft,budgetMonth:e.target.value})}/><small>Required with a monthly budget; applies to this month only.</small></label>
       </div>
+      <label>Primary measured outcome<select value={draft.primaryOutcome} onChange={e=>setDraft({...draft,primaryOutcome:e.target.value})}><option value="">Choose the business outcome</option>{[['purchases','Purchases'],['leads','Leads'],['instagramVisits','Instagram profile visits'],['facebookVisits','Facebook Page visits'],['conversations','Conversations'],['thruplays','ThruPlays'],['reach','Reach'],['landingViews','Landing page views'],['linkClicks','Link clicks']].map(([key,label])=><option key={key} value={key}>{label}</option>)}</select></label>
+      {(['conversionDefinition','markets','approvedOffers','creativeRestrictions'] as const).map(key=><label key={key}>{{conversionDefinition:'Outcome definition',markets:'Service markets',approvedOffers:'Approved offers',creativeRestrictions:'Creative restrictions'}[key]}<textarea maxLength={1200} rows={2} value={draft[key]} onChange={e=>setDraft({...draft,[key]:e.target.value})}/></label>)}
+      <div className="rep-inputs"><label>Target cost per primary result ({record.currency})<input type="number" min="0" step="any" value={draft.targetCostPerResult} onChange={e=>setDraft({...draft,targetCostPerResult:e.target.value})}/></label><label>Target owner<input maxLength={200} value={draft.targetOwner} onChange={e=>setDraft({...draft,targetOwner:e.target.value})}/></label><label>Approved on<input type="date" value={draft.approvedOn} onChange={e=>setDraft({...draft,approvedOn:e.target.value})}/></label><label>Valid until<input type="date" value={draft.validUntil} onChange={e=>setDraft({...draft,validUntil:e.target.value})}/></label></div>
       <label>Qualification notes<textarea maxLength={1200} rows={3} value={draft.qualificationNotes} placeholder="Optional: what the team considers a qualified lead or sale" onChange={e=>setDraft({...draft,qualificationNotes:e.target.value})}/><small>Team-reported context, not CRM verification. {draft.qualificationNotes.length}/1,200 characters</small></label>
       <button className="rep-primary" type="submit" disabled={saving || conflict}>{saving ? 'Saving context…' : 'Save context'}</button>
       {status && <p role="status">{status}</p>}
@@ -113,24 +120,29 @@ function DailyContextEditor({ account }: { account: MetaAccount }) {
   </div>;
 }
 
-function DailyContextSettings({ accounts }: { accounts: MetaAccount[] }) {
-  const [accountId,setAccountId] = useState('');
+function DailyContextSettings({ accounts,initialAccountId='',onSaved }: { accounts: MetaAccount[];initialAccountId?:string;onSaved?:()=>void }) {
+  const [accountId,setAccountId] = useState(initialAccountId);
+  useEffect(()=>{if(initialAccountId)setAccountId(initialAccountId);},[initialAccountId]);
   const account = accounts.find(a=>a.id===accountId);
-  return <section className="workspace-card rep-form rep-context" aria-label="Daily report business context">
-    <h2>Daily report business context</h2>
-    <p>Optional inputs shared with your team for each account. Leave unknown goals and targets blank.</p>
+  return <section className="workspace-card rep-form rep-context" aria-label="Client business profile">
+    <h2>Client business profile</h2>
+    <p>Shared goals and approved targets for audits, reporting and planning. Leave unknown values blank; the readiness checklist identifies missing inputs.</p>
     <p>Save context before starting a new daily report or update. Saving does not change the saved report or accounts already processed in a pending update.</p>
     <label>Context account<select value={accountId} onChange={e=>setAccountId(e.target.value)}><option value="">Choose a connected account</option>{accounts.map(a=><option key={a.id} value={a.id}>{a.name} · {a.currency} · {a.id}</option>)}</select><small>All connected accounts are available, including accounts outside the report selection.</small></label>
     {/* A new editor per account isolates drafts and in-flight reads and saves. */}
-    {account && <DailyContextEditor key={account.id} account={account}/>}
+    {account && <DailyContextEditor key={account.id} account={account} onSaved={onSaved}/>}
   </section>;
 }
 
 export default function Reports() {
+  const [profileRevision,setProfileRevision]=useState(0);
+  const [readiness,setReadiness]=useState<{total:number;ready:number;accounts:{id:string;name:string;gaps:string[]}[]}|null>(null);
+  const [readinessError,setReadinessError]=useState('');
   const [mode,setMode] = useState<'daily'|'plan'>('daily');
   const [accounts,setAccounts] = useState<MetaAccount[]>([]);
   const [denied,setDenied] = useState(false);
   const [loaded,setLoaded] = useState(false);
+  useEffect(()=>{if(!loaded)return;let current=true;setReadinessError('');void fetch('/api/meta/reports/context?portfolio=assigned',{cache:'no-store'}).then(async r=>{if(!r.ok)throw Error('Client readiness could not be loaded.');const result=await r.json();if(current)setReadiness(result);}).catch(()=>{if(current){setReadiness(null);setReadinessError('Client readiness could not be loaded.');}});return()=>{current=false;};},[profileRevision,loaded]);
   const [error,setError] = useState('');
   const [query,setQuery] = useState('');
   const [selected,setSelected] = useState<string[]>([]);
@@ -280,6 +292,7 @@ export default function Reports() {
     catch(e){setSkillError(e instanceof Error?e.message:'Reporting skills could not be loaded.');}
   }
   useEffect(() => {
+    if(new URLSearchParams(window.location.search).has('context'))setEditing(true);
     if(new URLSearchParams(window.location.search).get('view')==='monthly') setMode('plan');
     void connect();void openDaily();
     void loadReportingSkills();
@@ -332,10 +345,13 @@ export default function Reports() {
     {skillError&&<p role="alert">{skillError} <button type="button" onClick={()=>void loadReportingSkills()}>Retry skill loading</button></p>}
     {mode==='daily'&&loaded&&<section className="rep-portfolio" aria-label="Active reporting portfolio"><div><strong>{activeClients.length} assigned brands · {assigned.accountIds.length} connected accounts</strong><small>{saved?.portfolioId===activePortfolioId?'The saved report covers the assigned reporting portfolio.':'Update the report to include the assigned reporting portfolio.'} All connected accounts remain available in selectors.</small>{assigned.missing.length>0&&<small>{assigned.missing.map(client=>client.name).join(', ')}: Meta account access is unavailable.</small>}</div><button type="button" disabled={busy} onClick={()=>{setSelected(assigned.accountIds);setTemplate(activeReportTemplate(saved?.template));setEditing(true);}}>Use assigned accounts</button></section>}
     {mode==='daily' && dailyError && <p role="alert">{dailyError} <button type="button" onClick={()=>void openDaily()}>Reload saved report</button></p>}
+    {loaded&&readinessError&&<p role="alert">{readinessError} <button type="button" onClick={()=>setProfileRevision(v=>v+1)}>Retry readiness</button></p>}
+    {readiness&&<section className="workspace-card rep-form" aria-label="Client readiness"><h2>Client readiness</h2><p>{readiness.ready} of {readiness.total} assigned accounts have the inputs needed for strategy. Measurement reports remain available.</p><details><summary>Review missing inputs</summary><ul>{readiness.accounts.filter(a=>a.gaps.length).map(a=><li key={a.id}><a href={'/reports?context='+a.id}>{a.name}</a>: {a.gaps.join(' · ')}</li>)}</ul></details></section>}
     {mode==='daily' && saved && <section className="workspace-card rep-saved"><div><strong>Daily report through {saved.date}</strong><small>{saved.accountIds.length} accounts · Saved {new Date(saved.savedAt).toLocaleString()} · {saved.skill?'Skill '+saved.skill.name+' · v'+saved.skill.sha.slice(0,8):'Earlier report — update to run the reporting skill'}</small></div><button type="button" disabled={busy || !dailyReady || job?.status==='running' || job?.status==='failed' || !reportSkills.some(s=>s.name===dailySkill)} onClick={()=>void saveDaily(true)}>{busy?'Updating…':'Update report'}</button><button type="button" disabled={busy} aria-expanded={editing} onClick={()=>setEditing(!editing)}>{editing?'Close settings':'Report settings'}</button></section>}
+    {mode==='daily'&&saved&&(!saved.runs?.length||saved.runs.some(r=>r.validationVersion!=='measurement-v2'))&&<p role="status">This saved report was produced with earlier measurement checks. Update it to apply the current checks and review-coverage indicators.</p>}
     {mode==='daily' && job && (job.status==='running'||job.status==='failed') && <section className="workspace-card" aria-label="Daily update progress"><p role="status"><strong>{job.done} of {job.total} accounts reviewed</strong> · Skill {job.skill.name} · Through {job.date}</p><p>{busy?'Reviewing evidence and running the skill. Keep this page open to continue the queued accounts.':'The pending update is saved. Resume it to continue.'} Your last saved report remains available.</p>{pendingSkillChanged && <p className="rep-pending-skill" role="status">This pending update uses a different skill version ({job.skill.sha.slice(0,8)}) from the selected approved daily skill ({approvedDailySkill!.sha.slice(0,8)}). Finish it with Resume update, or discard it and start a new update to apply the full upgrade and saved context. Accounts already processed in this pending update stay unchanged.</p>}{job.error&&!busy&&<p role="alert">{job.error}</p>}{job.failure&&!busy&&<div className="rep-job-failure"><p>Stopped during {({accounts:'account access checks',context:'loading saved client targets',evidence:'reading Meta evidence',analysis:'the AI review',saving:'saving the report'} as const)[job.failure.stage]} · Reference {job.failure.reference.slice(0,8)}</p>{job.failure.runId&&<a href={'/api/meta/reports/runs?runId='+job.failure.runId} target="_blank" rel="noreferrer">Open private error details ↗</a>}</div>}{job.currentReview && <p role="status">Current account: {job.currentReview.done} of {job.currentReview.total} evidence review steps saved. The final step combines the findings.</p>}<progress value={job.done} max={job.total} aria-label="Accounts reviewed"/><div className="workspace-actions"><button type="button" disabled={busy} onClick={()=>void resumeDaily()}>Resume update</button><button type="button" disabled={busy} onClick={()=>void discardPending()}>Discard pending update</button></div></section>}
     {mode==='daily'&&saved?.runs?.length ? <details className="rep-paste-template"><summary>Skill execution records</summary><p>Each record identifies the actual skill version, model, evidence hash and validated output.</p><ul>{saved.runs.map((r,i)=><li key={r.id}>{accounts.find(a=>a.id===saved.accountIds[i])?.name||saved.accountIds[i]} · <a href={'/api/meta/reports/runs?runId='+r.id} target="_blank" rel="noreferrer">Analysis record ↗</a> · <a href={'/api/meta/reports/runs?runId='+r.id+'&file=evidence'} target="_blank" rel="noreferrer">Evidence ↗</a></li>)}</ul></details>:null}
-    {mode==='daily' && loaded && (editing || !saved) && <DailyContextSettings accounts={accounts}/>}
+    {loaded && (mode==='plan'||editing||!saved) && <DailyContextSettings accounts={accounts} initialAccountId={mode==='plan'?monthlyId:typeof window!=='undefined'?new URLSearchParams(window.location.search).get('context')??'':''} onSaved={()=>setProfileRevision(v=>v+1)}/>}
     {(mode==='plan' || editing || !saved) && (!loaded ? <section className="workspace-card"><p>{denied ? 'Use your approved Google account to open reports.' : error || 'Loading Meta accounts…'}</p>{denied ? <button onClick={() => void signIn('google',{callbackUrl:'/reports'})}>Sign in with Google</button> : error && <button onClick={() => void connect()}>Retry</button>}</section> :
     <form className="workspace-card rep-form" onSubmit={e => { e.preventDefault(); void generate(e.currentTarget); }}><fieldset disabled={busy}><legend>Report setup</legend>
       <label>Reporting skill<select disabled={!reportSkills.length} value={mode==='daily'?dailySkill:monthlySkill} onChange={e=>mode==='daily'?setDailySkill(e.target.value):setMonthlySkill(e.target.value)}><option value="">Choose a reporting skill</option>{reportSkills.filter(s=>s.reportType===(mode==='daily'?'daily':'monthly')).map(s=><option key={s.name} value={s.name}>{s.name.split('-').map(w=>w[0].toUpperCase()+w.slice(1)).join(' ')} · version {s.sha.slice(0,8)}</option>)}</select><small>The selected skill and its reference files drive the written review. Metrics and layout use the report template.</small></label>

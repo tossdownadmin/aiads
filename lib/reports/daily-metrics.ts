@@ -4,7 +4,7 @@ import type { ClientLayout, ColumnSet, PeriodLayout } from './daily-template';
 
 export type Tone = 'ok' | 'warn' | 'crit';
 export type Finding = import('../skills/report-types').ReportFinding;
-export type Fact = { label: string; value: string; detail: string };
+export type Fact = { label: string; value: string; detail: string; source?:{metric:string;scope:string;entityIds:string[];window:Snapshot['window'];currency:string;calculation?:'cost_per_result'} };
 export const dash = '—';
 const num = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
 export const count = (n: number | null | undefined) => n == null ? dash : num.format(n);
@@ -28,7 +28,11 @@ export type ResultKey = 'purchases'|'leads'|'conversations'|'instagramVisits'|'f
 const resultNames: Record<ResultKey,string> = { purchases:'purchases', leads:'leads', conversations:'chats', instagramVisits:'IG profile visits', facebookVisits:'FB profile visits', thruplays:'ThruPlays', landingViews:'landing page views', linkClicks:'link clicks' };
 export function resultKind(c: Pick<CampaignRow,'name'|'objective'|'settings'|'conversations'|'thruplays'>): ResultKey | undefined {
   const name = c.name.toLowerCase(), goals=goalText(c), objective=c.objective.toUpperCase();
-  if (/messag|conversation|whatsapp/.test(name) || /CONVERSATIONS|MESSAGING/.test(goals)) return 'conversations';
+  if (/CONVERSATIONS|MESSAGING/.test(goals)) return 'conversations';
+  if (/THRUPLAY|VIDEO_VIEW/.test(goals)) return 'thruplays';
+  if (/LANDING_PAGE_VIEWS/.test(goals)) return 'landingViews';
+  if (/PROFILE_VISIT/.test(goals))return /facebook|\bfb\b/.test(name)?'facebookVisits':'instagramVisits';
+  if (/messag|conversation|whatsapp/.test(name)) return 'conversations';
   if (/LEAD/.test(objective) || /LEAD_GENERATION|QUALITY_LEAD/.test(goals)) return 'leads';
   if (/SALES|CONVERSIONS/.test(objective) || /purchase|sales campaign/.test(name)) return 'purchases';
   if (/(facebook|\bfb\b).*profile|profile.*(facebook|\bfb\b)/.test(name)) return 'facebookVisits';
@@ -62,7 +66,9 @@ const selectors: [RegExp,RegExp][] = [
 function scopedCampaign(label: string, delivered: CampaignRow[]) {
   const selector=selectors.find(([target])=>target.test(label))?.[1];
   if (!selector) return undefined;
-  return delivered.find(c=>selector.test(c.name)) ?? delivered.find(c=>selector.test(combined(c)));
+  const exact=delivered.filter(c=>selector.test(c.name));
+  const matches=exact.length?exact:delivered.filter(c=>selector.test(combined(c)));
+  return matches.length===1?matches[0]:undefined;
 }
 function highest(rows: CampaignRow[], key: 'ctr'|'roas'|'frequency') {
   return rows.filter(c=>c[key]!=null).sort((a,b)=>b[key]!-a[key]!)[0];
@@ -116,13 +122,16 @@ export function dailyFindings(account: MetaAccount, p: Snapshot): Finding[] {
 
 export function accountResult(p: Snapshot, columns: ColumnSet, type='') {
   const rows=p.campaigns.filter(c=>(c.spend??0)>0);
-  const first=rows[0]; const kind: ResultKey | undefined=columns==='LEADS'?'leads':columns==='SALES'||columns==='MIXROAS'?'purchases':/growth|profile|visits/i.test(type)?(first && resultKind(first)==='facebookVisits'?'facebookVisits':'instagramVisits'):first && resultKind(first);
+  const first=rows[0];
+  const visits=[...new Set(rows.map(resultKind).filter(k=>k==='facebookVisits'||k==='instagramVisits'))];
+  const visitKind:ResultKey|undefined=/facebook|\bfb\b/i.test(type)?'facebookVisits':/instagram|\big\b/i.test(type)?'instagramVisits':visits.length===1?visits[0]:undefined;
+  const kind: ResultKey | undefined=columns==='LEADS'?'leads':columns==='SALES'||columns==='MIXROAS'?'purchases':columns==='VISITS'||/growth|profile|visits/i.test(type)?visitKind:first && resultKind(first);
   if (!kind) return {kind, value:null, cost:null, scope:'No primary outcome reported'};
   const data=p.totals;
   return { kind, value:data?.[kind]??null, cost:per(data?.spend,data?.[kind]), scope:'Account spend / account '+resultNames[kind] };
 }
 
-export function dailyFact(label: string, account: MetaAccount, p: Snapshot, layout: ClientLayout | undefined, columns: ColumnSet, findings: Finding[], scopeHint=''): Fact {
+export function dailyFact(label: string, account: MetaAccount, p: Snapshot, layout: ClientLayout | undefined, columns: ColumnSet, findings: Finding[], scopeHint='', periodIndex?:number): Fact {
   const rows=p.campaigns.filter(c=>(c.spend??0)>0 || (c.impressions??0)>0);
   const scopeName=scopeHint || label;
   const focus=scopedCampaign(scopeName,rows);
@@ -134,7 +143,23 @@ export function dailyFact(label: string, account: MetaAccount, p: Snapshot, layo
   const data: Metrics|null|undefined=hasSelector?focus:aggregate;
   const scope=hasSelector?(focus?.name??'No matching campaign with delivery'):'Account total';
   const l=label.toLowerCase();
-  if (l==='status') return out(status,findings[0]?.title??'Delivery review');
+  const metricOut=(metric:keyof Metrics,value:string,description=scope,ids=hasSelector?(focus?[focus.id]:[]):[account.id],calculation?:'cost_per_result'):Fact=>({...out(value,description),source:{metric,scope:ids.length===1&&ids[0]===account.id?'account':'campaign',entityIds:ids,window:p.window,currency:account.currency,...(calculation?{calculation}:{})}});
+  const days=Math.round((Date.parse(p.window.until)-Date.parse(p.window.since))/86400000)+1;
+  const explicit=layout?.periods?.[periodIndex??(days===30?1:0)]?.bindings?.[label];
+  if(explicit){
+    const selected=explicit.campaignIds?.map(id=>p.campaigns.find(c=>c.id===id));
+    const key=explicit.metric;
+    const additive=!['reach','frequency','ctr','cpc','roas'].includes(key);
+    let value:number|null=null,spend:number|null=null;
+    if(!selected){value=aggregate?.[key]??null;spend=aggregate?.spend??null;}
+    else if(selected.length&&selected.every(Boolean)){
+      if(selected.length===1){value=selected[0]![key];spend=selected[0]!.spend;}
+      else if(additive&&selected.every(c=>c![key]!==null&&c!.spend!==null)){value=selected.reduce((n,c)=>n+c![key]!,0);spend=selected.reduce((n,c)=>n+c!.spend!,0);}
+    }
+    const rendered=explicit.calculation==='cost_per_result'?cash(per(spend,value),account.currency):['spend','cpc','purchaseValue'].includes(key)?cash(value,account.currency):key==='ctr'?percent(value):key==='roas'?ratio(value):count(value);
+    return metricOut(key,rendered,explicit.campaignIds?'Explicit campaign selection':'Account total',explicit.campaignIds??[account.id],explicit.calculation);
+  }
+  if (l==='status') return out(!p.totals?'Unknown':p.analysis&&!findings.some(f=>f.category==='win'||f.category==='concern')?'Limited review':status,findings[0]?.title??'Delivery review');
   if (l==='action') return out(status==='Healthy'?'Monitor':'Review',findings[0]?.action??'Review delivery');
   if (l==='data' && rows.length===1 && rows[0].start && rows[0].start>=p.window.since && rows[0].start<=p.window.until) {
     const days=Math.floor((Date.parse(p.window.until)-Date.parse(rows[0].start))/86400000)+1;
@@ -160,18 +185,18 @@ export function dailyFact(label: string, account: MetaAccount, p: Snapshot, layo
   if (l==='form leads') return out(count(aggregate?.formLeads),aggregate?.formLeads==null && aggregate?.onMetaLeads!=null ? count(aggregate.onMetaLeads)+' on-Meta leads. Instant-form split unavailable.' : 'Explicit instant-form action');
   if (l==='conv. leads') return out(count(aggregate?.conversionLeads),aggregate?.conversionLeads==null && aggregate?.websiteLeads!=null ? count(aggregate.websiteLeads)+' website leads. Converted-lead split unavailable.' : 'Reported converted lead action');
   if (l==='best ctr'||l==='best roas') {const isCtr=l==='best ctr',c=highest(rows,isCtr?'ctr':'roas'); return out(isCtr?percent(c?.ctr):ratio(c?.roas),c?.name??'No reported value');}
-  if (/spend/.test(l)) return out(cash(data?.spend,account.currency),scope);
-  if (/ctr/.test(l)) return out(percent(data?.ctr),scope);
-  if (/freq/.test(l)) return out(count(data?.frequency),scope);
-  if (/roas/.test(l)) return out(ratio(data?.roas),scope);
-  if (/cpp/.test(l)) return out(cash(per(data?.spend,data?.purchases),account.currency),scope);
-  if (/cpl/.test(l)) return out(cash(per(data?.spend,data?.leads),account.currency),scope);
-  if (/leads/.test(l)) return out(count(data?.leads),scope);
-  if (/purchases/.test(l)) return out(count(data?.purchases),scope);
-  if (/thruplays/.test(l)) return out(count(data?.thruplays),scope);
-  if (/ig growth cpr|cost\/visit/.test(l)) return out(cash(per(data?.spend,data?.instagramVisits),account.currency),scope);
-  if (/ig growth results|ig profile visits|^profile visits$/.test(l)) return out(count(data?.instagramVisits),scope);
-  if (l==='fb profile visits') return out(count(focus?.facebookVisits),scope);
+  if (/spend/.test(l)) return metricOut('spend',cash(data?.spend,account.currency),scope);
+  if (/ctr/.test(l)) return metricOut('ctr',percent(data?.ctr),scope);
+  if (/freq/.test(l)) return metricOut('frequency',count(data?.frequency),scope);
+  if (/roas/.test(l)) return metricOut('roas',ratio(data?.roas),scope);
+  if (/cpp/.test(l)) return metricOut('purchases',cash(per(data?.spend,data?.purchases),account.currency),scope,undefined,'cost_per_result');
+  if (/cpl/.test(l)) return metricOut('leads',cash(per(data?.spend,data?.leads),account.currency),scope,undefined,'cost_per_result');
+  if (/leads/.test(l)) return metricOut('leads',count(data?.leads),scope);
+  if (/purchases/.test(l)) return metricOut('purchases',count(data?.purchases),scope);
+  if (/thruplays/.test(l)) return metricOut('thruplays',count(data?.thruplays),scope);
+  const visitMetric=l.includes('fb profile')?'facebookVisits':/ig growth|ig profile/.test(l)?'instagramVisits':focus?resultKind(focus):primary.kind;
+  if (/ig growth cpr|cost\/visit/.test(l))return visitMetric==='facebookVisits'||visitMetric==='instagramVisits'?metricOut(visitMetric,cash(per(data?.spend,data?.[visitMetric]),account.currency),scope,undefined,'cost_per_result'):out(dash,'Choose Facebook or Instagram visits explicitly.');
+  if (/ig growth results|ig profile visits|^profile visits$/.test(l)||l==='fb profile visits')return visitMetric==='facebookVisits'||visitMetric==='instagramVisits'?metricOut(visitMetric,count(data?.[visitMetric])):out(dash,'Choose Facebook or Instagram visits explicitly.');
   if (l==='results') return out(count(primary.value),primary.kind?resultNames[primary.kind]:primary.scope);
   if (l==='cost/result') return out(cash(primary.cost,account.currency),primary.scope);
   return out(dash,'No reported metric for this label');

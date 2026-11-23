@@ -1,3 +1,4 @@
+import {hasCurrentApproval} from './client-context';
 import { readDetails, limitation } from '../meta/campaign-detail';
 import { fetchAllPages, getCampaigns, type MetaAccount } from '../meta/read';
 import { joinCampaigns, metrics, previousWindow, type Row, type DeliverySettings, type Snapshot, type Tracking, type Window } from './model';
@@ -106,7 +107,7 @@ export async function readDailyReview(account:MetaAccount,windows:Window[],conte
   let pacing:Snapshot['pacing'];
   const budgetNotes:string[]=[];
   const end=windows[0]?.until, month=end?.slice(0,7);
-  if(context?.monthlyBudget&&context.budgetMonth===month&&context.currency===account.currency){
+  if(context?.monthlyBudget&&context.budgetMonth===month&&context.currency===account.currency&&hasCurrentApproval(context,end)){
     try {
       const result=await readComparison(account.id,{since:month+'-01',until:end});
       if(result.totals?.spend!=null){
@@ -114,7 +115,7 @@ export async function readDailyReview(account:MetaAccount,windows:Window[],conte
         pacing={month,budget:context.monthlyBudget,spent:result.totals.spend,elapsedDays,monthDays,expectedSpend:context.monthlyBudget*elapsedDays/monthDays,projectedSpend:result.totals.spend/elapsedDays*monthDays};
       }else budgetNotes.push('Month-to-date spend was not returned; budget pacing is unavailable.');
     }catch(e){budgetNotes.push(limitation('Approved budget pacing',e));}
-  }else budgetNotes.push(context?.monthlyBudget?'The saved budget does not match this reporting month or currency.':'No approved monthly budget supplied; pacing is unavailable.');
+  }else budgetNotes.push(context?.monthlyBudget?'The saved budget needs matching month/currency and a current owner approval before pacing can be assessed.':'No approved monthly budget supplied; pacing is unavailable.');
   return periods.map((p,i)=>({
     ...p,previous:previous[i].value,pacing,
     reviewNotes:[...new Set([

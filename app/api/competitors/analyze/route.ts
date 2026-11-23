@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { analyzeCompetitorAds } from '../../../../lib/ai/bedrock';
+import {analyzeResearch} from '../../../../lib/reports/research-analysis';
+import {readClientCatalog} from '../../../../lib/competitors/store';
+import {readClientContext} from '../../../../lib/reports/client-context';
+import {getAdAccounts} from '../../../../lib/meta/read';
 import { listApprovedSkills } from '../../../../lib/skills/store';
 import { verifyAdminSession } from '../../../../lib/auth';
 import { verifyPaidSourceSession } from '../../../../lib/competitors/access';
@@ -9,6 +12,9 @@ export const runtime = 'nodejs';
 
 const adSchema = z.object({
   id: z.string().max(80),
+  display_format:z.string().max(80).optional(),
+  transcript_excerpt:z.string().max(450).optional(),
+  ad_snapshot_url:z.string().url().max(2000).optional(),
   page_name: z.string().max(200).optional(),
   ad_creation_time: z.string().max(80).optional(),
   ad_delivery_start_time: z.string().max(80).optional(),
@@ -21,6 +27,7 @@ const adSchema = z.object({
 });
 
 const schema = z.object({
+  clientId:z.string().max(100).optional(),
   source: z.enum(['meta', 'foreplay']).default('meta'),
   skillName: z.string().min(1).max(120),
   terms: z.string().max(100),
@@ -39,7 +46,16 @@ export async function POST(request: Request) {
     const skill = skills.find(item => item.name === parsed.data.skillName && item.categories.includes('competitor_intel'));
     if (!skill) return NextResponse.json({ error: 'Approve a competitor-intelligence skill in the registry before analysis.' }, { status: 403 });
     const source = parsed.data.source === 'foreplay' ? 'Foreplay Brand Ads API' : 'Meta Ad Library API';
-    const analysis = await analyzeCompetitorAds(skill.body, { terms: parsed.data.terms, country: parsed.data.source === 'foreplay' ? 'Not filtered by delivery country' : parsed.data.country, source }, parsed.data.ads);
+    let context;
+    if(parsed.data.clientId){
+      const client=(await readClientCatalog()).value.clients.find(c=>c.id===parsed.data.clientId);
+      if(!client)return NextResponse.json({error:'Choose a client from the current library.'},{status:400});
+      if(client.metaAccountId){
+        if(!(await getAdAccounts()).some(a=>a.id===client.metaAccountId))return NextResponse.json({error:'This client account is unavailable.'},{status:403});
+        context=await readClientContext(client.metaAccountId);
+      }
+    }
+    const analysis = await analyzeResearch(skill, { terms: parsed.data.terms, country: parsed.data.source === 'foreplay' ? 'Not filtered by delivery country' : parsed.data.country, source }, parsed.data.ads,context);
     return NextResponse.json({ skill: { name: skill.name, sha: skill.sha }, source, analysis }, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch {
     return NextResponse.json({ error: 'Competitor analysis could not complete. Check the skill registry and Bedrock configuration.' }, { status: 500 });

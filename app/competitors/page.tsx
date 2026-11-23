@@ -162,7 +162,7 @@ export default function CompetitorResearch() {
       const response = await fetch("/api/competitors/analyze", {
         method: "POST",
         headers,
-        body: JSON.stringify({ source, skillName, terms, country, ads }),
+        body: JSON.stringify({ source, skillName, terms, country, ads,clientId }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Analysis failed");

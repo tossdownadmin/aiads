@@ -41,7 +41,7 @@ beforeEach(()=>{
  });
  api.model.mockImplementation(async(_instructions,encoded)=>{
   const evidence=JSON.parse(encoded);
-  return {periods:evidence.periods.map((p:any)=>({periodId:p.id,findings:[{tone:'ok',category:'win',priority:'monitor',title:'Leads reported',interpretation:'The campaign reported 5 leads during this '+Math.round((Date.parse(p.window.until)-Date.parse(p.window.since))/86400000+1)+'-day review.',evidenceIds:[p.id+':account:leads'],action:'Confirm lead quality',reason:'Reported leads still need business qualification.'}]}))};
+  return {periods:evidence.periods.map((p:any)=>({periodId:p.id,findings:[{tone:'ok',category:'win',priority:'monitor',title:'Leads reported',interpretation:'The account reported {{'+p.id+':account:leads}} leads during this '+Math.round((Date.parse(p.window.until)-Date.parse(p.window.since))/86400000+1)+'-day review.',evidenceIds:[p.id+':account:leads'],action:'Confirm lead quality',reason:'Reported leads still need business qualification.'}]}))};
  });
 });
 afterEach(()=>{vi.unstubAllEnvs();vi.unstubAllGlobals();});

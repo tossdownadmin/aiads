@@ -1,3 +1,4 @@
+import {reviewQuality,deliveryNotices,deduplicateFindings} from './review-quality';
 import { campaignCards, detailStyles, galleryScript } from './detail-view';
 import type { MetaAccount } from '../meta/read';
 import { dailyWindows, shiftDay, validDay, type Report, type Snapshot } from './model';
@@ -29,7 +30,7 @@ const coverage = '<p class="coverage-note">Coverage: reported Meta metrics, curr
 const categoryOf=(f:PresentedFinding)=>f.category??(f.tone==='ok'?'win':'concern');
 
 function tile(item: Fact, style='') {
-  return '<div class="kpi-card '+style+'"><div class="kpi-label">'+escape(item.label)+'</div><div class="kpi-value'+(item.value.length>15?' long':'')+'">'+escape(item.value)+'</div><div class="kpi-sub">'+escape(item.detail)+'</div></div>';
+  return '<div class="kpi-card '+style+'"><div class="kpi-label">'+escape(item.label)+'</div><div class="kpi-value'+(item.value.length>15?' long':'')+'">'+escape(item.value)+'</div><div class="kpi-sub">'+escape(item.detail)+(item.source?'<details class="metric-source"><summary>Metric source</summary>'+escape((item.source.calculation==='cost_per_result'?'spend / ':'')+item.source.metric+' · '+item.source.scope+' · '+item.source.entityIds.join(', ')+' · '+item.source.window.since+' to '+item.source.window.until+' · '+item.source.currency)+'</details>':'')+'</div></div>';
 }
 function issue(tone: Tone,heading:string,detail:string) {
   return '<div class="issue-row '+tone+'"><div class="issue-icon" aria-hidden="true">'+icon[tone]+'</div><div><div class="issue-title">'+escape(heading)+'</div><div class="issue-detail">'+escape(detail)+'</div></div></div>';
@@ -63,21 +64,23 @@ function campaignPreview(p: Snapshot, currency: string, scope: string) {
 function accountView(entry: Entry,p:Snapshot,layout:ClientLayout|undefined,i:number) {
   const account=entry.account, name=layout?.name||account.name, market=layout?.market||account.timezone||'';
   const spec=layout?.periods?.[i]||defaultLayout(p,layout?.type);
-  const findings:PresentedFinding[]=p.analysis?.findings ?? dailyFindings(account,p);
+  const findings:PresentedFinding[]=deduplicateFindings(p.analysis?.findings ?? dailyFindings(account,p));
+  const quality=reviewQuality(account,{...p,analysis:{...p.analysis,findings}},entry.report?.reviewContext);
+  const notices=deliveryNotices(account,p);
   const tone:Tone=findings.some(f=>f.tone==='crit')?'crit':findings.some(f=>f.tone==='warn')?'warn':'ok';
-  const fact=(label:string)=>dailyFact(label,account,p,layout,spec.columns,findings,spec.scopes?.[label]);
+  const fact=(label:string)=>dailyFact(label,account,p,layout,spec.columns,findings,spec.scopes?.[label],i);
   const type=layout?.type||({SALES:'Sales',LEADS:'Lead Gen',VISITS:'Profile Visits',MIXED:'Mixed objectives',MIXROAS:'Sales + Engagement'}[spec.columns]);
   const summary=accountResult(p,spec.columns,type);
   const ref=spec.summary || [];
   const defaultScope=spec.scopes?.[summary.kind==='purchases'?'Purchases':'Leads'] || (spec.kpis.includes('IG Growth CPR')?'IG growth':'');
   const resultMetric=summary.kind==='purchases'?'Purchases':summary.kind==='leads'?'Leads':summary.kind==='instagramVisits'?'IG Growth Results':'';
   const costMetric=summary.kind==='purchases'?'CPP':summary.kind==='leads'?'CPL':summary.kind==='instagramVisits'?'IG Growth CPR':'';
-  const scoped=(label:string, hint:string|undefined)=>dailyFact(label,account,p,layout,spec.columns,findings,hint);
+  const scoped=(label:string, hint:string|undefined)=>dailyFact(label,account,p,layout,spec.columns,findings,hint,i);
   const resultScope=ref[0] || defaultScope, costScope=ref[1] || ref[0] || (summary.kind==='instagramVisits'?defaultScope:'');
   const summaryResult=resultMetric && resultScope ? scoped(resultMetric,resultScope) : { value:count(summary.value),detail:summary.scope };
   const summaryCost=costMetric && costScope ? scoped(costMetric,costScope) : { value:cash(summary.cost,account.currency),detail:summary.scope };
   const compare=(label:string,idx:number)=>ref[idx]==='best'?fact('Best '+label):scoped(label,ref[idx] || (label==='ROAS'?spec.scopes?.ROAS:undefined));
-  return {account,p,spec,name,market,type,findings,tone,fact,summary,summaryResult,summaryCost,comparison:[compare('ROAS',2),compare('CTR',3),compare('Freq',4)]};
+  return {account,p,spec,name,market,type,findings,quality,notices,tone,fact,summary,summaryResult,summaryCost,comparison:[compare('ROAS',2),compare('CTR',3),compare('Freq',4)]};
 }
 type View = ReturnType<typeof accountView>;
 type QueuedAction = { view:View; finding:PresentedFinding; accountIndex:number };
@@ -151,6 +154,8 @@ function detail(v:View,periodName:string) {
   const wins=v.findings.filter(f=>categoryOf(f)==='win'),concerns=v.findings.filter(f=>categoryOf(f)==='concern').sort((a,b)=>severity[a.tone]-severity[b.tone] || compareFindings(a,b));
   return '<div class="overview-bar"><div><div class="overview-name">'+escape(v.name)+'</div><div class="overview-meta">'+escape(['Account '+v.account.id.replace(/^act_/,''),v.account.currency,v.market].filter(Boolean).join(' · '))+'</div></div><div class="overview-tags">'+(active!=null?badge(active+' Active','green'):'')+badge(v.type)+'</div></div>'+
     (v.p.analysis?.notes?.length?'<div class="review-limited" role="note">'+issue('warn','AI review with limitations',v.p.analysis.notes.join(' '))+'</div>':'')+
+    '<section class="coverage-ledger" aria-label="Review coverage">'+title('Review coverage — '+v.quality.status)+'<p>Processing completion and performance assessment are separate. '+escape(v.quality.performanceFindings)+' performance findings retained.</p><ul>'+v.quality.checks.map(c=>'<li>'+escape(c.label)+': '+escape(c.status.replace('_',' '))+'</li>').join('')+'</ul></section>'+
+    (v.notices.length?'<section aria-label="Current delivery notices">'+title('Current delivery notices')+v.notices.map(n=>issue('warn',n.title,n.detail)).join('')+'</section>':'')+
     title(periodName+' — KPIs')+'<div class="kpi-grid">'+v.spec.kpis.map((label,i)=>tile(v.fact(label),i===0?'highlight':label==='Status'&&v.tone==='crit'?'crit':'')).join('')+'</div>'+
     '<div class="findings-columns">'+findingSection('Wins',wins,'No positive findings were supplied for this period.')+findingSection('Concerns',concerns,'No performance concerns were flagged in the supplied findings.')+'</div>'+
     prioritizedActions([v])+periodComparison(v.p,v.account.currency)+budgetPacing(v.p,v.account.currency)+availability(v.p,v.findings)+
@@ -179,7 +184,7 @@ function overview(views:View[],exclusions:Exclusion[],periodName:string) {
   const groupedNotes=new Map<string,string[]>();
   for(const v of views)for(const note of dataNotes(v.p))groupedNotes.set(note,[...groupedNotes.get(note)??[],v.name]);
   const notes=[...groupedNotes].map(([note,names])=>'<li>'+escape(note)+' <strong>'+escape(names.length===views.length?'All accounts':names.join(', '))+'</strong></li>');
-  return title('All Accounts — '+periodName)+'<div class="all-accounts-grid">'+views.map(clientCard).join('')+'</div><div class="kpi-grid">'+groups.map(g=>g.kpi).join('')+
+  return title('All Accounts — '+periodName)+'<section class="coverage-ledger" aria-label="Portfolio review coverage"><p>'+views.length+' accounts processed · '+views.filter(v=>v.quality.status==='reviewed').length+' assessed with complete checks · '+views.filter(v=>v.quality.status==='limited').length+' limited · '+views.filter(v=>v.quality.status==='unavailable').length+' without dated delivery/spend evidence.</p></section>'+'<div class="all-accounts-grid">'+views.map(clientCard).join('')+'</div><div class="kpi-grid">'+groups.map(g=>g.kpi).join('')+
     tile({label:'Critical Flags',value:String(flags.length),detail:'Across all accounts'},'crit')+tile({label:'Warnings',value:String(warnings),detail:'Across all accounts'})+
     tile({label:'Accounts',value:String(views.length),detail:exclusions.length+' outside this report'})+'</div><hr class="divider">'+title('Side-by-side — '+periodName+' (click a row to open the account)')+
     '<div class="table-wrap"><table class="cmp"><thead><tr>'+['Account','Spend','Results','Cost / Result','ROAS','CTR','Frequency'].map(v=>'<th>'+v+'</th>').join('')+'</tr></thead><tbody>'+groups.map(g=>g.rows).join('')+'</tbody></table></div>'+

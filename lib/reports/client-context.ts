@@ -6,6 +6,15 @@ const accountId = z.string().regex(/^act_\d+$/);
 const positive = z.number().finite().positive().optional();
 const fields = z.object({
   businessGoal: z.string().trim().max(1200).default(''),
+  primaryOutcome:z.enum(['purchases','leads','instagramVisits','facebookVisits','conversations','thruplays','reach','landingViews','linkClicks']).optional(),
+  conversionDefinition:z.string().trim().max(1200).optional(),
+  markets:z.string().trim().max(1200).optional(),
+  approvedOffers:z.string().trim().max(1200).optional(),
+  creativeRestrictions:z.string().trim().max(1200).optional(),
+  targetOwner:z.string().trim().max(200).optional(),
+  approvedOn:z.string().date().optional(),
+  validUntil:z.string().date().optional(),
+  targetCostPerResult:positive,
   targetCpa: positive,
   targetCpl: positive,
   targetRoas: positive,
@@ -18,13 +27,19 @@ const hasBudgetMonth = (value: { monthlyBudget?: number; budgetMonth?: string })
   value.monthlyBudget === undefined || value.budgetMonth !== undefined;
 const budgetMonthError = { message: 'Choose a budget month when setting a monthly budget.', path: ['budgetMonth'] };
 
-export const clientContextInputSchema = fields.refine(hasBudgetMonth, budgetMonthError);
+const validApprovalDates = (value: {approvedOn?:string;validUntil?:string}) =>
+  !value.approvedOn || !value.validUntil || value.validUntil >= value.approvedOn;
+const approvalDateError = {message:'Target validity must end on or after the approval date.',path:['validUntil']};
+export function hasCurrentApproval(context: {targetOwner?:string;approvedOn?:string;validUntil?:string}|null|undefined,day:string) {
+  return !!context?.targetOwner?.trim() && !!context.approvedOn && context.approvedOn<=day && !!context.validUntil && context.validUntil>=day;
+}
+export const clientContextInputSchema = fields.refine(hasBudgetMonth, budgetMonthError).refine(validApprovalDates,approvalDateError);
 export type DailyClientContextInput = z.infer<typeof clientContextInputSchema>;
 const storedContextSchema = fields.extend({
   accountId,
   currency: z.string().regex(/^[A-Z]{3}$/),
   updatedAt: z.string().datetime(),
-}).refine(hasBudgetMonth, budgetMonthError);
+}).refine(hasBudgetMonth, budgetMonthError).refine(validApprovalDates,approvalDateError);
 
 export type DailyClientContext = z.infer<typeof storedContextSchema>;
 export class ClientContextConflict extends Error {

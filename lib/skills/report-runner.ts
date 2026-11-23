@@ -11,6 +11,7 @@ import {
 } from "./report-packages";
 import type { ReportKind, SkillRun } from "./report-types";
 import {ReportModelError,ReportSkillError} from './report-errors';
+import {VALIDATION_VERSION} from '../reports/measured-text';
 export async function selectReportSkill(
   kind: ReportKind,
   name: string = defaultReportSkills[kind],
@@ -88,6 +89,7 @@ export async function runReportSkill<T>(
     skill: skillVersion(skill),
     model,
     applicationCommit: process.env.VERCEL_GIT_COMMIT_SHA || "local",
+    validationVersion:VALIDATION_VERSION,
     completedAt: new Date().toISOString(),
     evidenceHash: hash(encoded),
     evidencePath: prefix + "/evidence.json",

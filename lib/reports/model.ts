@@ -10,6 +10,7 @@ export type Tracking = { checkedAt: string; pixels: Pixel[] | null; since: strin
 export type Report = { dailySkillRun?: import('../skills/report-types').SkillRun; reviewContext?:import('./client-context').DailyClientContext|null; account: MetaAccount; generated: string; periods: Snapshot[]; tracking?: Tracking; comparison?: {window:Window; totals:Metrics|null}; competitorEvidence?: { client: string; checkedAt: string; coverage: string; ads: { id: string; advertiser: string; text: string; url?: string; format?:string; cta?:string; transcript?:string }[] } };
 export type PlanInputs = { cap?: number; previousCap?: number; brief: string; competitors: string; event: string };
 export type Proposal = {
+  evidenceIds?:string[];
   skillRun?: import('../skills/report-types').SkillRun;
   summary: string; financialReview: string; performance: string[]; competitors: string[];
   event: string; allocation: { campaignId: string; percent: number; rationale: string }[];

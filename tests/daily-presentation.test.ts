@@ -142,3 +142,11 @@ describe('daily report client presentation',()=>{
     handlers.beforeprint();handlers.afterprint();expect(closed.open).toBe(false);expect(opened.open).toBe(true);
   });
 });
+
+it('shows source disapprovals and limited coverage even when the AI only reports missing context',()=>{
+ const row=entry([finding({category:'data_gap',title:'Missing client brief',evidenceIds:['window0:coverage']})]);
+ for(const p of row.report.periods)p.details={'campaign-1':{notes:[],sets:[{id:'set-1',name:'Local audience',status:'ACTIVE',settings:{},ads:[{id:'ad-1',name:'Disapproved ad',status:'DISAPPROVED',creative:{id:'creative-1',copy:[],titles:[],descriptions:[],links:[],ctas:[],assets:[],post:'',notes:[]}}]}]}};
+ const doc=renderDailyDocument([row],end);
+ expect(doc).toContain('Current ad disapprovals');expect(doc).toContain('ad-1');expect(doc).toContain('limited');
+ expect(doc).toContain('Primary outcome');expect(doc).toContain('Performance findings');
+});

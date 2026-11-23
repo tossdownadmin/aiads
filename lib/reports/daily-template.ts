@@ -1,7 +1,8 @@
 import type { MetaAccount } from '../meta/read';
 
 export type ColumnSet = 'SALES' | 'VISITS' | 'MIXED' | 'MIXROAS' | 'LEADS';
-export type PeriodLayout = { cards: string[]; kpis: string[]; columns: ColumnSet; scopes?: Record<string,string>; summary?: string[] };
+export type MetricBinding={metric:keyof import('./model').Metrics;calculation?:'cost_per_result';campaignIds?:string[]};
+export type PeriodLayout = { cards: string[]; kpis: string[]; columns: ColumnSet; scopes?: Record<string,string>; bindings?:Record<string,MetricBinding>; summary?: string[] };
 export type ClientLayout = { name: string; accountId?: string; currency?: string; market?: string; type?: string; periods?: PeriodLayout[] };
 export type Exclusion = { name: string; reason: string };
 export type DailyTemplate = { clients: ClientLayout[] };
@@ -107,7 +108,9 @@ export function readStoredTemplate(value: string | null): DailyTemplate | undefi
     const valid = data.clients.every(c => c && str(c.name) && [c.currency,c.market,c.type].every(v=>v===undefined || str(v)) &&
       (!c.accountId || /^act_\d+$/.test(c.accountId)) &&
       (!c.periods || (Array.isArray(c.periods) && c.periods.length===2 && c.periods.every(p => p && ['SALES','VISITS','MIXED','MIXROAS','LEADS'].includes(p.columns) && [p.cards,p.kpis].every(a=>Array.isArray(a) && a.length<=12 && a.every(str)) && (!p.scopes || (typeof p.scopes==='object' && Object.entries(p.scopes).every(([k,v])=>str(k)&&str(v)))) && (!p.summary || (Array.isArray(p.summary) && p.summary.length<=5 && p.summary.every(str)))))));
-    if (valid) return data;
+    const metricKeys=['spend','impressions','reach','frequency','clicks','ctr','cpc','purchases','leads','purchaseValue','roas','instagramVisits','facebookVisits','conversations','landingViews','linkClicks','thruplays','formLeads','conversionLeads','websiteLeads','onMetaLeads'];
+    const bindingsValid=data.clients.every(c=>c.periods?.every(p=>!p.bindings||Object.entries(p.bindings).every(([label,b])=>str(label)&&b&&metricKeys.includes(b.metric)&&(!b.calculation||b.calculation==='cost_per_result')&&(!b.campaignIds||(Array.isArray(b.campaignIds)&&b.campaignIds.length>0&&b.campaignIds.length<=50&&b.campaignIds.every(id=>typeof id==='string'&&/^[A-Za-z0-9_-]+$/.test(id))))))??true);
+    if (valid&&bindingsValid) return data;
   } catch { /* An old or malformed preference is ignored. */ }
 }
 

@@ -58,11 +58,11 @@ export async function POST(request: Request) {
       return json({ error: (error as Error).message }, 400);
     }
     let reviewContext:Report['reviewContext'];
-    if(data.mode==='daily') {
+    {
       try {
         reviewContext=await readClientContext(account.id);
       } catch {
-        return json({error:'Saved business context could not be loaded. Retry the daily report to use the saved goals and targets.'},503);
+        return json({error:'Saved business context could not be loaded. Retry to use the saved goals and targets.'},503);
       }
     }
     const [periods, tracking, comparison] = await Promise.all([

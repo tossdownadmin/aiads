@@ -44,13 +44,15 @@ it('only calculates pacing for a matching approved month and currency, and disti
   if(window.until==='2026-11-12')throw Object.assign(Error('Permission denied'),{status:403});
   return params.level==='campaign'?[]:[{spend:'190',impressions:'10000'}];
  });
- const context={accountId:account.id,businessGoal:'Acquire leads',targetCpl:20,monthlyBudget:300,budgetMonth:'2026-11',currency:'CAD',updatedAt:'2026-11-20'};
+ const context={accountId:account.id,businessGoal:'Acquire leads',targetOwner:'Account lead',approvedOn:'2026-11-01',validUntil:'2026-11-30',targetCpl:20,monthlyBudget:300,budgetMonth:'2026-11',currency:'CAD',updatedAt:'2026-11-20'};
  const periods=await readDailyReview(account,windows,context as any);
  expect(periods[0].pacing).toMatchObject({spent:190,budget:300,elapsedDays:19,monthDays:30,expectedSpend:190,projectedSpend:300});
  expect(periods[0].previous?.totals).toBeNull();
  expect(periods[0].reviewNotes?.join(' ')).toContain('Meta denied access');
  expect((await readDailyReview(account,windows,{...context,budgetMonth:'2026-10'} as any))[0].pacing).toBeUndefined();
  expect((await readDailyReview(account,windows,{...context,currency:'USD'} as any))[0].pacing).toBeUndefined();
+ expect((await readDailyReview(account,windows,{...context,validUntil:'2026-11-01'} as any))[0].pacing).toBeUndefined();
+ expect((await readDailyReview(account,windows,{...context,targetOwner:''} as any))[0].pacing).toBeUndefined();
 });
 
 it('supplies every returned ad and ad-set, correctly scoped previous outcomes, and a readable interpretation separate from evidence',()=>{

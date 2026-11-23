@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { verifyAdminSession } from '../../../../../lib/auth';
 import { getAdAccounts } from '../../../../../lib/meta/read';
+import {accountToday,shiftDay} from '../../../../../lib/reports/model';
+import {activePortfolio} from '../../../../../config/active-clients';
+import {clientReadiness} from '../../../../../lib/reports/review-quality';
 import {
   ClientContextConflict,
   clientContextInputSchema,
@@ -22,6 +25,16 @@ const reply = (body: unknown, status = 200) => NextResponse.json(body, {
 
 export async function GET(request: Request) {
   if (!await verifyAdminSession()) return reply({ error: 'Sign in to read report context.' }, 401);
+  if(new URL(request.url).searchParams.get('portfolio')==='assigned'){
+    try{
+      const accounts=await getAdAccounts(),assigned=activePortfolio(accounts),rows=[];
+      for(let start=0;start<assigned.accountIds.length;start+=4)rows.push(...await Promise.all(assigned.accountIds.slice(start,start+4).map(async id=>{
+        const account=accounts.find(a=>a.id===id)!,{context}=await readVersionedClientContext(id);
+        return {id,name:account.name,...clientReadiness(context,account,shiftDay(accountToday(account.timezone),-1))};
+      })));
+      return reply({total:rows.length,ready:rows.filter(r=>r.status==='ready').length,accounts:rows});
+    }catch{return reply({error:'Client readiness could not be loaded. Retry loading the profiles.'},503);}
+  }
   const id = accountId.safeParse(new URL(request.url).searchParams.get('accountId'));
   if (!id.success) return reply({ error: 'Choose a connected Meta ad account.' }, 400);
   try {

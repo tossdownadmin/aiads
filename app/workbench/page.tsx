@@ -10,15 +10,16 @@ import WorkspaceShell from '../workspace-shell';
 type Skill = { name: string; description: string; source: string; categories: string[]; platforms: string[]; status: string; license?: string; sha: string };
 type Account = { id: string; name: string; status: number; currency: string; timezone?: string };
 type Finding = { title: string; severity: 'high' | 'medium' | 'low' | 'info'; evidence: string; recommendation: string };
-type Campaign = { id: string; name: string; effective_status: string; objective?: string; spend?: string; impressions?: string; reach?: string; clicks?: string; ctr?: string; cpc?: string; frequency?: string; daily_budget?: string; lifetime_budget?: string };
+type Campaign = { id: string; name: string; effective_status: string; objective?: string; spend?: string|number; impressions?: string; reach?: string; clicks?: string; ctr?: string; cpc?: string; frequency?: string; daily_budget?: string; lifetime_budget?: string };
 type AuditResult = {
   skill: { name: string; description: string; sha: string };
   account: { id: string; name: string; currency: string; timezone?: string };
   period: 'last_7d' | 'last_30d';
-  summary: { campaigns: number; totalSpend: number; currency: string | null };
+  summary: { campaigns: number; totalSpend: number|null; currency: string | null };
   campaigns: Campaign[]; details: DetailMap;
   issues: Array<{ title: string; campaign: string; spend: number; frequency: number; ctr: number }>;
-  analysis: { status: 'complete' | 'not_configured' | 'unavailable'; summary?: string; findings?: Finding[]; dataGaps?: string[]; message?: string };
+  analysis: { status: 'complete' | 'not_configured' | 'unavailable'; summary?: string; findings?: Finding[]; dataGaps?: string[]; message?: string;run?:{id:string};quality?:{status:string;checks:{key:string;label:string;status:string}[]} };
+  window?:{since:string;until:string};scope?:'period'|'active';readiness?:{status:string;gaps:string[]};deliveryNotices?:{title:string;detail:string}[];
   notice: string;
 };
 
@@ -28,6 +29,7 @@ export default function Workbench() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [skill, setSkill] = useState('');
   const [account, setAccount] = useState('');
+  const [scope,setScope]=useState<'period'|'active'>('period');
   const [period, setPeriod] = useState<'last_7d' | 'last_30d'>('last_7d');
   const [result, setResult] = useState<AuditResult | null>(null);
   const [error, setError] = useState('');
@@ -49,7 +51,7 @@ export default function Workbench() {
       const accountsData = await accountsResponse.json();
       if (!skillsResponse.ok) throw new Error(skillsData.error || 'Could not load skills');
       if (!accountsResponse.ok) throw new Error(accountsData.error || 'Could not load Meta accounts');
-      const auditSkills = (skillsData.skills as Skill[]).filter(item => item.categories?.includes('analysis') && item.platforms?.includes('meta') && !item.categories?.includes('competitor_intel'));
+      const auditSkills = (skillsData.skills as Skill[]).filter(item => item.categories?.includes('analysis') && item.platforms?.includes('meta') && !item.categories?.includes('competitor_intel') && !(item as Skill & {writeActions?:boolean}).writeActions);
       setSkills(auditSkills);
       setAccounts(accountsData.accounts);
       setSkill(current => auditSkills.some(item => item.name === current) ? current : auditSkills.find(item => item.name === 'meta-account-audit')?.name || auditSkills[0]?.name || '');
@@ -71,7 +73,7 @@ export default function Workbench() {
       const response = await fetch('/api/meta/audit', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ skillName: skill, accountId: account, period }),
+        body: JSON.stringify({ skillName: skill, accountId: account, period,scope }),
       });
       const data = await response.json();
       if (response.status === 401) { setSignInRequired(true); setConnected(false); throw new Error('Your session expired. Sign in again to run an audit.'); }
@@ -86,7 +88,7 @@ export default function Workbench() {
 
   return <WorkspaceShell active="workbench" status={connected ? 'Connected' : signInRequired ? 'Sign-in required' : 'Connecting…'}>
     <div className="workspace-audit">
-    <header className="craft-hero"><p className="craft-crumb">WORKSPACE / ACCOUNT AUDITS</p><div className="craft-hero-main"><span className="craft-hero-icon" aria-hidden="true">◎</span><div><h1>Audit your Meta campaigns</h1><p>Review current campaigns or <a href="/reports">open historical reports and monthly plans</a>.</p></div></div><ol className="craft-steps" aria-label="Audit steps"><li className="active"><span>1</span> Choose account</li><li className={connected && (busy || result) ? 'active' : ''}><span>2</span> Read campaigns</li><li className={result ? 'active' : ''}><span>3</span> Review findings</li></ol></header>
+    <header className="craft-hero"><p className="craft-crumb">WORKSPACE / ACCOUNT AUDITS</p><div className="craft-hero-main"><span className="craft-hero-icon" aria-hidden="true">◎</span><div><h1>Audit your Meta campaigns</h1><p>Review period results and current delivery, or <a href="/reports">open historical reports and monthly plans</a>.</p></div></div><ol className="craft-steps" aria-label="Audit steps"><li className="active"><span>1</span> Choose account</li><li className={connected && (busy || result) ? 'active' : ''}><span>2</span> Read campaigns</li><li className={result ? 'active' : ''}><span>3</span> Review findings</li></ol></header>
 
     {!connected ? <section className="connect-card workspace-card">
       <h2>{signInRequired ? 'Sign in to run audits' : 'Loading audit workspace'}</h2>
@@ -108,7 +110,7 @@ export default function Workbench() {
             <option value="last_7d">Last 7 days</option>
             <option value="last_30d">Last 30 days</option>
           </select>
-          <small>Active campaigns with ad-set, ad and creative detail</small>
+          <small>Completed days in the account time zone</small><span>Campaign scope</span><select aria-label="Campaign scope" value={scope} onChange={e=>setScope(e.target.value as typeof scope)}><option value="period">All campaigns in the period</option><option value="active">Currently active campaigns only</option></select>
         </label></article>
       </section>
       <button className="run-button" onClick={runAudit} disabled={!skill || !account || busy}>
@@ -124,13 +126,17 @@ export default function Workbench() {
             <h2>{result.skill.name}</h2>
             <p className="muted">{result.account.name} · {result.period === 'last_7d' ? 'Last 7 days' : 'Last 30 days'} · skill version {result.skill.sha.slice(0, 8)}</p>
           </div>
-          <span className="badge">{result.summary.campaigns} ACTIVE CAMPAIGNS</span>
+          <span className="badge">{result.summary.campaigns} {result.scope==='active'?'CURRENTLY ACTIVE':'PERIOD'} CAMPAIGNS</span>
         </div>
         <div className="metric-row">
-          <div><small>Total spend</small><strong>{result.summary.currency || ''} {Number(result.summary.totalSpend).toLocaleString(undefined, { maximumFractionDigits: 2 })}</strong></div>
+          <div><small>{result.scope==='active'?'Selected active-campaign spend':'Account spend'}</small><strong>{result.summary.currency || ''} {result.summary.totalSpend===null?'Not reported':Number(result.summary.totalSpend).toLocaleString(undefined, { maximumFractionDigits: 2 })}</strong></div>
           <div><small>Review flags</small><strong>{result.issues.length}</strong></div>
         </div>
-        <h3>Claude audit analysis</h3>
+        {result.window&&<p>{result.window.since} – {result.window.until} · {result.account.timezone}</p>}
+        {result.readiness&&<section className="finding"><strong>Client readiness: {result.readiness.status}</strong><p>{result.readiness.gaps.join(' · ')||'Approved strategy inputs are available.'}</p><a href={'/reports?context='+result.account.id}>Review business profile</a></section>}
+        {result.analysis.quality&&<section className="finding"><strong>Review coverage: {result.analysis.quality.status}</strong><ul>{result.analysis.quality.checks.map(c=><li key={c.key}>{c.label}: {c.status.replace('_',' ')}</li>)}</ul></section>}
+        {result.deliveryNotices?.map(n=><article className="finding" key={n.title}><strong>{n.title}</strong><p>{n.detail}</p></article>)}
+        <h3>Evidence-checked audit analysis</h3>{result.analysis.run&&<a href={'/api/meta/reports/runs?runId='+result.analysis.run.id} target="_blank" rel="noreferrer">Private analysis record ↗</a>}
         {result.analysis.status === 'complete' ? <>
           <p>{result.analysis.summary}</p>
           {result.analysis.findings?.map((finding, index) => <article className="finding" key={`${finding.title}-${index}`}>
@@ -145,8 +151,8 @@ export default function Workbench() {
           <strong>{issue.title}</strong><span>{issue.campaign}</span>
           <small>Spend {issue.spend.toFixed(2)} · CTR {issue.ctr}% · frequency {issue.frequency}</small>
         </div>) : <p className="empty">No threshold flags for this period. Review campaign metrics below.</p>}
-        <h3>Active campaign review</h3>
-        {result.campaigns.length ? <CampaignGallery campaigns={result.campaigns.map(c=>({id:c.id,name:c.name,status:c.effective_status,objective:c.objective||'',stats:metrics(c)}))} details={result.details} currency={result.account.currency} scope="audit"/> : <p className="empty">No active campaigns were returned for this account.</p>}
+        <h3>Campaign evidence for the selected scope</h3>
+        {result.campaigns.length ? <CampaignGallery campaigns={result.campaigns.map(c=>({id:c.id,name:c.name,status:c.effective_status,objective:c.objective||'',stats:metrics(c)}))} details={result.details} currency={result.account.currency} scope="audit"/> : <p className="empty">No campaigns were returned for the selected scope and dates.</p>}
         <details><summary>Raw campaign evidence</summary><pre>{JSON.stringify(result.campaigns, null, 2)}</pre></details>
         <p className="muted footnote">{result.notice}</p>
       </section>}
