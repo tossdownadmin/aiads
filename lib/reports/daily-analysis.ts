@@ -478,9 +478,9 @@ function boundedSynthesis(evidence:ReturnType<typeof dailyEvidence>,reviewed:Rev
 function bindMeasuredText(prose:string,cited:string[],facts:Map<string,EvidenceFact>,evidence:ReturnType<typeof dailyEvidence>,proposal=false){
   const tokens:{key:string;display:string}[]=[];
   const template=prose.replace(/\{\{([^{}]+)\}\}(%)?/g,(_match,id:string,suffix:string|undefined)=>{
-    const fact=facts.get(id);
-    const missingMetric=fact?.value===null&&/^window\d+:(?:(?:previous-)?account|(?:previous-)?campaign:[^:]+):[^:]+$/.test(id)&&/Not reported|—/.test(fact.display.slice(fact.display.lastIndexOf(': ')+2));
-    if(!cited.includes(id)||!fact||!missingMetric&&(typeof fact.value!=='number'||!Number.isFinite(fact.value)))throw Error('A measurement placeholder must bind a cited, supplied numeric metric or an explicitly unreported metric.');
+    const fact=resolveMeasuredFact(id,cited,facts,evidence.account.currency);
+    const missingMetric=fact?.value===null&&/^window\d+:(?:(?:previous-)?account|(?:previous-)?campaign:[^:]+|ad(?:set)?:[^:]+):[^:]+$/.test(id)&&/Not reported|—/.test(fact.display.slice(fact.display.lastIndexOf(': ')+2));
+    if(!fact||!missingMetric&&(typeof fact.value!=='number'||!Number.isFinite(fact.value)))throw Error('A measurement placeholder must bind a cited, supplied numeric metric or an explicitly unreported metric.');
     const display=missingMetric?'Not reported':fact.display.slice(fact.display.lastIndexOf(': ')+2);
     if(suffix&&!id.endsWith(':ctr'))throw Error('A percentage suffix must use a supplied percentage metric.');
     const key='__MEASURE_'+String.fromCharCode(65+tokens.length)+'__';tokens.push({key,display});return key;
@@ -489,7 +489,13 @@ function bindMeasuredText(prose:string,cited:string[],facts:Map<string,EvidenceF
   if(/[{}]/.test(checked))throw Error('Use double-brace exact evidence IDs for measurements.');
   // Digits inside exact supplied entity names/IDs identify the subject; they are
   // not licence to introduce a new quantitative claim.
-  const identities=[evidence.account.name,evidence.account.id,...evidence.periods.flatMap(p=>p.campaigns.flatMap(c=>[c.name,c.id])),...evidence.facts.flatMap(f=>f.value&&typeof f.value==='object'&&'name' in f.value&&typeof f.value.name==='string'?[f.value.name]:[])].filter(v=>v.length>2).sort((a,b)=>b.length-a.length);
+  const entityIds=cited.flatMap(id=>{
+    const value=facts.get(id)?.value;
+    if(!/^window\d+:ad(?:set)?:[^:]+$/.test(id)||!value||typeof value!=='object')return [];
+    const entity=value as Record<string,unknown>;
+    return ['id','campaignId','adsetId'].flatMap(key=>typeof entity[key]==='string'?[entity[key] as string]:[]);
+  });
+  const identities=[evidence.account.name,evidence.account.id,...evidence.periods.flatMap(p=>p.campaigns.flatMap(c=>[c.name,c.id])),...entityIds,...evidence.facts.flatMap(f=>f.value&&typeof f.value==='object'&&'name' in f.value&&typeof f.value.name==='string'?[f.value.name]:[])].filter(v=>v.length>2).sort((a,b)=>b.length-a.length);
   for(const identity of identities)checked=checked.split(identity).join('ENTITY');
   // Dated window labels describe source metadata, not replacement KPI claims.
   // Previously even a correct "7-day review" was rejected by the digit guard.
@@ -498,12 +504,35 @@ function bindMeasuredText(prose:string,cited:string[],facts:Map<string,EvidenceF
     const duration=Math.round((Date.parse(period.window.until)-Date.parse(period.window.since))/86400000)+1;
     checked=checked.replace(new RegExp('\\b'+duration+'(?:[- ]day(?:s)?|[- ]d)\\b','gi'),'REPORTING_PERIOD');
     const previous=facts.get(period.id+':previous-window')?.value as Window|undefined;
-    checked=maskReportingDates(checked,[period.window,...(previous?.since&&previous.until?[previous]:[])]);
+    // A flight date is metadata only when its delivery record is cited. Do not
+    // turn arbitrary dates in names, ad copy or uncited schedules into evidence.
+    const schedules=cited.flatMap(id=>{
+      const value=facts.get(id)?.value;
+      if(!/^window\d+:campaign:[^:]+:delivery$/.test(id)||!value||typeof value!=='object')return [];
+      const {start,stop}=value as {start?:unknown;stop?:unknown};
+      const isDay=(day:unknown):day is string=>typeof day==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(day)&&Number.isFinite(Date.parse(day))&&new Date(day).toISOString().slice(0,10)===day;
+      return isDay(start)&&isDay(stop)&&start<=stop?[{since:start,until:stop}]:[];
+    });
+    checked=maskReportingDates(checked,[period.window,...(previous?.since&&previous.until?[previous]:[]),...schedules]);
   }
   if(proposal)checked=checked.replace(/\b(?:test|draft|prepare|produce|compare)\s+(?:[1-3]|one|two|three)(?:\s+(?:new|fresh))?\s+(?:creatives?|variants?|concepts?)\b/gi,'PROPOSED_CREATIVE_TEST');
   checked=groundLiteralMeasurements(checked,cited,facts,evidence.account.currency);
   if(/\d/.test(checked)||/\b(?:one|two|three|four|five|six|seven|eight|nine|ten|hundred|thousand)\s+(?:purchases?|leads?|visits?|clicks?|conversations?|percent)\b/i.test(checked))throw Error('Unbound numeric claim in '+JSON.stringify(prose.slice(0,220))+'. Use a cited metric with its exact supplied value, or bind it with {{exact-evidence-id}}. Source-period labels are allowed; invented or ungrounded KPI values are not.');
   let rendered=template;for(const token of tokens)rendered=rendered.split(token.key).join(token.display);return rendered;
+}
+
+/** A typed ad metric resolves only to an existing stats field on its cited
+ * parent. Whole objects, configuration settings and derived KPIs stay invalid. */
+function resolveMeasuredFact(id:string,cited:string[],facts:Map<string,EvidenceFact>,currency:string):EvidenceFact|undefined{
+  if(cited.includes(id)&&facts.has(id))return facts.get(id);
+  const nested=id.match(/^(window\d+:ad(?:set)?:[^:]+):([^:]+)$/);
+  if(!nested||!cited.includes(nested[1])||!Object.hasOwn(labels,nested[2]))return;
+  const parent=facts.get(nested[1]),value=parent?.value as {stats?:Record<string,unknown>}|null;
+  if(!parent||!value?.stats||!Object.hasOwn(value.stats,nested[2]))return;
+  const metric=nested[2],measurement=value.stats[metric];
+  if(measurement!==null&&(typeof measurement!=='number'||!Number.isFinite(measurement)))return;
+  const display=measurement===null?'Not reported':['spend','cpc','purchaseValue'].includes(metric)?currency+' '+cash(measurement,currency):metric==='ctr'?percent(measurement):metric==='roas'?ratio(measurement):count(measurement);
+  return {id,periodId:parent.periodId,value:measurement,display:labels[metric as keyof Metrics]+': '+display};
 }
 
 /** Accept ordinary metric wording only when both the metric and displayed value
