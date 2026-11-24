@@ -35,7 +35,6 @@ export default function Workbench() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [signInRequired, setSignInRequired] = useState(false);
-  const [accountQuery, setAccountQuery] = useState('');
   const headers = useMemo(() => ({ 'Content-Type': 'application/json' }), []);
 
   async function connect() {
@@ -98,10 +97,9 @@ export default function Workbench() {
       <section className="selector-grid">
         <article className="audit-methods"><fieldset><legend>1. Choose a review method</legend><p className="audit-method-intro">Each method reviews connected campaign and ad evidence with a different focus.</p><div className="audit-method-list">{skills.filter(item => item.source === 'tossdown-aiads').map(item => <label className={`audit-method ${skill === item.name ? 'selected' : ''}`} key={`${item.name}-${item.sha}`}><input type="radio" name="audit-method" checked={skill === item.name} onChange={() => setSkill(item.name)} /><span><strong>{item.name.split('-').map(word => word[0].toUpperCase() + word.slice(1)).join(' ')}</strong><small>{item.description}</small></span></label>)}</div>{skills.some(item => item.source !== 'tossdown-aiads') && <label className="audit-other-methods">Other approved methods<select value={skills.find(item => item.name === skill && item.source !== 'tossdown-aiads')?.name || ''} onChange={event => setSkill(event.target.value || 'meta-account-audit')}><option value="">Select another method</option>{skills.filter(item => item.source !== 'tossdown-aiads').map(item => <option key={`${item.source}-${item.name}-${item.sha}`} value={item.name}>{item.name} · {item.source}</option>)}</select></label>}</fieldset></article>
         <article><label>2. Ad account
-          <input value={accountQuery} onChange={event => setAccountQuery(event.target.value)} placeholder="Filter accounts by name or ID" aria-label="Filter Meta ad accounts" />
           <select value={account} onChange={event => setAccount(event.target.value)}>
             <option value="">Choose a Meta ad account</option>
-            {accounts.filter(item => `${item.name} ${item.id}`.toLowerCase().includes(accountQuery.toLowerCase())).map(item => <option key={item.id} value={item.id}>{item.name} · {item.currency} · {item.id}</option>)}
+            {accounts.map(item => <option key={item.id} value={item.id}>{item.name} · {item.currency} · {item.id}</option>)}
           </select>
           <small>{account ? `${accounts.find(item => item.id === account)?.name} · ${account}` : `${accounts.length} accounts available to this Meta token`}</small>
         </label>{account&&<a className="workspace-link-button" href={"/campaigns?account="+account}>Manage this account →</a>}</article>

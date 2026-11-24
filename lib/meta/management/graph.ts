@@ -7,6 +7,9 @@ export const fields:Record<Kind,string> = {
   ad:'id,account_id,campaign_id,adset_id,name,status,effective_status,creative{id,name,object_story_spec,object_story_id,thumbnail_url,url_tags}',
   creative:'id,account_id,name,object_story_spec,object_story_id,effective_object_story_id,thumbnail_url,url_tags',
 };
+// Read-only gallery metadata. Keep write preflight/readback fields stable.
+const galleryCreativeFields=fields.creative+',body,title,image_url,video_id,asset_feed_spec';
+const galleryAdFields=fields.ad.replace(/creative\{[^}]+\}/,`creative{${galleryCreativeFields}}`);
 export async function entity(kind:Kind,id:string,accountId:string):Promise<Entity> {
   if(!/^\d+$/.test(id))throw new Error('Invalid Meta object.');
   const result=await fetchGraph(id,{fields:fields[kind]}) as Entity;
@@ -16,7 +19,7 @@ export async function entity(kind:Kind,id:string,accountId:string):Promise<Entit
 export async function inventory(accountId:string,kind:Kind,parentId?:string) {
   const edges:Record<Kind,string>={campaign:'campaigns',adset:'adsets',ad:'ads',creative:'adcreatives'};
   if(parentId)await entity(kind==='adset'?'campaign':'adset',parentId,accountId);
-  return fetchAllPages<Entity>(`${parentId||accountId}/${edges[kind]}`,{fields:fields[kind],limit:'100'});
+  return fetchAllPages<Entity>(`${parentId||accountId}/${edges[kind]}`,{fields:kind==='creative'?galleryCreativeFields:kind==='ad'?galleryAdFields:fields[kind],limit:'100'});
 }
 export async function accountAccess(accountId:string) {
   const account=await fetchGraph(accountId,{fields:'id,name,currency,timezone_name,account_status,user_tasks'});
@@ -56,7 +59,7 @@ export async function assets(accountId:string) {
     fetchAllPages<Entity>(`${accountId}/adspixels`,{fields:'id,name',limit:'100'}),
     fetchGraph(`${accountId}/adimages`,{fields:'id,name,hash,url',limit:'100'}),
     fetchGraph(`${accountId}/advideos`,{fields:'id,title,picture,status',limit:'100'}),
-    fetchGraph(`${accountId}/adcreatives`,{fields:fields.creative,limit:'100'}),
+    fetchGraph(`${accountId}/adcreatives`,{fields:galleryCreativeFields,limit:'100'}),
   ]);
   const values=[pages,pixels,images,videos,creatives];
   return Object.fromEntries(['pages','pixels','images','videos','creatives'].map((key,i)=>[key,values[i].status==='fulfilled'?('data' in values[i].value?values[i].value.data:values[i].value):null]));
