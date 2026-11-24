@@ -104,7 +104,7 @@ export default function Workbench() {
             {accounts.filter(item => `${item.name} ${item.id}`.toLowerCase().includes(accountQuery.toLowerCase())).map(item => <option key={item.id} value={item.id}>{item.name} · {item.currency} · {item.id}</option>)}
           </select>
           <small>{account ? `${accounts.find(item => item.id === account)?.name} · ${account}` : `${accounts.length} accounts available to this Meta token`}</small>
-        </label></article>
+        </label>{account&&<a className="workspace-link-button" href={"/campaigns?account="+account}>Manage this account →</a>}</article>
         <article><label>3. Reporting window
           <select value={period} onChange={event => setPeriod(event.target.value as 'last_7d' | 'last_30d')}>
             <option value="last_7d">Last 7 days</option>

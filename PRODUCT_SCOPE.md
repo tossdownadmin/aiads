@@ -1,11 +1,13 @@
 # Tossdown Ads Intelligence
 
-Status: **Build in progress — read-only V1**
+Status: **Reporting and research live; reviewed campaign management in development**
 Product owner: Tossdown
 
 ## Product intent
 
 One workspace for Tossdown operators to audit connected advertising accounts and research competitor ads. The Resilia material is a workflow and UI reference only; this product uses Tossdown naming, styling, data, and integrations.
+
+The November 24 expansion adds campaign, ad-set, ad and creative management, with server-side account permissions, before/after review, paused creation, explicit delivery changes and private execution history. See [campaign management scope and execution contract](docs/campaign-management.md). Existing audits, reports and research remain read-only advertising workflows; mutations are confined to the reviewed management endpoint.
 
 ## V1 work areas
 
@@ -36,7 +38,7 @@ The current branch includes the Meta source and a Foreplay brand ads adapter beh
 
 Already present: skill registry/staging, server-side Meta token, a basic campaign-level 7/30-day audit, Bedrock request path, Vercel Blob skill storage, and a read-only UI.
 
-Still missing for production completeness: app-wide authentication and client tenancy, per-client provider connections, persistent audit/search history, full account and campaign pagination, ad-set/ad-level audit depth, live competitor source verification, Slack delivery, retention/deletion policy, and production operational limits. The current `verifyAdminSession` is a placeholder that accepts every request outside the protected Foreplay routes; do not treat the deployed prototype as a secured multi-client product.
+Verified Google sign-in and the configured email allowlist now protect audits, reports, management, skills and paid research. Pagination, ad-set/ad-level detail, shared client context, saved daily reports and resumable reviews are implemented. Remaining product work includes client-isolated provider connections, Slack delivery, a retention/deletion policy and broader operational limits. This remains an internal operator workspace, not a client-tenant product.
 
 ## V1 acceptance
 
