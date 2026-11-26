@@ -1,7 +1,8 @@
 import { beforeEach, expect, it, vi } from 'vitest';
-const mocks=vi.hoisted(()=>({access:vi.fn(),entity:vi.fn(),post:vi.fn(),read:vi.fn(),save:vi.fn(),fetch:vi.fn(),pages:vi.fn(),claim:vi.fn()}));
+const mocks=vi.hoisted(()=>({access:vi.fn(),entity:vi.fn(),post:vi.fn(),read:vi.fn(),save:vi.fn(),fetch:vi.fn(),pages:vi.fn(),claim:vi.fn(),source:vi.fn()}));
 vi.mock('../lib/meta/management/graph',()=>({accountAccess:mocks.access,entity:mocks.entity,postGraph:mocks.post}));
 vi.mock('../lib/meta/management/store',()=>({readDraft:mocks.read,saveDraft:mocks.save,claimAccount:mocks.claim,ChangeConflict:class ChangeConflict extends Error{}}));
+vi.mock('../lib/meta/management/evidence',()=>({resolveChangeEvidence:mocks.source}));
 vi.mock('../lib/meta/read',()=>({fetchGraph:mocks.fetch,fetchAllPages:mocks.pages}));
 import { execute, prepare, publicDraft } from '../lib/meta/management/service';
 import { majorToMinor, operationSchema, type Draft, type Entity } from '../lib/meta/management/types';
@@ -101,4 +102,11 @@ it('exposes exact currency-bearing budget changes individually in a creation rev
 it('rejects an age change that conflicts with retained settings and ad-set budgets under campaign budgeting',async()=>{
   entities.set('200',{...entities.get('200')!,targeting:{age_min:18,age_max:30}});await expect(prepare(accountId,owner,{action:'update',kind:'adset',id:'200',fields:{targeting:{age_min:40}}})).rejects.toThrow('Minimum age');
   entities.set('100',{...entities.get('100')!,daily_budget:'3000'});await expect(prepare(accountId,owner,{action:'update',kind:'adset',id:'200',fields:{daily_budget:'2000'}})).rejects.toThrow('campaign controls');expect(mocks.post).not.toHaveBeenCalled();
+});
+
+it('retains server-resolved finding evidence in the immutable review and public receipt without applying a change',async()=>{
+ const reference={period:'7d',runId:'8200000000000-11111111-1111-1111-1111-111111111111',findingId:'efficiency-trend:100:7d'},source={reference,accountId,entityId:'100',kind:'campaign',title:'Measured review signal',explanation:'Source observation',nextStep:'Human review',window:{since:'2026-11-20',until:'2026-11-26'},completedAt:'2026-11-27T15:00:00Z',skill:{name:'monitor',version:'1.1.0',hash:'a'.repeat(64)},facts:[]};mocks.source.mockResolvedValue(source);
+ const op={action:'update',kind:'campaign',id:'100',fields:{name:'Reviewed name'}};
+ const draft=await prepare(accountId,owner,op,'meta-offset-v1',reference);expect(mocks.source).toHaveBeenCalledWith(accountId,reference,op);expect(draft.sourceEvidence).toEqual(source);expect(publicDraft(draft).sourceEvidence).toEqual(source);expect(mocks.post).not.toHaveBeenCalled();
+ mocks.source.mockResolvedValue({...source,title:'Different source record'});const second=await prepare(accountId,owner,op,'meta-offset-v1',reference);expect(second.digest).not.toBe(draft.digest);
 });

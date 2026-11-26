@@ -34,7 +34,7 @@ export type Entity = Record<string, unknown> & {id:string;name?:string;account_i
 export type Change = {label:string;before:unknown;after:unknown};
 export type Step = {kind:Kind|'image'|'video';path:string;fields:Record<string,unknown>;label:string;replaceAd?:string;result?:Record<string,unknown>;state?:'submitting'|'verified'|'failed'|'unknown';error?:string};
 export type ReadDependency = {kind:Kind;id:string;fingerprint:string};
-export type Draft = {currencyContract?:'meta-offset-v1';id:string;accountId:string;currency:string;accountName:string;owner:string;createdAt:string;expiresAt:string;digest:string;state:'review'|'executing'|'complete'|'partial'|'failed'|'uncertain';title:string;operation:Operation;changes:Change[];warnings:string[];dependencies:ReadDependency[];steps:Step[];updatedAt?:string};
+export type Draft = {sourceEvidence?:import('./evidence').ChangeEvidence;currencyContract?:'meta-offset-v1';id:string;accountId:string;currency:string;accountName:string;owner:string;createdAt:string;expiresAt:string;digest:string;state:'review'|'executing'|'complete'|'partial'|'failed'|'uncertain';title:string;operation:Operation;changes:Change[];warnings:string[];dependencies:ReadDependency[];steps:Step[];updatedAt?:string};
 
 export function majorToMinor(value:string,currency:string) {
   const digits = metaCurrencyDigits(currency);
@@ -44,7 +44,7 @@ export function majorToMinor(value:string,currency:string) {
   return amount.parse(minor);
 }
 export function displayMoney(value:unknown,currency:string) {
-  if(value===null||value===undefined||value==='')return '—';
+  if(value===null||value===undefined||value===''||typeof value==='number'&&!Number.isSafeInteger(value))return '—';
   const digits=metaCurrencyDigits(currency),raw=String(value);
   if(!/^\d+$/.test(raw))return '—';
   return formatMoney(divide(raw,String(10**digits),digits),currency);

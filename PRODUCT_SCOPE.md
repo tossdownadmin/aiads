@@ -56,3 +56,7 @@ Verified Google sign-in and the configured email allowlist now protect audits, r
 ### Monitoring simplification (2026-11-27)
 
 Use Meta campaign objectives, current ad-set optimization goals and explicit conversion events automatically. Account SALES/LEADS intent is context, not an override. Business profiles/targets are optional. Separate source/delivery score from performance evidence; omit unsupported comparisons and retain exact numeric lineage. See the v1.1.0 method and release note.
+
+### Campaign operating workflow (2026-11-27)
+
+The Campaigns workspace now connects source performance and goal-specific review findings to exact entity settings and human-reviewed changes. Immutable finding evidence can be retained in the draft and execution record, while owner acknowledgments remain separate from actual source resolution. Account audits share the dated evidence view; report target setup is optional; approved skill methods can be inspected in the registry. Numeric monthly allocation still requires supplied commercial inputs. See [operations workflow release](docs/product/2026-11-27-operations-workflow.md). Background AI portfolio report execution, fuller result-metric coverage and business-system reconciliation remain distinct future work.

@@ -26,3 +26,9 @@ it('rejects malformed account and parent IDs before Graph lookups',async()=>{
 it('does not expose Graph error messages or credentials in an API error',async()=>{
   mocks.inventory.mockRejectedValue(Error('access_token=secret-token https://graph.facebook.com'));const response=await GET(new Request('https://example.com?accountId=act_123&view=campaigns'));expect(response.status).toBe(503);expect(JSON.stringify(await response.json())).not.toMatch(/secret-token|graph.facebook/);
 });
+
+it('accepts only a scoped monitoring reference and forwards it to the reviewed draft service',async()=>{
+ const reference={period:'7d',runId:'8200000000000-11111111-1111-1111-1111-111111111111',findingId:'efficiency-trend:101:7d'},operation={action:'update',kind:'campaign',id:'101',fields:{name:'Reviewed'}};
+ const response=await POST(request({action:'preview',accountId:'act_123',operation,currencyContract:'meta-offset-v1',monitoringReference:reference}));expect(response.status).toBe(200);expect(mocks.prepare).toHaveBeenCalledWith('act_123','operator@example.com',operation,'meta-offset-v1',reference);expect(mocks.execute).not.toHaveBeenCalled();
+ expect((await POST(request({action:'preview',accountId:'act_123',operation,monitoringReference:{...reference,accountId:'act_999'}}))).status).toBe(400);
+});

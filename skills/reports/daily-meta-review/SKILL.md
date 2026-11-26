@@ -14,3 +14,7 @@ Use only declared server-supplied sources: meta-report-windows, meta-ad-details,
 ## Measurement identity and review readiness
 
 Every quantitative statement must use a matching metric binding from the supplied facts. A lead binding cannot substantiate purchases; profile visits cannot substantiate followers. Keep campaign/ad IDs and comparison windows exact. Describe observed current and prior values instead of saying nearly/almost doubled. Use revenue-to-spend wording; business breakeven requires verified margins. Describe observed costs and relative changes when approved strategy inputs are incomplete, without claiming the cost meets a target. Do not manufacture a performance finding to fill a missing reporting row.
+
+## Optional business inputs
+
+Meta objectives and optimization settings drive campaign-level measured observations. A manual business profile, target, monthly cap or approval date is not a prerequisite for a daily review. Do not create an action item solely because these optional inputs are absent. Skip the corresponding target/pacing comparison; keep source gaps and campaign measurement limitations visible. The account owner's SALES/LEADS intent never overrides an awareness, traffic or other configured campaign goal.

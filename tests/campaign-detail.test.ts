@@ -9,8 +9,8 @@ afterEach(() => {
 const range = { since: "2026-11-01", until: "2026-11-18" };
 
 it("formats Meta budgets using the account currency minor unit", () => {
-  expect(budget("1500", "CAD")).toBe("CAD 15.00");
-  expect(budget("1500", "JPY")).toBe("JPY 1,500");
+  expect(budget("1500", "CAD")).toBe("CAD 15.00");
+  expect(budget("1500", "JPY")).toBe("JPY 1,500");
 });
 
 it("retains dynamic copy variants and carousel cards and escapes them in downloadable HTML", () => {
@@ -118,7 +118,7 @@ it("joins paused inventory and insight-only ads and reports a denied video while
   });
   const [result] = await readDetails("act_1", "CAD", ["campaign"], [range]);
   const s = result.campaign.sets[0];
-  expect(s.settings["Daily budget"]).toBe("CAD 15.00");
+  expect(s.settings["Daily budget"]).toBe("CAD 15.00");
   expect(s.status).toBe("PAUSED");
   expect(s.ads.map((a) => a.id)).toEqual(["ad", "historical"]);
   expect(s.ads[0].creative.notes).toContain(

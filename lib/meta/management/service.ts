@@ -3,6 +3,7 @@ import { fetchAllPages, fetchGraph } from '../read';
 import { accountAccess, entity, postGraph } from './graph';
 import { adFields, adsetFields, campaignFields, ManagementError, operationSchema, type Draft, type Entity, type Kind, type Step } from './types';
 import { ChangeConflict, claimAccount, readDraft, saveDraft } from './store';
+import {resolveChangeEvidence} from './evidence';
 
 export function canonical(value:unknown):string {
   if(Array.isArray(value))return '['+value.map(canonical).join(',')+']';
@@ -48,9 +49,10 @@ async function verifyCreative(accountId:string,creative:Record<string,unknown>) 
     }
   }
 }
-export async function prepare(accountId:string,owner:string,raw:unknown,currencyContract='meta-offset-v1'):Promise<Draft> {
+export async function prepare(accountId:string,owner:string,raw:unknown,currencyContract='meta-offset-v1',monitoringReference?:unknown):Promise<Draft> {
   const operation=operationSchema.parse(raw);
   const access=await accountAccess(accountId);
+  const sourceEvidence=monitoringReference===undefined?undefined:await resolveChangeEvidence(accountId,monitoringReference,operation);
   const now=Date.now();
   const draft:Draft={id:String(9999999999999-now).padStart(13,'0')+'-'+randomUUID(),accountId,currency:access.account.currency,accountName:access.account.name,owner,createdAt:new Date(now).toISOString(),expiresAt:new Date(now+10*60000).toISOString(),currencyContract:'meta-offset-v1',digest:'',state:'review',title:'Review campaign changes',operation,changes:[],warnings:[],dependencies:[],steps:[]};
   const cache=new Map<string,Entity>();
@@ -124,7 +126,8 @@ export async function prepare(accountId:string,owner:string,raw:unknown,currency
   draft.warnings.push('The reviewed settings expire after ten minutes. Changes made in Meta or by a teammate require a fresh review.');
   if(!access.canWrite)draft.warnings.push(...access.reasons);
   if(currencyContract!=='meta-offset-v1'&&draft.steps.some(step=>Object.keys(step.fields).some(key=>['daily_budget','lifetime_budget','spend_cap','bid_amount'].includes(key))))throw new ManagementError('Currency handling was updated. Reload the campaign workspace and create a fresh budget review.');
-  draft.warnings=[...new Set(draft.warnings)];draft.digest=fingerprint({operation,draftId:draft.id,currencyContract:draft.currencyContract,dependencies:draft.dependencies,steps:draft.steps});
+  if(sourceEvidence)draft.sourceEvidence=sourceEvidence;
+  draft.warnings=[...new Set(draft.warnings)];draft.digest=fingerprint({operation,draftId:draft.id,currencyContract:draft.currencyContract,sourceEvidence:draft.sourceEvidence,dependencies:draft.dependencies,steps:draft.steps});
   await saveDraft(draft);return draft;
 }
 function contains(actual:unknown,expected:unknown,key=''):boolean {
@@ -200,5 +203,5 @@ export async function execute(accountId:string,id:string,owner:string,digest:str
 }
 /** Do not send uploaded bytes, Graph payloads or private fingerprint internals back to the browser. */
 export function publicDraft(draft:Draft) {
-  return {id:draft.id,accountId:draft.accountId,accountName:draft.accountName,currency:draft.currency,createdAt:draft.createdAt,expiresAt:draft.expiresAt,digest:draft.digest,state:draft.state,title:draft.title,changes:draft.changes,warnings:draft.warnings,steps:draft.steps.map(s=>({kind:s.kind,label:s.label,state:s.state,result:s.result,error:s.error})),updatedAt:draft.updatedAt};
+  return {id:draft.id,accountId:draft.accountId,accountName:draft.accountName,currency:draft.currency,createdAt:draft.createdAt,expiresAt:draft.expiresAt,digest:draft.digest,state:draft.state,title:draft.title,sourceEvidence:draft.sourceEvidence,changes:draft.changes,warnings:draft.warnings,steps:draft.steps.map(s=>({kind:s.kind,label:s.label,state:s.state,result:s.result,error:s.error})),updatedAt:draft.updatedAt};
 }

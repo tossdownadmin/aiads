@@ -6,6 +6,8 @@ import type {CampaignRow} from '../../lib/reports/model';
 import { useEffect, useMemo, useState } from 'react';
 import { signIn } from 'next-auth/react';
 import WorkspaceShell from '../workspace-shell';
+import AccountEvidence,{useAccountEvidence} from '../account-evidence';
+import {activeClients} from '../../config/active-clients';
 
 type Skill = { name: string; description: string; source: string; categories: string[]; platforms: string[]; status: string; license?: string; sha: string };
 type Account = { id: string; name: string; status: number; currency: string; timezone?: string };
@@ -35,6 +37,7 @@ export default function Workbench() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [signInRequired, setSignInRequired] = useState(false);
+  const evidence=useAccountEvidence(account,period==='last_30d'?'30d':'7d');
   const headers = useMemo(() => ({ 'Content-Type': 'application/json' }), []);
 
   async function connect() {
@@ -52,8 +55,8 @@ export default function Workbench() {
       if (!accountsResponse.ok) throw new Error(accountsData.error || 'Could not load Meta accounts');
       const auditSkills = (skillsData.skills as Skill[]).filter(item => item.categories?.includes('analysis') && item.platforms?.includes('meta') && !item.categories?.includes('competitor_intel') && !(item as Skill & {writeActions?:boolean}).writeActions);
       setSkills(auditSkills);
-      setAccounts(accountsData.accounts);
-      setSkill(current => auditSkills.some(item => item.name === current) ? current : auditSkills.find(item => item.name === 'meta-account-audit')?.name || auditSkills[0]?.name || '');
+      setAccounts(accountsData.accounts);const requested=new URLSearchParams(window.location.search).get('account');if(accountsData.accounts.some((a:Account)=>a.id===requested))setAccount(requested!);
+      setSkill(current => auditSkills.some(item=>item.name===new URLSearchParams(window.location.search).get('method'))?new URLSearchParams(window.location.search).get('method')!:auditSkills.some(item => item.name === current) ? current : auditSkills.find(item => item.name === 'meta-account-audit')?.name || auditSkills[0]?.name || '');
       setConnected(true);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Connection failed');
@@ -99,7 +102,7 @@ export default function Workbench() {
         <article><label>2. Ad account
           <select value={account} onChange={event => setAccount(event.target.value)}>
             <option value="">Choose a Meta ad account</option>
-            {accounts.map(item => <option key={item.id} value={item.id}>{item.name} · {item.currency} · {item.id}</option>)}
+            <optgroup label="Assigned portfolio">{activeClients.map(c=>{const a=accounts.find(a=>a.id===c.accountId);return a?<option key={a.id} value={a.id}>{c.name} · {a.currency} · {c.businessIntent}</option>:null;})}</optgroup><optgroup label="Other connected accounts">{accounts.filter(a=>!activeClients.some(c=>c.accountId===a.id)).map(item=><option key={item.id} value={item.id}>{item.name} · {item.currency}</option>)}</optgroup>
           </select>
           <small>{account ? `${accounts.find(item => item.id === account)?.name} · ${account}` : `${accounts.length} accounts available to this Meta token`}</small>
         </label>{account&&<a className="workspace-link-button" href={"/campaigns?account="+account}>Manage this account →</a>}</article>
@@ -111,6 +114,7 @@ export default function Workbench() {
           <small>Completed days in the account time zone</small><span>Campaign scope</span><select aria-label="Campaign scope" value={scope} onChange={e=>setScope(e.target.value as typeof scope)}><option value="period">All campaigns in the period</option><option value="active">Currently active campaigns only</option></select>
         </label></article>
       </section>
+      {account&&<AccountEvidence state={evidence}/>}
       <button className="run-button" onClick={runAudit} disabled={!skill || !account || busy}>
         {busy ? 'Running audit…' : 'Run audit →'}
       </button>
@@ -131,7 +135,7 @@ export default function Workbench() {
           <div><small>Current delivery notices</small><strong>{result.deliveryNotices?.length??0}</strong></div>
         </div>
         {result.window&&<p>{result.window.since} – {result.window.until} · {result.account.timezone}</p>}
-        {result.readiness&&<section className="finding"><strong>Client readiness: {result.readiness.status}</strong><p>{result.readiness.gaps.join(' · ')||'Approved strategy inputs are available.'}</p><a href={'/reports?context='+result.account.id}>Review business profile</a></section>}
+        {result.readiness&&<details className="finding"><summary>Optional business target comparisons</summary><p>Campaign objectives and optimization goals drive measured observations. Missing targets do not block this audit. Target comparisons are skipped unless the supplied commercial inputs apply.</p><a href={'/reports?context='+result.account.id}>Add optional business inputs</a></details>}
         {result.analysis.quality&&<section className="finding"><strong>Review coverage: {result.analysis.quality.status}</strong><ul>{result.analysis.quality.checks.map(c=><li key={c.key}>{c.label}: {c.status.replace('_',' ')}</li>)}</ul></section>}
         {result.deliveryNotices?.map(n=><article className="finding" key={n.title}><strong>{n.title}</strong><p>{n.detail}</p></article>)}
         <h3>Evidence-checked audit analysis</h3>{result.analysis.run&&<a href={'/api/meta/reports/runs?runId='+result.analysis.run.id} target="_blank" rel="noreferrer">Private analysis record ↗</a>}

@@ -72,3 +72,8 @@ it('rejects target attainment without current approval while allowing a measured
  expect(()=>check('The reported CPL is lower than the previous period.')).not.toThrow();
  expect(()=>check('The target is unknown; reported {{window0:account:leads}} leads.')).not.toThrow();
 });
+
+it('does not reduce measurement coverage merely because commercial inputs were not supplied',()=>{
+ const p={...snapshot(),previous:{window:{since:'2026-11-09',until:'2026-11-15'},totals,campaigns:[campaign('campaign-a')]},analysis:{findings:[{tone:'ok' as const,category:'win' as const,title:'Measured delivery',detail:'Reported source outcome',action:'Review the measured observation',reason:'Actual source',evidenceIds:['window0:campaign:campaign-a:facebookVisits']}]}};
+ const quality=reviewQuality(account,p,null);expect(quality.checks.find(c=>c.key==='context')!.status).toBe('not_applicable');expect(quality.readiness.status).toBe('incomplete');expect(quality.status).toBe('reviewed');
+});

@@ -21,28 +21,27 @@ export function clientReadiness(context:DailyClientContext|null|undefined,accoun
   return {status:gaps.length?'incomplete':'ready',gaps,...(valid?{contextUpdatedAt:valid.updatedAt}:{})};
 }
 
-export type ReviewCheck={key:string;label:string;status:'available'|'unavailable'|'needs_context'};
+export type ReviewCheck={key:string;label:string;status:'available'|'unavailable'|'needs_context'|'not_applicable'};
 export type ReviewQuality={status:'reviewed'|'limited'|'unavailable';checks:ReviewCheck[];performanceFindings:number;readiness:ClientReadiness};
 export function reviewQuality(account:MetaAccount,p:Snapshot,context?:DailyClientContext|null):ReviewQuality{
   const readiness=clientReadiness(context,account,p.window.until);
-  const kinds=[...new Set(p.campaigns.map(resultKind).filter(Boolean))];
-  const outcome=context?.accountId===account.id&&context.currency===account.currency?context.primaryOutcome:undefined;
-  const primary=outcome??(kinds.length===1?kinds[0]:undefined);
+  const reporting=p.campaigns.filter(c=>c.hasInsights&&(c.spend??0)>0);
+  const measured=reporting.filter(c=>{const kind=resultKind(c);return kind&&c[kind]!=null;});
   const spend=p.totals?.spend!=null;
   const delivery=p.totals?.impressions!=null||p.campaigns.some(c=>c.hasInsights&&c.impressions!=null);
-  const result=!!primary&&(p.totals?.[primary]!=null||p.campaigns.some(c=>resultKind(c)===primary&&c[primary]!=null));
+  const result=reporting.length>0&&measured.length===reporting.length;
   const prior=p.previous;
   const comparison=!!prior&&Date.parse(prior.window.until)<Date.parse(p.window.since)&&Date.parse(prior.window.until)-Date.parse(prior.window.since)===Date.parse(p.window.until)-Date.parse(p.window.since)&&(prior.totals?.spend!=null||prior.campaigns.some(c=>c.spend!=null));
   const performanceFindings=(p.analysis?.findings??[]).filter(f=>['win','concern'].includes(f.category??'')&&f.evidenceIds?.some(id=>/:account:|:campaign:|:ad(?:set)?:/.test(id))).length;
   const checks:ReviewCheck[]=[
     {key:'spend',label:'Account spend',status:spend?'available':'unavailable'},
     {key:'delivery',label:'Dated delivery',status:delivery?'available':'unavailable'},
-    {key:'outcome',label:'Primary outcome',status:result?'available':'unavailable'},
+    {key:'outcome',label:'Campaign outcome coverage',status:result?'available':'unavailable'},
     {key:'comparison',label:'Comparable history',status:comparison?'available':'unavailable'},
-    {key:'context',label:'Approved business context',status:readiness.status==='ready'?'available':'needs_context'},
+    {key:'context',label:'Optional commercial target checks',status:readiness.status==='ready'?'available':'not_applicable'},
     {key:'analysis',label:'Performance findings',status:performanceFindings?'available':'unavailable'},
   ];
-  const limited=checks.some(c=>c.status!=='available')||!!p.analysis?.notes?.length;
+  const limited=checks.some(c=>c.status!=='available'&&c.status!=='not_applicable')||!!p.analysis?.notes?.length;
   return {status:!spend&&!delivery?'unavailable':limited?'limited':'reviewed',checks,performanceFindings,readiness};
 }
 
@@ -67,7 +66,7 @@ export function deduplicateFindings(findings:ReportFinding[]){
 /** Current source status is reported independently of optional AI prose. */
 export function deliveryNotices(account:MetaAccount,p:Snapshot){
   const notices:{title:string;detail:string}[]=[];
-  if(![1,9].includes(account.status))notices.push({title:'Current account status needs review',detail:'Meta returned account status '+account.status+' at retrieval. Check the current account notice.'});
+  if(account.status!==1)notices.push({title:'Current account status needs review',detail:'Meta returned account status '+account.status+' at retrieval. Check the current account notice.'});
   const disapproved=new Set(Object.values(p.details??{}).flatMap(d=>d.sets.flatMap(s=>s.ads.filter(a=>a.status==='DISAPPROVED').map(a=>a.id))));
   if(disapproved.size)notices.push({title:'Current ad disapprovals',detail:disapproved.size+' ad(s) are marked DISAPPROVED at retrieval: '+[...disapproved].join(', ')+'. This is current status, not proof of historical zero delivery.'});
   return notices;

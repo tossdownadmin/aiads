@@ -1,4 +1,5 @@
 import { fetchAllPages, fetchGraph } from "./read";
+import {displayMoney} from "./management/types";
 import { metrics, type Metrics, type Window } from "../reports/model";
 
 type Fields = Record<string, unknown>;
@@ -25,19 +26,8 @@ function url(value: unknown) {
   return "";
 }
 export function budget(value: unknown, currency: string) {
-  if (!value || !Number.isFinite(Number(value)) || !currency) return "";
-  return new Intl.NumberFormat("en", {
-    style: "currency",
-    currency,
-    currencyDisplay: "code",
-  }).format(
-    Number(value) /
-      10 **
-        (new Intl.NumberFormat("en", {
-          style: "currency",
-          currency,
-        }).resolvedOptions().maximumFractionDigits ?? 2),
-  );
+  if(value===null||value===undefined||value===''||!currency)return '';
+  try {return displayMoney(value,currency);}catch{return '';}
 }
 export function limitation(label: string, error: unknown) {
   const e = error as { code?: number; status?: number; message?: string };

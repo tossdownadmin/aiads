@@ -9,7 +9,7 @@ export type AuditAnalysis={status:'complete'|'unavailable';summary?:string;findi
 export function readOnlyReviewSkill(skill:SkillRecord&{body:string}):ReportingSkill{
  if(skill.status!=='approved'||skill.writeActions||skill.risk==='high')throw Error('Choose an approved read-only analysis method.');
  const base=getReportingSkills()[0];
- return {...base,...skill,reportType:'daily',contract:'daily-v1',platforms:['meta'],writeActions:false,requirements:base.requirements,resources:base.resources,body:skill.body+'\n\nUse the supplied evidence catalog and daily-v1 JSON contract. Every numeric claim must bind its exact matching metric. Source metadata is not a KPI. Do not infer missing measurements or claim business breakeven. Give a factual observation when strategy context is incomplete.',original:skill.body};
+ return {...base,...skill,reportType:'daily',contract:'daily-v1',platforms:['meta'],writeActions:false,requirements:base.requirements,resources:base.resources,body:skill.body+'\n\nUse the supplied evidence catalog and daily-v1 JSON contract. Every numeric claim must bind its exact matching metric. Source metadata is not a KPI. Do not infer missing measurements or claim business breakeven. Use Meta campaign objectives and ad-set optimization settings for measured observations. Business goals, budgets and targets are optional; do not create a finding solely to request these inputs. Only compare a target when its validated evidence is supplied. A campaign objective does not prove profit or lead quality.',original:skill.body};
 }
 export async function analyzeAccountAudit(report:Report,skill:SkillRecord&{body:string}):Promise<AuditAnalysis>{
  const p=report.periods[0];

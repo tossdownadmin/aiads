@@ -21,7 +21,7 @@ export async function GET(request:Request) {
       if(url.searchParams.get('view')==='history')return reply({history:await monitorHistory(id,period.data)});
       const runId=url.searchParams.get('runId'),snapshot=runId?await readMonitorRun(id,period.data,runId):await latestMonitor(id,period.data);
       if(!snapshot)return reply({error:'No saved source snapshot for this account and period.'},404);
-      return reply({account,snapshot});
+      return reply({account,snapshot:url.searchParams.get('view')==='summary'?monitorSummary(snapshot):snapshot});
     }
     const rows=[];
     for(let i=0;i<activeClients.length;i+=3)rows.push(...await Promise.all(activeClients.slice(i,i+3).map(client=>portfolioEntry(client.accountId,client.name,accounts.find(a=>a.id===client.accountId)||null,period.data))));
