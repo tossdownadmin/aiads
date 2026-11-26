@@ -140,7 +140,7 @@ function ChangeDialog({account,access,editor,initial,assets,assetLoading,assetEr
         }
         operation=mode==='edit'?{action:'update',kind:kind as 'campaign'|'adset'|'ad',id:item!.id,fields}:mode==='campaign'?{action:'create_campaign',fields:fields as Extract<Operation,{action:'create_campaign'}>['fields']}:{action:'create_adset',fields:fields as Extract<Operation,{action:'create_adset'}>['fields']};
       }
-      const result=await api('',{action:'preview',accountId:account.id,operation});setReview(result);setApproved(false);
+      const result=await api('',{action:'preview',accountId:account.id,operation,currencyContract:'meta-offset-v1'});setReview(result);setApproved(false);
     } catch(e){setError((e as Error).message);}finally{setBusy(false);}
   }
   async function apply(){if(!review||!approved||attempted)return;setAttempted(true);setBusy(true);setError('');try{setReview(await api('',{action:'execute',accountId:account.id,id:review.id,digest:review.digest,approved:true}));onChanged();}catch(e){setError((e as Error).message+' Open the saved record to confirm its outcome before preparing another change.');}finally{setBusy(false);}}

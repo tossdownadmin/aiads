@@ -31,7 +31,7 @@ export async function GET(request:Request) {
   } catch(error){return reply({error:knownMessage(error)},error instanceof ZodError?400:503);}
 }
 const requestSchema=z.union([
-  z.object({action:z.literal('preview'),accountId,operation:z.unknown()}).strict(),
+  z.object({action:z.literal('preview'),accountId,operation:z.unknown(),currencyContract:z.literal('meta-offset-v1').optional()}).strict(),
   z.object({action:z.literal('execute'),accountId,id:z.string().regex(/^\d{13}-[a-f\d-]{36}$/),digest:z.string().regex(/^[a-f\d]{64}$/),approved:z.literal(true)}).strict(),
 ]);
 export async function POST(request:Request) {
@@ -41,7 +41,7 @@ export async function POST(request:Request) {
   try {
     const text=await request.text();if(Buffer.byteLength(text)>3200000)return reply({error:'The change is too large. Images must be 2 MB or smaller.'},413);
     const input=requestSchema.parse(JSON.parse(text));
-    const result=input.action==='preview'?await prepare(input.accountId,session.user.email,input.operation):await execute(input.accountId,input.id,session.user.email,input.digest);
+    const result=input.action==='preview'?await prepare(input.accountId,session.user.email,input.operation,input.currencyContract||'legacy'):await execute(input.accountId,input.id,session.user.email,input.digest);
     return reply(publicDraft(result));
   } catch(error) {
     if(error instanceof ChangeConflict)return reply({error:error.message},409);

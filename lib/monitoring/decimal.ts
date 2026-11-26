@@ -1,3 +1,4 @@
+import {metaCurrencyDigits} from '../meta/currency';
 /** Exact base-ten arithmetic. JSON stores decimal strings, never binary floats. */
 type Decimal = { n: bigint; scale: number };
 function unpack(value: string): Decimal {
@@ -44,6 +45,6 @@ export function formatDecimal(value: string | null, digits?: number): string {
 }
 export function formatMoney(value: string | null, currency: string) {
   if (value === null) return '—';
-  const digits = new Intl.NumberFormat('en',{style:'currency',currency}).resolvedOptions().maximumFractionDigits;
+  const digits = metaCurrencyDigits(currency);
   return currency + ' ' + formatDecimal(value,digits);
 }

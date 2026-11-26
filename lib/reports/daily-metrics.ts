@@ -13,7 +13,7 @@ export const ratio = (n: number | null | undefined) => n == null ? dash : n.toFi
 export function cash(n: number | null | undefined, currency: string) {
   if (n == null) return dash;
   if (currency==='PKR') {
-    const digits=n>0 && n<100 ? 2 : 0;
+    const digits=2;
     return '₨'+n.toLocaleString('en-US',{minimumFractionDigits:digits,maximumFractionDigits:digits});
   }
   if (currency==='CAD' || currency==='USD') return '$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});

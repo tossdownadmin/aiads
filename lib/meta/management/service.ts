@@ -48,11 +48,11 @@ async function verifyCreative(accountId:string,creative:Record<string,unknown>) 
     }
   }
 }
-export async function prepare(accountId:string,owner:string,raw:unknown):Promise<Draft> {
+export async function prepare(accountId:string,owner:string,raw:unknown,currencyContract='meta-offset-v1'):Promise<Draft> {
   const operation=operationSchema.parse(raw);
   const access=await accountAccess(accountId);
   const now=Date.now();
-  const draft:Draft={id:String(9999999999999-now).padStart(13,'0')+'-'+randomUUID(),accountId,currency:access.account.currency,accountName:access.account.name,owner,createdAt:new Date(now).toISOString(),expiresAt:new Date(now+10*60000).toISOString(),digest:'',state:'review',title:'Review campaign changes',operation,changes:[],warnings:[],dependencies:[],steps:[]};
+  const draft:Draft={id:String(9999999999999-now).padStart(13,'0')+'-'+randomUUID(),accountId,currency:access.account.currency,accountName:access.account.name,owner,createdAt:new Date(now).toISOString(),expiresAt:new Date(now+10*60000).toISOString(),currencyContract:'meta-offset-v1',digest:'',state:'review',title:'Review campaign changes',operation,changes:[],warnings:[],dependencies:[],steps:[]};
   const cache=new Map<string,Entity>();
   const depend=async(kind:Kind,id:string):Promise<Entity>=>{
     const key=kind+':'+id;
@@ -123,7 +123,8 @@ export async function prepare(accountId:string,owner:string,raw:unknown):Promise
   }
   draft.warnings.push('The reviewed settings expire after ten minutes. Changes made in Meta or by a teammate require a fresh review.');
   if(!access.canWrite)draft.warnings.push(...access.reasons);
-  draft.warnings=[...new Set(draft.warnings)];draft.digest=fingerprint({operation,draftId:draft.id,dependencies:draft.dependencies,steps:draft.steps});
+  if(currencyContract!=='meta-offset-v1'&&draft.steps.some(step=>Object.keys(step.fields).some(key=>['daily_budget','lifetime_budget','spend_cap','bid_amount'].includes(key))))throw new ManagementError('Currency handling was updated. Reload the campaign workspace and create a fresh budget review.');
+  draft.warnings=[...new Set(draft.warnings)];draft.digest=fingerprint({operation,draftId:draft.id,currencyContract:draft.currencyContract,dependencies:draft.dependencies,steps:draft.steps});
   await saveDraft(draft);return draft;
 }
 function contains(actual:unknown,expected:unknown,key=''):boolean {
@@ -162,6 +163,7 @@ export async function execute(accountId:string,id:string,owner:string,digest:str
   if(draft.owner!==owner)throw new ManagementError('Only the operator who prepared this review can apply it.');
   if(draft.state!=='review'||draft.digest!==digest)throw new ChangeConflict();
   if(Date.parse(draft.expiresAt)<=Date.now())throw new ManagementError('This review expired. Review the current settings again.');
+  if(draft.currencyContract!=='meta-offset-v1'&&draft.steps.some(step=>Object.keys(step.fields).some(key=>['daily_budget','lifetime_budget','spend_cap','bid_amount'].includes(key))))throw new ManagementError('Currency handling was updated. Create a fresh budget review before applying it.');
   const access=await accountAccess(accountId);if(!access.canWrite)throw new ManagementError(access.reasons.join(' '));
   for(const d of draft.dependencies)if(fingerprint(await entity(d.kind,d.id,accountId))!==d.fingerprint)throw new ManagementError('Current settings have changed since this review. Reload and review again.');
   const release=await claimAccount(accountId,draft.id);

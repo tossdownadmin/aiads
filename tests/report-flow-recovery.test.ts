@@ -32,8 +32,10 @@ it('keeps the outcome type and currency display precision when accepting literal
  const evidence=dailyEvidence(report);
  expect(()=>validateDailyAnalysis(finding('CPL is $0.26.'),evidence)).toThrow('Unbound numeric');
  const pk={...report,account:{...account,currency:'PKR'},periods:report.periods.map(p=>({...p,totals:metrics({spend:'7511.34',purchase_roas:[{action_type:'purchase',value:'.29'}]})}))};
- const raw=finding('Spend was ₨7,511, and ROAS is below 1×.','Attributed value below spend',['window0:account:spend','window0:account:roas']);
- expect(validateDailyAnalysis(raw,dailyEvidence(pk))[0].findings[0].interpretation).toContain('₨7,511');
+ const raw=finding('Spend was ₨7,511.34, and ROAS is below 1×.','Attributed value below spend',['window0:account:spend','window0:account:roas']);
+ expect(validateDailyAnalysis(raw,dailyEvidence(pk))[0].findings[0].interpretation).toContain('₨7,511.34');
+ const rounded=finding('Spend was ₨7,511, and ROAS is below 1×.','Attributed value below spend',['window0:account:spend','window0:account:roas']);
+ expect(()=>validateDailyAnalysis(rounded,dailyEvidence(pk))).toThrow('Unbound numeric');
  expect(()=>validateDailyAnalysis(finding('ROAS is above 1×.','Revenue comparison',['window0:account:roas']),dailyEvidence(pk))).toThrow('Unbound numeric');
 });
 

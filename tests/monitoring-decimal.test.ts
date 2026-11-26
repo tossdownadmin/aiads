@@ -11,4 +11,5 @@ it('rejects coercion, nonfinite, negative, exponent and unsafe source money',()=
 it('rounds display explicitly without changing source values or crossing currencies',()=>{
   expect(formatMoney('1.005','CAD')).toBe('CAD 1.01');expect(formatMoney('1234','JPY')).toBe('JPY 1,234');expect(formatDecimal('999999999999999999.999',2)).toBe('1,000,000,000,000,000,000.00');expect(formatDecimal('-0.004',2)).toBe('0.00');expect(changePercent('1','0')).toBeNull();expect(changePercent('80','100')).toBe('-20');
   expect(formatMoney('-0.01','CAD')).toBe('CAD -0.01');expect(formatDecimal('-0.125')).toBe('-0.125');
+  expect(formatMoney('27893.93','PKR')).toBe('PKR 27,893.93');
 });

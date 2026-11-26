@@ -1,4 +1,5 @@
 import type { MetaAccount, MetaCampaign } from '../meta/read';
+import {metaCurrencyDigits} from '../meta/currency';
 
 export type Window = { since: string; until: string; partial?: boolean };
 export type Row = Record<string, unknown>;
@@ -134,10 +135,11 @@ export function signals(snapshot: Snapshot): { finding: string; action: string }
   return findings;
 }
 export function money(value: number | null, currency: string) {
-  return value === null ? '—' : new Intl.NumberFormat('en', { style: 'currency', currency, currencyDisplay: 'code' }).format(value);
+  const digits=metaCurrencyDigits(currency);
+  return value === null ? '—' : new Intl.NumberFormat('en', { style: 'currency', currency, currencyDisplay: 'code',minimumFractionDigits:digits,maximumFractionDigits:digits }).format(value);
 }
 export function planAmounts(allocations: Proposal['allocation'], cap: number, currency: string): number[] {
-  const digits = new Intl.NumberFormat('en', { style: 'currency', currency }).resolvedOptions().maximumFractionDigits ?? 2;
+  const digits = metaCurrencyDigits(currency);
   const scale = 10 ** digits;
   const units = Math.round(cap * scale);
   let assigned = 0, percent = 0;

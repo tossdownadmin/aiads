@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import {metaCurrencyDigits} from '../currency';
+import {divide,formatMoney} from '../../monitoring/decimal';
 export class ManagementError extends Error {}
 
 export const accountId = z.string().regex(/^act_\d+$/);
@@ -32,10 +34,10 @@ export type Entity = Record<string, unknown> & {id:string;name?:string;account_i
 export type Change = {label:string;before:unknown;after:unknown};
 export type Step = {kind:Kind|'image'|'video';path:string;fields:Record<string,unknown>;label:string;replaceAd?:string;result?:Record<string,unknown>;state?:'submitting'|'verified'|'failed'|'unknown';error?:string};
 export type ReadDependency = {kind:Kind;id:string;fingerprint:string};
-export type Draft = {id:string;accountId:string;currency:string;accountName:string;owner:string;createdAt:string;expiresAt:string;digest:string;state:'review'|'executing'|'complete'|'partial'|'failed'|'uncertain';title:string;operation:Operation;changes:Change[];warnings:string[];dependencies:ReadDependency[];steps:Step[];updatedAt?:string};
+export type Draft = {currencyContract?:'meta-offset-v1';id:string;accountId:string;currency:string;accountName:string;owner:string;createdAt:string;expiresAt:string;digest:string;state:'review'|'executing'|'complete'|'partial'|'failed'|'uncertain';title:string;operation:Operation;changes:Change[];warnings:string[];dependencies:ReadDependency[];steps:Step[];updatedAt?:string};
 
 export function majorToMinor(value:string,currency:string) {
-  const digits = new Intl.NumberFormat('en',{style:'currency',currency}).resolvedOptions().maximumFractionDigits ?? 2;
+  const digits = metaCurrencyDigits(currency);
   const match=value.trim().match(/^(\d+)(?:\.(\d+))?$/);
   if(!match || (match[2]?.length||0)>digits) throw new Error(`Use at most ${digits} decimal places for ${currency}.`);
   const minor=BigInt(match[1]+(match[2]||'').padEnd(digits,'0')).toString();
@@ -43,6 +45,7 @@ export function majorToMinor(value:string,currency:string) {
 }
 export function displayMoney(value:unknown,currency:string) {
   if(value===null||value===undefined||value==='')return '—';
-  const digits=new Intl.NumberFormat('en',{style:'currency',currency}).resolvedOptions().maximumFractionDigits ?? 2;
-  return new Intl.NumberFormat('en',{style:'currency',currency}).format(Number(value)/10**digits);
+  const digits=metaCurrencyDigits(currency),raw=String(value);
+  if(!/^\d+$/.test(raw))return '—';
+  return formatMoney(divide(raw,String(10**digits),digits),currency);
 }

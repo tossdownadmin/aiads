@@ -5,6 +5,12 @@ vi.mock('../lib/meta/management/store',()=>({readDraft:mocks.read,saveDraft:mock
 vi.mock('../lib/meta/read',()=>({fetchGraph:mocks.fetch,fetchAllPages:mocks.pages}));
 import { execute, prepare, publicDraft } from '../lib/meta/management/service';
 import { majorToMinor, operationSchema, type Draft, type Entity } from '../lib/meta/management/types';
+it('requires a fresh client currency contract for financial reviews and old pending budgets',async()=>{
+ await expect(prepare('act_123','operator@example.com',{action:'update',kind:'adset',id:'200',fields:{daily_budget:'2000'}},'legacy')).rejects.toThrow('Reload');expect(mocks.post).not.toHaveBeenCalled();
+ const draft=await prepare('act_123','operator@example.com',{action:'update',kind:'adset',id:'200',fields:{daily_budget:'2000'}});
+ const stored=records.get(draft.id)!;delete stored.draft.currencyContract;
+ await expect(execute('act_123',draft.id,'operator@example.com',draft.digest)).rejects.toThrow('fresh budget review');expect(mocks.post).not.toHaveBeenCalled();
+});
 const accountId='act_123',owner='operator@example.com';
 let records:Map<string,{draft:Draft;version:string}>,entities:Map<string,Entity>,counter:number;
 beforeEach(()=>{

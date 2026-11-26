@@ -1,6 +1,6 @@
 # Tossdown Ads Intelligence
 
-Status: **Reporting, research and reviewed campaign management live; Meta operations monitoring release in verification**
+Status: **Reporting, research and reviewed campaign management live; Meta operations monitoring live with source verification**
 Product owner: Tossdown
 
 ## Product intent
