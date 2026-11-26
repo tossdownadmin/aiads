@@ -25,3 +25,7 @@ Release checks: 285 tests across 42 files passed, including private report fixtu
 ## Live audit follow-up
 
 The first live specialist audit correctly rejected profit, saturation and unbound numerical claims, but its only surviving action asked for optional budgets/targets. The follow-up keeps those strict validators and adds compiled source observations as a separate, labeled output. It suppresses action items whose sole purpose is optional commercial setup while preserving genuine missing-source/outcome warnings. Source observations show exact existing evidence values and matching result costs; qualified cost comparisons use at least ten named outcomes in both periods. Rejected model commentary remains visibly limited and is never replaced with invented AI prose. The focused editor also waits for the selected finding's evidence before allowing a linked review.
+
+Historical report notice: when the saved report’s method/version differs from the selected approved daily method, the page explicitly requests regeneration for current checks and corrected Meta budget formatting. Existing HTML is preserved as a historical snapshot; its formatted configuration values are not silently rewritten.
+
+Final validation after the live-audit follow-up: 289 tests across 43 files and the production build passed. Independent verification also matched 280 supplied live budget/bid values and 74 entity-specific finding-to-change evidence packages. No live advertising changes were applied.
