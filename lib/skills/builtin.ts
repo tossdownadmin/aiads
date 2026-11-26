@@ -1,4 +1,5 @@
 import {getReportingSkills} from './report-packages';
+import {getMonitoringSkill} from '../monitoring/skill';
 import { createHash } from 'node:crypto';
 import type { Category, SkillRecord } from './types';
 
@@ -34,6 +35,7 @@ Map positioning in the supplied source-labeled public ads. Group explicit claims
 
 export function getBuiltinSkills(): FirstPartySkill[] {
   return [
+    {...getMonitoringSkill(),trustTier:1},
     ...getReportingSkills(),
     skill('meta-account-audit', 'Review campaigns, ad results and daily trends with cited evidence and data gaps.', ['analysis', 'monitoring'], accountAudit),
     skill('budget-efficiency-review', 'Compare campaign spend and reported outcomes by objective; no automatic budget changes.', ['analysis', 'optimization'], budgetReview),

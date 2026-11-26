@@ -1,6 +1,6 @@
 # Tossdown Ads Intelligence
 
-Status: **Reporting and research live; reviewed campaign management in development**
+Status: **Reporting, research and reviewed campaign management live; Meta operations monitoring release in verification**
 Product owner: Tossdown
 
 ## Product intent
@@ -8,6 +8,10 @@ Product owner: Tossdown
 One workspace for Tossdown operators to audit connected advertising accounts and research competitor ads. The Resilia material is a workflow and UI reference only; this product uses Tossdown naming, styling, data, and integrations.
 
 The November 24 expansion adds campaign, ad-set, ad and creative management, with server-side account permissions, before/after review, paused creation, explicit delivery changes and private execution history. See [campaign management scope and execution contract](docs/campaign-management.md). Existing audits, reports and research remain read-only advertising workflows; mutations are confined to the reviewed management endpoint.
+
+## Current delivery focus
+
+The Monitoring home brings the assigned Meta portfolio, native Opportunity Scores, versioned deterministic checks, exact source reconciliation, a team action queue, and shared business profiles into one operational workflow. The November 27 release scope, deferred work and verification gates are defined in [Meta operations release](docs/product/2026-11-27-meta-operations-release.md). All advertising changes continue through the existing human review flow.
 
 ## V1 work areas
 

@@ -5,7 +5,7 @@ import UiIcon, { type IconName } from './ui-icons';
 
 type Page = 'reports' | 'home' | 'workbench' | 'competitors' | 'registry' | 'campaigns';
 const pages: Array<{ id: Page; href: string; label: string; icon: IconName; detail?: string }> = [
-  { id: 'home', href: '/', label: 'Home', icon: 'home' },
+  { id: 'home', href: '/', label: 'Monitoring', icon: 'home', detail: 'Assigned account health, source checks and action queue' },
   { id: 'campaigns', href: '/campaigns', label: 'Campaigns', icon: 'campaign', detail: 'Create, edit and review campaign changes' },
   { id: 'workbench', href: '/workbench', label: 'Account audits', icon: 'audit', detail: 'Review Meta campaigns' },
   { id: 'reports', href: '/reports', label: 'Client reports', icon: 'report', detail: 'Daily reports and monthly plans' },

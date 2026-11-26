@@ -1,0 +1,18 @@
+{
+  "name": "meta-operations-monitor",
+  "version": "1.0.0",
+  "contract": "meta-monitor-v1",
+  "description": "Reconcile source figures, check delivery and approved goals, and surface measured optimization signals across the assigned Meta portfolio.",
+  "rules": [
+    {"id":"source-reconciliation","label":"Source reconciliation","weight":25},
+    {"id":"account-delivery","label":"Account availability","weight":15},
+    {"id":"ad-policy","label":"Ad approval status","weight":10},
+    {"id":"client-readiness","label":"Approved business context","weight":10},
+    {"id":"outcome-availability","label":"Primary outcome evidence","weight":10},
+    {"id":"cost-target","label":"Approved account cost target","weight":10},
+    {"id":"budget-usage","label":"Approved monthly budget","weight":10},
+    {"id":"efficiency-trend","label":"Account efficiency comparison","weight":5},
+    {"id":"creative-engagement","label":"Creative engagement comparison","weight":5}
+  ],
+  "thresholds": {"minimumOutcomes":"10","costIncrease":"1.25","creativeImpressions":"1000","frequencyIncrease":"1.2","ctrDecrease":"0.8"}
+}
