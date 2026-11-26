@@ -19,12 +19,18 @@ export type Finding = {
   priority: 'critical'|'high'|'medium'; category: 'delivery'|'measurement'|'performance'|'budget'|'creative'|'readiness';
   title: string; explanation: string; nextStep: string; evidenceIds: string[]; href: string;
 };
+export type CampaignOutcome = {
+  id:string; name:string; objective:string|null; goals:string[]; events:string[];
+  outcome:string|null; label:string; state:'reported'|'unreported'|'mixed'|'unsupported'|'unavailable';
+  detail:string; resultId?:string; costId?:string; previousCostId?:string; spendId:string;
+};
 export type MonitorSnapshot = {
   schema: 'meta-monitor-v1'; id: string; account: MetaAccount; period: Period; window: Window; previousWindow: Window;
   startedAt: string; completedAt: string; skill: {name: string; version: string; hash: string};
   context: DailyClientContext | null; contextError: boolean; sources: Sources; evidence: Evidence[]; checks: Check[]; findings: Finding[];
   score: number | null; coverage: {evaluated: number; applicable: number; percent: number};
   integrity: 'verified'|'mismatch'|'unavailable'; nativeScore: string | null; limitations: string[];
+  businessIntent?:'SALES'|'LEADS'; campaignOutcomes?:CampaignOutcome[]; scoreBasis?:'source-and-delivery';
 };
 export type WorkflowState = 'open'|'in_progress'|'reviewed'|'dismissed'|'snoozed';
 export type IssueNote = { issueId: string; accountId: string; state: WorkflowState; owner: string; note: string; snoozedUntil?: string; updatedAt: string; updatedBy: string };

@@ -46,3 +46,15 @@ Per-account approved business goal, outcome definition, primary outcome, CPA/CPL
 - [Optmyzr Meta rule engine: evidence conditions, review and bounded actions](https://help.optmyzr.com/en/articles/6787066-rule-engine-for-meta-ads).
 
 The implementation is specific to Tossdown's workflow. These references inform the product distinctions; they are not a claim of feature parity.
+
+## Simplification after account-owner feedback: method v1.1.0
+
+Monitoring no longer requires manually entered goals, conversion definitions, commercial targets, monthly caps or approval dates. The 13 SALES / two LEADS classifications supplied by the owner are stored as account business intent, not campaign result overrides.
+
+Each spending campaign selects a named outcome from the current optimization goals and explicit conversion events of delivering ad sets. Ad-level spend must reconcile exactly to campaign spend before choosing that campaign outcome. Supported website events use their exact website action, not an omni-channel aggregate. Mixed, unsupported and unreported events stay explicit; no clicks are substituted for profile visits and no generic lead is called qualified. Current settings are not evidence of historical settings.
+
+The internal score is now explicitly **Source & delivery**: reconciliation 40, current account availability 30, ad disapproval check 30. It does not grade business performance. Missing scored sources or unreconciled spend still withhold it. Campaign outcome coverage and goal-specific efficiency trends are separate unscored checks. Optional approved commercial targets/caps remain available without setup alerts or score penalties. Native Meta Opportunity Score remains separate. Prior immutable snapshots retain their old method and require a refresh for the new view.
+
+Validation: 278 tests across 41 files and the production build passed. Replayed 30 previously retrieved live Meta snapshots (15 accounts, seven and 30 days); independent Python Decimal verification checked 3,870 available source/derived figures without a mismatch. This replay validates saved-source calculations, not a new Meta retrieval. Desktop UI checked: automatic campaign results, optional profile collapsed, and no mandatory setup message. No advertising writes were executed.
+
+Primary references: [Meta Ad Set fields and optimization goals](https://developers.facebook.com/docs/graph-api/reference/ad-campaign/) and [Meta Ads Action Stats](https://developers.facebook.com/docs/marketing-api/reference/ads-action-stats/).

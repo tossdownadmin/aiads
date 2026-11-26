@@ -10,6 +10,7 @@ export function monitorSummary(snapshot:MonitorSnapshot):MonitorSummary {
   const {sources,...summary}=snapshot;void sources;
   // Keep portfolio responses bounded; the account endpoint retains the full ledger.
   const keep=new Set(snapshot.evidence.filter(f=>f.scope==='account').map(f=>f.id));
+  for(const result of snapshot.campaignOutcomes||[])for(const id of [result.spendId,result.resultId,result.costId,result.previousCostId])if(id)keep.add(id);
   for(const id of [...snapshot.checks.flatMap(c=>c.evidenceIds),...snapshot.findings.flatMap(f=>f.evidenceIds)])keep.add(id);
   let changed=true;
   while(changed){changed=false;for(const fact of snapshot.evidence)if(keep.has(fact.id))for(const id of fact.inputs||[])if(!keep.has(id)){keep.add(id);changed=true;}}

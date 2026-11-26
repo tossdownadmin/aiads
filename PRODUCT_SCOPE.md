@@ -52,3 +52,7 @@ Verified Google sign-in and the configured email allowlist now protect audits, r
 - A search without source access fails clearly and does not display fabricated sample ads as live results.
 - AI analysis cannot alter ad accounts and cannot invent performance data absent from the source.
 - No vendor API key is enabled on the public deployment before the paid-source access boundary is resolved.
+
+### Monitoring simplification (2026-11-27)
+
+Use Meta campaign objectives, current ad-set optimization goals and explicit conversion events automatically. Account SALES/LEADS intent is context, not an override. Business profiles/targets are optional. Separate source/delivery score from performance evidence; omit unsupported comparisons and retain exact numeric lineage. See the v1.1.0 method and release note.

@@ -14,7 +14,7 @@ it('reads only GET with server authorization, explicit dates and matching attrib
  for(const [url,options] of fetch.mock.calls){expect(options.method).toBe('GET');expect((options.headers as Record<string,string>).Authorization).toBe('Bearer never-output-this-token');expect(String(url)).not.toContain('never-output-this-token');if(url.pathname.endsWith('/insights')){expect(url.searchParams.get('use_account_attribution_setting')).toBe('true');expect(url.searchParams.get('action_report_time')).toBe('impression');expect(url.searchParams.has('date_preset')).toBe(false);}}
 });
 it('discards incomplete pagination and never follows an untrusted paging URL',async()=>{
- const fetch=vi.fn(async()=>new Response(JSON.stringify({data:[{id:'act_123',name:'A',account_status:1,currency:'CAD',timezone_name:'America/Toronto'}],paging:{next:'https://untrusted.test/token',cursors:{after:'repeated'}}})));vi.stubGlobal('fetch',fetch);
+ const fetch=vi.fn(async(_url:URL)=>new Response(JSON.stringify({data:[{id:'act_123',name:'A',account_status:1,currency:'CAD',timezone_name:'America/Toronto'}],paging:{next:'https://untrusted.test/token',cursors:{after:'repeated'}}})));vi.stubGlobal('fetch',fetch);
  await expect(discoverMonitorAccounts()).rejects.toThrow('connection');expect(fetch).toHaveBeenCalledTimes(2);expect(fetch.mock.calls.every(call=>String(call[0]).startsWith('https://graph.facebook.com/'))).toBe(true);
 });
 it('keeps access/rate failures explicit and sanitizes provider responses',async()=>{

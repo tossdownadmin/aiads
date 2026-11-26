@@ -44,7 +44,8 @@ def verify(s, path):
                 elif formula == 'campaign spend sum - account spend': expected = nums[0]-nums[1]
                 elif len(nums)==2 and nums[1] != 0:
                     expected = nums[0]/nums[1]
-                    if '× 100' in formula: expected *= 100
+                    if '× 1000' in formula: expected *= 1000
+                    elif '× 100' in formula: expected *= 100
                     expected = expected.quantize(Q, rounding=ROUND_HALF_UP)
             equal(f['value'], expected, f['id'])
             checked += 1
@@ -86,10 +87,21 @@ def verify(s, path):
     equal(s['coverage']['evaluated'],len(known),'Coverage count')
     equal(s['coverage']['applicable'],len(applicable),'Applicable count')
     if s['score'] is not None:
-        assert s['integrity']=='verified' and len(known)==len(applicable), 'Score without complete evidence'
-        total=sum(D(c['weight']) for c in applicable)
-        points=sum(D(c['weight'])*(D(1) if c['state']=='pass' else D('.5') if c['state']=='review' else D(0)) for c in applicable)
+        scored=[c for c in applicable if c['weight']>0]
+        assert s['integrity']=='verified' and all(c['state']!='unknown' for c in scored), 'Score without complete scored evidence'
+        if s.get('scoreBasis')!='source-and-delivery': assert len(known)==len(applicable), 'Legacy score without complete checks'
+        else: assert {c['id']:c['weight'] for c in scored}=={'source-reconciliation':40,'account-delivery':30,'ad-policy':30}, 'Unexpected delivery score basis'
+        total=sum(D(c['weight']) for c in scored)
+        points=sum(D(c['weight'])*(D(1) if c['state']=='pass' else D('.5') if c['state']=='review' else D(0)) for c in scored)
         equal(s['score'],(points*100/total).quantize(D(1),rounding=ROUND_HALF_UP),'Check score')
+    for goal in s.get('campaignOutcomes',[]):
+        assert goal['spendId'] in facts, 'Missing campaign spend reference'
+        for key in ['resultId','costId','previousCostId']:
+            if goal.get(key): assert facts[goal[key]]['scope']=='campaign' and facts[goal[key]]['entityId']==goal['id'], 'Wrong campaign metric scope'
+        if goal.get('resultId'):
+            f=facts[goal['resultId']]
+            assert f['metric']==goal['outcome'], 'Substituted outcome'
+            if goal['outcome']=='websitePurchases': assert f['field'] in ['actions:action_type=offsite_conversion.fb_pixel_purchase','actions:unreported action'], 'Aggregate substituted for website purchases'
     native=s['sources']['nativeScore'].get('data')
     if s['nativeScore'] is not None: equal(s['nativeScore'],native[0]['opportunity_score'],'Native Meta score')
     results.append({'accountId':a['id'],'period':s['period'],'window':w,'figuresVerified':checked,'unavailableFigures':unavailable,'integrity':s['integrity'],'checksEvaluated':len(known),'applicableChecks':len(applicable),'nativeScoreAvailable':s['nativeScore'] is not None,'snapshotId':s['id']})
