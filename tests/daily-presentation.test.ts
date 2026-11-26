@@ -148,5 +148,5 @@ it('shows source disapprovals and limited coverage even when the AI only reports
  for(const p of row.report.periods)p.details={'campaign-1':{notes:[],sets:[{id:'set-1',name:'Local audience',status:'ACTIVE',settings:{},ads:[{id:'ad-1',name:'Disapproved ad',status:'DISAPPROVED',creative:{id:'creative-1',copy:[],titles:[],descriptions:[],links:[],ctas:[],assets:[],post:'',notes:[]}}]}]}};
  const doc=renderDailyDocument([row],end);
  expect(doc).toContain('Current ad disapprovals');expect(doc).toContain('ad-1');expect(doc).toContain('limited');
- expect(doc).toContain('Campaign outcome coverage');expect(doc).toContain('Performance findings');
+ expect(doc).toContain('Campaign outcome coverage');expect(doc).toContain('Verified AI findings');
 });

@@ -21,3 +21,7 @@ The isolated local preview uses synthetic data and has no Meta credentials. Camp
 The audit-detail budget formatter now uses the same verified Meta offsets as campaign management, including PKR subdivisions, and refuses unsafe numeric inputs. Historical saved HTML is not silently rewritten; regenerate it to use the corrected formatter.
 
 Release checks: 285 tests across 42 files passed, including private report fixture replays; production build and TypeScript checks passed. No advertising mutations were used in UI verification.
+
+## Live audit follow-up
+
+The first live specialist audit correctly rejected profit, saturation and unbound numerical claims, but its only surviving action asked for optional budgets/targets. The follow-up keeps those strict validators and adds compiled source observations as a separate, labeled output. It suppresses action items whose sole purpose is optional commercial setup while preserving genuine missing-source/outcome warnings. Source observations show exact existing evidence values and matching result costs; qualified cost comparisons use at least ten named outcomes in both periods. Rejected model commentary remains visibly limited and is never replaced with invented AI prose. The focused editor also waits for the selected finding's evidence before allowing a linked review.

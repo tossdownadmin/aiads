@@ -60,8 +60,8 @@ it('shows incomplete readiness and sparse review coverage instead of a full perf
  expect(clientReadiness({...context,validUntil:'2026-11-01'},account,window.until).gaps).toContain('Current target validity');
 });
 it('merges repeated issues but preserves different evidence and severity',()=>{
- const base={tone:'warn' as const,category:'data_gap' as const,title:'No approved budget or CPA target supplied',detail:'Context is missing',action:'Ask the client',reason:'Confirm targets',evidenceIds:['window0:coverage','window0:client-context']};
- expect(deduplicateFindings([base,{...base,title:'No approved budget or CPA target supplied for pacing review'}])).toHaveLength(1);
+ const base={tone:'warn' as const,category:'data_gap' as const,title:'Imported outcome metric unavailable',detail:'Source measurement is missing',action:'Check the import',reason:'Verify source coverage',evidenceIds:['window0:coverage','window0:account:leads']};
+ expect(deduplicateFindings([base,{...base,title:'Imported outcome metric unavailable for source review'}])).toHaveLength(1);
  expect(deduplicateFindings([base,{...base,tone:'crit'}])).toHaveLength(2);
  expect(deduplicateFindings([base,{...base,evidenceIds:['window0:campaign:other:spend'],title:'Other campaign spend'}])).toHaveLength(2);
 });

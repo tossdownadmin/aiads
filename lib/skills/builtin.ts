@@ -16,7 +16,7 @@ function skill(name: string, description: string, categories: Category[], body: 
 }
 
 const accountAudit = `# Meta account audit
-Use the supplied ad-level daily evidence and all campaigns in the selected scope with campaign-level Meta insights for the selected 7- or 30-day window.
+Compiled source observations are displayed separately from AI commentary, with source IDs and named metrics. No manual business profile is required. Never make missing budgets or targets the only recommendation. Use the supplied ad-level daily evidence and all campaigns in the selected scope with campaign-level Meta insights for the selected 7- or 30-day window.
 Review spend, objective, delivery, reach, frequency, clicks, CTR, CPC, and reported actions where present. Cite campaign names, IDs, metrics, and period. Treat threshold flags as investigation prompts, not universal benchmarks. Separate observed facts, hypotheses, and missing evidence. Give prioritized human checks.
 Campaign aggregates cannot reveal ad-set or ad-level winners, creative fatigue, audience saturation, or daily pacing. Do not infer goals, margin, target CPA, lift, or reconciled conversions. Read-only.`;
 

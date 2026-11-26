@@ -20,7 +20,7 @@ type AuditResult = {
   summary: { campaigns: number; totalSpend: number|null; currency: string | null };
   campaigns: Campaign[]; details: DetailMap;
   issues: Array<{ title: string; campaign: string; spend: number; frequency: number; ctr: number }>;
-  analysis: { status: 'complete' | 'not_configured' | 'unavailable'; summary?: string; findings?: Finding[]; dataGaps?: string[]; message?: string;run?:{id:string};quality?:{status:string;checks:{key:string;label:string;status:string}[]} };
+  analysis: { sourceObservations?:{title:string;evidence:string;recommendation:string;evidenceIds:string[];kind:string}[];status: 'complete' | 'not_configured' | 'unavailable'; summary?: string; findings?: Finding[]; dataGaps?: string[]; message?: string;run?:{id:string};quality?:{status:string;checks:{key:string;label:string;status:string}[]} };
   window?:{since:string;until:string};scope?:'period'|'active';readiness?:{status:string;gaps:string[]};deliveryNotices?:{title:string;detail:string}[];
   notice: string;
 };
@@ -138,6 +138,7 @@ export default function Workbench() {
         {result.readiness&&<details className="finding"><summary>Optional business target comparisons</summary><p>Campaign objectives and optimization goals drive measured observations. Missing targets do not block this audit. Target comparisons are skipped unless the supplied commercial inputs apply.</p><a href={'/reports?context='+result.account.id}>Add optional business inputs</a></details>}
         {result.analysis.quality&&<section className="finding"><strong>Review coverage: {result.analysis.quality.status}</strong><ul>{result.analysis.quality.checks.map(c=><li key={c.key}>{c.label}: {c.status.replace('_',' ')}</li>)}</ul></section>}
         {result.deliveryNotices?.map(n=><article className="finding" key={n.title}><strong>{n.title}</strong><p>{n.detail}</p></article>)}
+        {!!result.analysis.sourceObservations?.length&&<section aria-label="Verified source observations"><h3>Verified campaign observations</h3><p>Compiled directly from the supplied measurements, separately from AI commentary. Up to eight campaigns with the most reported spend are summarized; complete campaign evidence remains below.</p>{result.analysis.sourceObservations.map((observation,i)=><article className="finding" key={i}><strong>{observation.title}</strong><p>{observation.evidence}</p><p>{observation.recommendation}</p><details><summary>Source references</summary><ul>{observation.evidenceIds.map(id=><li key={id}>{id}</li>)}</ul></details></article>)}</section>}
         <h3>Evidence-checked audit analysis</h3>{result.analysis.run&&<a href={'/api/meta/reports/runs?runId='+result.analysis.run.id} target="_blank" rel="noreferrer">Private analysis record ↗</a>}
         {result.analysis.status === 'complete' ? <>
           <p>{result.analysis.summary}</p>

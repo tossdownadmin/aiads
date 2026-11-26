@@ -23,6 +23,14 @@ export function clientReadiness(context:DailyClientContext|null|undefined,accoun
 
 export type ReviewCheck={key:string;label:string;status:'available'|'unavailable'|'needs_context'|'not_applicable'};
 export type ReviewQuality={status:'reviewed'|'limited'|'unavailable';checks:ReviewCheck[];performanceFindings:number;readiness:ClientReadiness};
+export function optionalSetupFinding(f:ReportFinding){
+  if(f.category!=='data_gap')return false;
+  const title=f.title.toLowerCase();
+  if(!/\b(?:budget|target|business goal|business profile|approval)\b/.test(title)||!/\b(?:no|missing|unavailable|without|not supplied|not provided|confirm|approve|lack)\b/.test(title))return false;
+  // Keep source/metric failures and actual performance findings. Only an item
+  // solely asking for optional business setup is omitted from the action list.
+  return !!f.evidenceIds?.length&&f.evidenceIds.every(id=>/:coverage$|:client-context$|:account:spend$/.test(id));
+}
 export function reviewQuality(account:MetaAccount,p:Snapshot,context?:DailyClientContext|null):ReviewQuality{
   const readiness=clientReadiness(context,account,p.window.until);
   const reporting=p.campaigns.filter(c=>c.hasInsights&&(c.spend??0)>0);
@@ -39,7 +47,7 @@ export function reviewQuality(account:MetaAccount,p:Snapshot,context?:DailyClien
     {key:'outcome',label:'Campaign outcome coverage',status:result?'available':'unavailable'},
     {key:'comparison',label:'Comparable history',status:comparison?'available':'unavailable'},
     {key:'context',label:'Optional commercial target checks',status:readiness.status==='ready'?'available':'not_applicable'},
-    {key:'analysis',label:'Performance findings',status:performanceFindings?'available':'unavailable'},
+    {key:'analysis',label:'Verified AI findings',status:performanceFindings?'available':'unavailable'},
   ];
   const limited=checks.some(c=>c.status!=='available'&&c.status!=='not_applicable')||!!p.analysis?.notes?.length;
   return {status:!spend&&!delivery?'unavailable':limited?'limited':'reviewed',checks,performanceFindings,readiness};
@@ -50,6 +58,7 @@ const overlap=(a:Set<string>,b:Set<string>)=>[...a].filter(x=>b.has(x)).length/M
 export function deduplicateFindings(findings:ReportFinding[]){
   const result:ReportFinding[]=[];
   for(const finding of findings){
+    if(optionalSetupFinding(finding))continue;
     const same=result.some(existing=>{
       if(existing.tone!==finding.tone)return false;
       if(existing.title.trim().toLowerCase()===finding.title.trim().toLowerCase()&&existing.tone===finding.tone&&existing.action===finding.action&&existing.detail===finding.detail)return true;
