@@ -11,3 +11,14 @@ export function dailyTable(kind: ReportTable, rows: string[][]) {
   const label = kind === 'metrics' ? 'Reported metrics' : 'Suggested actions';
   return '<div class="table-wrap"><table class="report-table '+kind+'" aria-label="'+label+'"><thead><tr>'+head+'</tr></thead><tbody>'+body+'</tbody></table></div>';
 }
+
+// A request for a missing planning input belongs below delivery follow-ups.
+// Keep actual overspend, budget changes and performance investigations in the queue.
+export function isPlanningInputAction(action:string){
+  return /^(?:supply|provide|confirm|document|obtain|request|establish|define|agree on)\b/i.test(action.trim()) &&
+    /\b(?:approved (?:\w+ ){0,3}budget|monthly budget|budget ceiling|budget cap|acceptable (?:cost per|cpa|cpl|roas)|target (?:cost per|cpa|cpl|roas))\b/i.test(action) &&
+    !/\b(?:whether|exceeded|overspend|increase|decrease|reallocat\w*|pause|reduce|shift|change[ds]?)\b/i.test(action);
+}
+export function planningInputTable(kind:'actions'|'portfolio-actions',rows:string[][]){
+  return rows.length?'<details class="planning-inputs"><summary>Optional planning inputs ('+rows.length+')</summary>'+dailyTable(kind,rows)+'</details>':'';
+}

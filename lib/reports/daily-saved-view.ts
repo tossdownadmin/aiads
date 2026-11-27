@@ -1,12 +1,34 @@
 import { BRAND_ICON_DATA_URI } from '../ui/brand-icon';
 import { dailyStyles } from './daily-style';
 import { detailStyles } from './detail-view';
-import { dailyTable } from './daily-tables';
+import {dailyTable,isPlanningInputAction,planningInputTable} from './daily-tables';
+
+function organizeSavedActions(doc:Document) {
+  for(const section of doc.querySelectorAll('.actions-section')) {
+    const portfolio=section.closest('.tab-panel')?.getAttribute('data-panel')==='overview';
+    const optional:string[][]=[];
+    for(const tr of section.querySelectorAll('.priority-group tbody tr')) {
+      if(!isPlanningInputAction(tr.querySelector('.rec-title')?.textContent??''))continue;
+      const cells=Array.from(tr.children,cell=>cell.innerHTML);
+      cells[portfolio?1:0]='Optional setup';
+      optional.push(cells);
+      tr.remove();
+    }
+    if(!optional.length)continue;
+    for(const group of section.querySelectorAll('.priority-group'))if(!group.querySelector('tbody tr'))group.remove();
+    const limit=Array.from(section.querySelectorAll('p.section-intro')).find(p=>p.textContent?.startsWith('Showing '));
+    if(limit)limit.textContent='Open an account for its complete action list.';
+    section.insertAdjacentHTML('beforeend',planningInputTable(portfolio?'portfolio-actions':'actions',optional));
+  }
+  doc.documentElement.dataset.reportLayout='tables-v2';
+  return '<!doctype html>'+doc.documentElement.outerHTML;
+}
 
 /** Reformat an archived standalone document in memory. Its source data and saved blob stay intact. */
 export function dailySavedView(html: string): string {
-  if (!html || html.startsWith('<!doctype html><html lang="en" data-report-layout="tables-v1">')) return html;
+  if (!html || html.startsWith('<!doctype html><html lang="en" data-report-layout="tables-v2">')) return html;
   const doc = new DOMParser().parseFromString(html, 'text/html');
+  if(doc.documentElement.dataset.reportLayout==='tables-v1')return organizeSavedActions(doc);
   const favicon = doc.createElement('link');
   favicon.rel = 'icon';
   favicon.type = 'image/png';
@@ -58,6 +80,5 @@ export function dailySavedView(html: string): string {
   const theme = doc.createElement('style');
   theme.textContent = dailyStyles+detailStyles;
   doc.head.append(theme);
-  doc.documentElement.dataset.reportLayout = 'tables-v1';
-  return '<!doctype html>'+doc.documentElement.outerHTML;
+  return organizeSavedActions(doc);
 }

@@ -170,3 +170,15 @@ it('shows source disapprovals and limited coverage even when the AI only reports
  expect(doc).toContain('Current ad disapprovals');expect(doc).toContain('ad-1');expect(doc).toContain('limited');
  expect(doc).toContain('Campaign outcome coverage');expect(doc).toContain('Verified AI findings');
 });
+
+it('puts optional budget requests below measured alerts and preserves an actual budget investigation',()=>{
+  const setup=finding({action:'Provide an approved November budget and target CPA.',priority:'now'});
+  const real=finding({action:'Confirm whether reduced spend was deliberate budget reallocation.',priority:'next'});
+  const rendered=renderDailyDocument([entry([setup,real])],end);
+  for(const name of ['overview','0']){
+    const actions=section(panel(rendered,name),'actions-section');
+    const [queue,optional]=actions.split('<details class="planning-inputs">');
+    expect(queue).toContain(real.action);expect(queue).not.toContain(setup.action);
+    expect(optional).toContain(setup.action);expect(optional).toContain('Optional planning inputs (1)');
+  }
+});

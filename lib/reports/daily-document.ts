@@ -2,7 +2,7 @@ import {reviewQuality,deliveryNotices,deduplicateFindings} from './review-qualit
 import { campaignCards, detailStyles, galleryScript } from './detail-view';
 import type { MetaAccount } from '../meta/read';
 import { dailyWindows, shiftDay, validDay, type Report, type Snapshot } from './model';
-import { dailyTable } from './daily-tables';
+import {dailyTable,isPlanningInputAction,planningInputTable} from './daily-tables';
 import { dailyStyles } from './daily-style';
 import { BRAND_ICON_DATA_URI } from '../ui/brand-icon';
 import type { ReportFinding as PresentedFinding } from '../skills/report-types';
@@ -105,23 +105,28 @@ function actionQueue(views:View[]) {
   });
 }
 function prioritizedActions(views:View[],portfolio=false) {
-  const fullQueue=actionQueue(views),queue=portfolio?fullQueue.slice(0,10):fullQueue;
+  const all=actionQueue(views);
+  const fullQueue=all.filter(item=>!isPlanningInputAction(item.finding.action));
+  const queue=portfolio?fullQueue.slice(0,10):fullQueue;
+  const kind=portfolio?'portfolio-actions':'actions';
+  const row=({view,finding:f,accountIndex}:QueuedAction,planning=false)=>{
+    const cells=[
+      planning?'Optional setup':'<span class="issue-chip chip-'+f.tone+'">'+escape({crit:'Critical concern',warn:'Review concern',ok:'Follow-up'}[f.tone])+'</span>',
+      '<h4 class="rec-title">'+escape(f.action)+'</h4><p class="rec-body">'+escape(f.reason)+'</p>',
+      supportingEvidence(f)||'—',
+    ];
+    if(portfolio)cells.unshift('<button type="button" class="row-link action-account" data-open="'+accountIndex+'">'+escape(view.name)+'</button>');
+    return cells;
+  };
+  const planning=all.filter(item=>isPlanningInputAction(item.finding.action)).map(item=>row(item,true));
   return '<section class="actions-section" aria-label="'+(portfolio?'Portfolio action queue':'Prioritized actions')+'">'+title(portfolio?'Portfolio action queue':'Prioritized actions')+
     '<p class="section-intro">'+(portfolio?'Actions from each account’s findings, ordered by priority, then concern severity. This is a work queue, not a comparative performance ranking.':'Suggested follow-ups, ordered by priority, then concern severity. Review the evidence before making changes.')+'</p>'+
     (portfolio&&fullQueue.length>queue.length?'<p class="section-intro">Showing '+queue.length+' of '+fullQueue.length+' proposed actions. Open an account for its complete action list.</p>':'')+(queue.length?priorities.map(priority=>{
       const group=queue.filter(item=>priorityOf(item.finding)===priority);
       if (!group.length) return '';
-      const rows=group.map(({view,finding:f,accountIndex})=>{
-        const cells=[
-          '<span class="issue-chip chip-'+f.tone+'">'+escape({crit:'Critical concern',warn:'Review concern',ok:'Follow-up'}[f.tone])+'</span>',
-          '<h4 class="rec-title">'+escape(f.action)+'</h4><p class="rec-body">'+escape(f.reason)+'</p>',
-          supportingEvidence(f)||'—',
-        ];
-        if (portfolio) cells.unshift('<button type="button" class="row-link action-account" data-open="'+accountIndex+'">'+escape(view.name)+'</button>');
-        return cells;
-      });
+      const rows=group.map(item=>row(item));
       return '<div class="priority-group priority-'+priority+'"><h3 class="priority-heading">'+escape(priorityLabels[priority])+'</h3>'+dailyTable(portfolio?'portfolio-actions':'actions',rows)+'</div>';
-    }).join(''):empty('No actions were supplied for this period.'))+'</section>';
+    }).join(''):empty('No performance or delivery actions for this period.'))+planningInputTable(kind,planning)+'</section>';
 }
 function periodComparison(p:Snapshot,currency:string) {
   const previous=p.previous;
@@ -287,7 +292,7 @@ export function renderDailyDocument(entries:Entry[],end:string,presentation:Dail
   const valid=entries.filter(e=>e.report?.periods.length===2);
   const periods=windows.map((_,i)=>valid.map(e=>accountView(e,e.report!.periods[i],presentation.layouts?.[e.account.id],i)));
   const both=(fn:(i:number)=>string)=>periods.map((_,i)=>'<div data-period="'+i+'"'+(i?' hidden':'')+'>'+fn(i)+'</div>').join('');
-  return '<!doctype html><html lang="en" data-report-layout="tables-v1"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" type="image/png" href="'+escape(BRAND_ICON_DATA_URI)+'"><title>Meta Ads — Daily Report</title><style>'+dailyStyles+detailStyles+'.group-heading{background:var(--surface2);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}</style></head><body>'+
+  return '<!doctype html><html lang="en" data-report-layout="tables-v2"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" type="image/png" href="'+escape(BRAND_ICON_DATA_URI)+'"><title>Meta Ads — Daily Report</title><style>'+dailyStyles+detailStyles+'.group-heading{background:var(--surface2);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}</style></head><body>'+
     '<header class="header"><div class="header-inner"><div class="logo-area">'+headerLogo+'<div><h1 class="header-title">Meta Ads — Daily Report</h1><div class="header-subtitle">'+both(i=>escape(names[i]+' · '+ranges[i]))+'</div></div></div><div class="header-meta"><div class="period" role="group" aria-label="Date range"><button data-window="0" class="on" aria-pressed="true">Last 7 days</button><button data-window="1" aria-pressed="false">Last 30 days</button></div>'+badge(valid.length+' Accounts')+badge('Generated '+day(generated,true),'green')+'</div></div></header>'+
     '<div class="tabs-bar">'+both(i=>'<nav class="tabs" aria-label="Report accounts"><button class="tab active" data-key="overview" data-open="overview">Overview</button>'+periods[i].map((v,n)=>'<button class="tab" data-key="'+escape(v.account.id)+'" data-open="'+n+'">'+escape(v.name)+(v.tone==='ok'?'':'<span class="flag-dot '+v.tone+'"></span>')+'</button>').join('')+'</nav>')+'</div>'+
     '<main class="main">'+both(i=>'<h2 class="print-only">'+escape(names[i]+' · '+ranges[i])+'</h2><section class="tab-panel" data-panel="overview">'+overview(periods[i],exclusions,names[i])+'</section>'+periods[i].map((v,n)=>'<section class="tab-panel" data-panel="'+n+'" hidden>'+detail(v,names[i])+'</section>').join(''))+'</main>'+
