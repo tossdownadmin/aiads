@@ -30,7 +30,9 @@ export class DailyConflict extends Error {}
 export class DailyInputError extends Error {}
 class DailyContextUnavailable extends Error {}
 type Entry = { account: MetaAccount; report: Report; run: SkillRun };
+type BlockedAccount = {id:string;name:string;failure:DailyFailure;error:string};
 type DailyJob = {
+  blocked?:BlockedAccount[];
   id: string;
   status: "running" | "failed" | "complete" | "cancelled";
   createdAt: string;
@@ -48,6 +50,8 @@ type DailyJob = {
   failure?:DailyFailure;
 };
 export type PublicDailyJob = {
+  blocked?:BlockedAccount[];
+  background:boolean;
   id: string;
   status: DailyJob["status"];
   date: string;
@@ -60,13 +64,16 @@ export type PublicDailyJob = {
   currentReview?:{done:number;total:number};
   failure?:DailyFailure;
 };
+const nextAccount = (job:DailyJob) => job.accountIds.find(id=>!job.completed.some(item=>item.id===id)&&!job.blocked?.some(item=>item.id===id));
 const publicJob = (job: DailyJob): PublicDailyJob => ({
+  blocked:job.blocked,
+  background:!!process.env.CRON_SECRET,
   id: job.id,
   status: job.status,
   date: job.date,
   done: job.completed.length,
   total: job.accountIds.length,
-  nextAccount: job.accountIds[job.completed.length],
+  nextAccount: nextAccount(job),
   skill: skillVersion(job.skill),
   leaseUntil: job.lease?.until,
   error: job.error,
@@ -226,9 +233,25 @@ export async function discardDaily(id: string) {
   await write(jobPath, job, current.version);
   return { job: publicJob(job) };
 }
+export async function resumeDailyJob(id:string) {
+  const current=await read<DailyJob>(jobPath),job=current.value;
+  if(!job||job.id!==id||job.status==='cancelled'||job.status==='complete')throw new DailyConflict('This update is unavailable. Reload the report.');
+  if(job.lease&&job.lease.until>Date.now())return {job:publicJob(job),processing:true};
+  if(job.status==='running')return {job:publicJob(job)};
+  const next={...job,status:'running' as const,blocked:[],error:undefined,failure:undefined,updatedAt:new Date().toISOString()};
+  await write(jobPath,next,current.version);
+  return {job:publicJob(next)};
+}
+/** One durable checkpoint per invocation; cron recovers an expired worker lease. */
+export async function workDailyPending(expectedId?:string) {
+  const pending=await read<DailyJob>(jobPath),job=pending.value;
+  if(!job||job.status!=='running'||expectedId&&job.id!==expectedId)return {status:'idle'};
+  try {const result=await advanceDaily(job.id);return {status:result.job.status,done:result.job.done,total:result.job.total};}
+  catch(error){if(error instanceof DailyConflict)return {status:'changed'};throw error;}
+}
 export async function advanceDaily(id: string) {
-  const current = await read<DailyJob>(jobPath),
-    job = current.value;
+  const current = await read<DailyJob>(jobPath);
+  let job = current.value;
   if (!job || job.id !== id || job.status === "cancelled")
     throw new DailyConflict(
       "The pending update is unavailable. Reload the saved report.",
@@ -246,6 +269,7 @@ export async function advanceDaily(id: string) {
     );
   if (job.lease && job.lease.until > Date.now())
     return { job: publicJob(job), processing: true };
+  if(job.status==='failed')job={...job,blocked:[]};
   const lease = { token: randomUUID(), until: Date.now() + 330000 };
   const leased = {
     ...job,
@@ -256,17 +280,17 @@ export async function advanceDaily(id: string) {
     updatedAt: new Date().toISOString(),
   };
   const leaseVersion = await write(jobPath, leased, current.version);
-  let failedAccount = "";
+  let failedAccount = "",failedId="";
   let stage:DailyStage='accounts';
   try {
     const accounts = await getAdAccounts(),
       byId = new Map(accounts.map((a) => [a.id, a]));
-    if (job.accountIds.some((accountId) => !byId.has(accountId)))
-      throw Error("Account access changed");
-    const nextId = job.accountIds[job.completed.length];
+    const nextId = nextAccount(job);
     if (nextId) {
-      const account = byId.get(nextId)!;
-      failedAccount = account.name;
+      failedId=nextId;
+      const account = byId.get(nextId);
+      failedAccount = account?.name||nextId;
+      if(!account)throw Error("Account access changed");
       const path = "reports/daily/jobs/" + job.id + "/" + nextId + ".json";
       stage='saving';
       let entry = (await read<Entry>(path)).value;
@@ -287,13 +311,6 @@ export async function advanceDaily(id: string) {
             dailyWindows(job.date, shiftDay(job.date, 1)),
             reviewContext,
           );
-          if (
-          periods.some((p) =>
-            p.notes.includes(
-              "Account totals were unavailable. Campaign rows remain available.",
-            ),
-          )
-          )throw Error("Account totals unavailable");
           prepared={report:{ account, generated, periods, reviewContext },skillHash:skillVersion(job.skill).packageHash};
           stage='saving';
           await write(inputPath,prepared,null);
@@ -330,6 +347,10 @@ export async function advanceDaily(id: string) {
       leased.currentReview=undefined;
     }
     if (leased.completed.length < job.accountIds.length) {
+      if(!nextAccount(leased)){
+        const failed={...leased,status:"failed" as const,lease:undefined,error:"Some accounts need attention. Retry failed accounts to finish; completed accounts are saved.",updatedAt:new Date().toISOString()};
+        await write(jobPath,failed,leaseVersion);return {job:publicJob(failed)};
+      }
       const next = {
         ...leased,
         lease: undefined,
@@ -411,9 +432,11 @@ export async function advanceDaily(id: string) {
       reason: error instanceof Error ? error.message.slice(0, 400) : "Unknown",
       stage:failure.stage,code:failure.code,reference:failure.reference,
     });
+    const blocked=[...(leased.blocked||[]),...(failedId?[{id:failedId,name:failedAccount,failure,error:failure.message}]:[])];
+    const more=!!failedId&&!!nextAccount({...leased,blocked});
     const failed = {
-      ...leased,
-      status: "failed" as const,
+      ...leased,blocked,
+      status: more ? "running" as const : "failed" as const,
       lease: undefined,
       failure,
       error:

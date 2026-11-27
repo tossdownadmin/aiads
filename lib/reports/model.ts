@@ -63,8 +63,8 @@ function numeric(value: unknown): number | null {
 function action(value: unknown, names: string[]) {
   if (!Array.isArray(value)) return null;
   for (const name of names) {
-    const found = value.find(item => item?.action_type === name && numeric(item.value) !== null);
-    if (found) return numeric(found.value);
+    const matches = value.filter(item => item?.action_type === name);
+    if(matches.length)return matches.length===1?numeric(matches[0].value):null;
   }
   return null;
 }
@@ -72,8 +72,9 @@ const purchaseTypes = ['omni_purchase', 'purchase', 'offsite_conversion.fb_pixel
 const leadTypes = ['lead', 'onsite_conversion.lead_grouped', 'offsite_conversion.fb_pixel_lead'];
 function resultValue(value: unknown, indicator: string) {
   if(!Array.isArray(value))return null;
-  const result=value.find(item=>item&&typeof item==='object'&&[indicator,'actions:'+indicator].includes(String(item.indicator)));
-  if(!result)return null;
+  const results=value.filter(item=>item&&typeof item==='object'&&[indicator,'actions:'+indicator].includes(String(item.indicator)));
+  if(results.length!==1)return null;
+  const result=results[0];
   if(numeric(result.value)!==null)return numeric(result.value);
   const values=result.values;
   // Attribution variants are alternatives. Never add them together.
@@ -94,14 +95,19 @@ export function metrics(row: Row = {}) {
     conversations: action(row.actions, ['onsite_conversion.messaging_conversation_started_7d', 'messaging_conversation_started_7d']),
     formLeads: action(row.actions, ['onsite_conversion.lead_form', 'onsite_conversion.lead_gen_form', 'onsite_conversion.lead_form_submit']),
     conversionLeads: action(row.actions, ['onsite_conversion.conversion_lead', 'offsite_conversion.lead_converted']) ?? action(row.conversions, ['onsite_conversion.conversion_lead', 'offsite_conversion.lead_converted']),
+    websitePurchases: action(row.actions, ['offsite_conversion.fb_pixel_purchase']),
+    websiteAddsToCart: action(row.actions, ['offsite_conversion.fb_pixel_add_to_cart']),
+    websiteCheckouts: action(row.actions, ['offsite_conversion.fb_pixel_initiate_checkout']),
+    postEngagement: action(row.actions, ['post_engagement']),
+    appInstalls: action(row.actions, ['omni_app_install','mobile_app_install']),
     websiteLeads: action(row.actions, ['offsite_conversion.fb_pixel_lead']),
-    onMetaLeads: action(row.actions, ['onsite_conversion.lead_grouped']),
+    onMetaLeads: action(row.actions, ['leadgen_grouped','onsite_conversion.lead_grouped']),
     landingViews: action(row.actions, ['landing_page_view', 'omni_landing_page_view']),
     linkClicks: action(row.actions, ['link_click']),
     thruplays: action(row.video_thruplay_watched_actions, ['video_view']),
   };
 }
-export type DeliverySettings = { goals: string[]; bids: string[] };
+export type DeliverySettings = { goals: string[]; bids: string[]; primary?:ReturnType<typeof import('../meta/objectives').configuredOutcome> };
 export function joinCampaigns(config: MetaCampaign[], insights: Row[], window: Window, settings = new Map<string,DeliverySettings>()) {
   const byId = new Map(config.map(c => [c.id, c]));
   const observed = new Map(insights.map(row => [String(row.campaign_id), row]));

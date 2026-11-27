@@ -58,7 +58,8 @@ export function evaluateMonitor(input:{id:string;account:MetaAccount;period:Peri
     for(const metric of ['spend','impressions','reach','frequency','clicks','ctr','cpc'])out[metric]=fact(source,periodName,scope,id,name,metric,({ctr:'CTR (all clicks)',cpc:'CPC (all clicks)'} as Record<string,string>)[metric]||metric[0].toUpperCase()+metric.slice(1),decimal(row?.[metric]),metric,metric==='spend'||metric==='cpc'?'currency':metric==='ctr'?'percent':metric==='frequency'?'ratio':'count',range);
     for(const [metric,types] of Object.entries(actions)) {
       const origin=metric==='thruplays'?'video_thruplay_watched_actions':'actions',action=actionValue(row?.[origin],types);
-      out[metric]=fact(source,periodName,scope,id,name,metric,outcomeLabels[metric]||({onMetaLeads:'On-Meta leads',websitePurchases:'Website purchases',websiteLeads:'Website leads',websiteAddsToCart:'Website adds to cart',websiteCheckouts:'Website checkouts initiated',postEngagement:'Post engagements',appInstalls:'App installs'} as Record<string,string>)[metric],action.value,origin+':'+action.field,'count',range);
+      const direct=metric==='instagramVisits'?decimal(row?.instagram_profile_visits):null;
+      out[metric]=fact(source,periodName,scope,id,name,metric,outcomeLabels[metric]||({onMetaLeads:'On-Meta leads',websitePurchases:'Website purchases',websiteLeads:'Website leads',websiteAddsToCart:'Website adds to cart',websiteCheckouts:'Website checkouts initiated',postEngagement:'Post engagements',appInstalls:'App installs'} as Record<string,string>)[metric],direct??action.value,direct!==null?'instagram_profile_visits':origin+':'+action.field,'count',range);
     }
     const purchase=actionValue(row?.action_values,actions.purchases);
     out.purchaseValue=fact(source,periodName,scope,id,name,'purchaseValue','Attributed purchase value',purchase.value,'action_values:'+purchase.field,'currency',range);
@@ -149,6 +150,10 @@ export function evaluateMonitor(input:{id:string;account:MetaAccount;period:Peri
   const trendSignals=findings.filter(f=>f.ruleId==='efficiency-trend');
   check('efficiency-trend',trendSignals.length?'review':trendUnknown?'unknown':trendEligible?'pass':'not_applicable','Campaign-level named result costs only: '+trendEligible+' campaigns meet the sample and source gates. At least '+method.thresholds.minimumOutcomes+' results per period and a '+method.thresholds.costIncrease+'× cost increase are required. Current settings are not historical settings.',trendSignals.flatMap(f=>f.evidenceIds.map(id=>evidence.find(e=>e.id===id)!)));
   const goals=new Map((adsets||[]).map(set=>[String(set.id),String(set.optimization_goal)])),priorById=new Map((priorAds||[]).map(ad=>[String(ad.ad_id),ad]));
+  // Retain ad measurements even when the later run has no warning. This lets
+  // a completed creative change be followed up without requiring a new issue.
+  const currentAdFacts=new Map((currentAds||[]).map(ad=>[String(ad.ad_id),metrics('currentAds','current','ad',ad,window,String(ad.ad_id),String(ad.ad_name||ad.ad_id))]));
+  const priorAdFacts=new Map((priorAds||[]).map(ad=>[String(ad.ad_id),metrics('previousAds','previous','ad',ad,previous,String(ad.ad_id),String(ad.ad_name||ad.ad_id))]));
   let eligible=0,shifts=0;
   for(const ad of currentAds||[]) {
     if(!['LINK_CLICKS','LANDING_PAGE_VIEWS','PROFILE_VISIT'].includes(goals.get(String(ad.adset_id))||''))continue;
@@ -158,7 +163,7 @@ export function evaluateMonitor(input:{id:string;account:MetaAccount;period:Peri
     if(compare(decimal(ad.impressions)!,method.thresholds.creativeImpressions)<0||compare(decimal(old.impressions)!,method.thresholds.creativeImpressions)<0||decimal(old.ctr)==='0'||decimal(old.frequency)==='0')continue;
     eligible++;
     if(compare(decimal(ad.frequency)!,multiply(decimal(old.frequency)!,method.thresholds.frequencyIncrease))<0||compare(decimal(ad.ctr)!,multiply(decimal(old.ctr)!,method.thresholds.ctrDecrease))>0)continue;
-    shifts++;const id=String(ad.ad_id),name=String(ad.ad_name||id),a=metrics('currentAds','current','ad',ad,window,id,name),b=metrics('previousAds','previous','ad',old,previous,id,name);
+    shifts++;const id=String(ad.ad_id),name=String(ad.ad_name||id),a=currentAdFacts.get(id)!,b=priorAdFacts.get(id)!;
     issue('creative-engagement','Review an ad engagement shift','CTR: '+formatDecimal(a.ctr.value,2)+'% versus '+formatDecimal(b.ctr.value,2)+'%. Frequency: '+formatDecimal(a.frequency.value,2)+' versus '+formatDecimal(b.frequency.value,2)+'.','Inspect the current creative and any edits between periods. This is a traffic-goal review signal, not proof of fatigue or a reason to pause automatically.',[a.ctr,b.ctr,a.frequency,b.frequency,a.impressions,b.impressions],'medium','creative',id,name);
   }
   check('creative-engagement',!adsets||!currentAds||!priorAds?'unknown':!eligible?'not_applicable':shifts?'review':'pass','Configured signal: traffic-goal ads with at least '+method.thresholds.creativeImpressions+' impressions in each period, frequency at least '+method.thresholds.frequencyIncrease+'× previous and CTR at most '+method.thresholds.ctrDecrease+'× previous. This does not prove fatigue or historical creative identity.');

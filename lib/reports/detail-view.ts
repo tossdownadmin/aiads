@@ -121,12 +121,9 @@ function keyFor(
     thruplays: c.stats?.thruplays ?? null,
     name: c.name,
     objective: c.objective,
-    settings: { goals, bids: [] },
+    settings: c.settings||{ goals, bids: [] },
   };
-  return (
-    resultKind(row) ??
-    (/LINK_CLICKS|TRAFFIC/.test(c.objective) ? "linkClicks" : undefined)
-  );
+  return resultKind(row);
 }
 function metricStrip(
   stats: Metrics | undefined,
@@ -143,6 +140,9 @@ function metricStrip(
     thruplays: ["ThruPlays", "Cost per ThruPlay"],
     landingViews: ["Landing page views", "Cost per view"],
     linkClicks: ["Link clicks", "Cost per click"],
+    websitePurchases:["Website purchases","Cost per website purchase"],websiteLeads:["Website leads","Cost per website lead"],
+    websiteAddsToCart:["Website adds to cart","Cost per add to cart"],websiteCheckouts:["Website checkouts initiated","Cost per checkout initiated"],
+    onMetaLeads:["On-Meta leads","Cost per on-Meta lead"],postEngagement:["Post engagements","Cost per engagement"],appInstalls:["App installs","Cost per install"],
   };
   const cards = [
     ["Spend", cash(stats?.spend, currency)],

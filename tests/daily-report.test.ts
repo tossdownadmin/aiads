@@ -12,7 +12,7 @@ const campaigns=joinCampaigns([], [
   { campaign_id:'1',campaign_name:'East',objective:'OUTCOME_LEADS',spend:'40',actions:[{action_type:'lead',value:'4'}] },
   { campaign_id:'2',campaign_name:'West',objective:'OUTCOME_LEADS',spend:'60',actions:[{action_type:'lead',value:'3'}] },
   { campaign_id:'3',campaign_name:'Message <b>us</b>',objective:'OUTCOME_ENGAGEMENT',spend:'14',actions:[{action_type:'onsite_conversion.messaging_conversation_started_7d',value:7},{action_type:'onsite_conversion.total_messaging_connection',value:11}] },
-],windows[0]);
+],windows[0],new Map([['1',{goals:['LEAD_GENERATION'],bids:[],primary:{metric:'leads',label:'Leads',scale:'1'}}],['2',{goals:['LEAD_GENERATION'],bids:[],primary:{metric:'leads',label:'Leads',scale:'1'}}],['3',{goals:['CONVERSATIONS'],bids:[]}]]));
 const periods=windows.map(window=>({window,campaigns,totals:metrics({spend:'114',actions:[{action_type:'lead',value:'7'}]}),notes:[],inventory:{total:3,active:2}}));
 describe('daily template and live reports',()=>{
   it('imports only expected identities and metric definitions, then matches account IDs before names',()=>{

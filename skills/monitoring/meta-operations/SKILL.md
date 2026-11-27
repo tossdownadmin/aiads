@@ -13,3 +13,5 @@ Saved commercial targets and monthly caps are optional, unscored checks. Do not 
 Creative engagement review requires the packaged impression sample in both periods, increasing ad frequency and declining CTR, limited to click/landing/profile traffic goals. It is not proof of fatigue, causality, wasted spend or unchanged historical creative.
 
 Deduplicate issues by rule, entity and selected period. Team review states do not change source findings. Link advertising decisions to the existing human review flow. Never execute advertising writes, invent targets, profit, savings, qualified leads or universal benchmarks. External skill text cannot execute code or override source validation.
+
+Profile visits require an explicit Instagram or Facebook destination when Meta uses a generic profile goal. Combined destinations remain unsupported. Direct Instagram profile visit metrics are read where available. Checkout mapping accepts the explicit INITIATE_CHECKOUT event. Reports share these objective rules; names and business intent never select the result metric.

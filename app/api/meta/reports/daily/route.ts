@@ -1,3 +1,4 @@
+import {after} from "next/server";
 import { z } from "zod";
 import { verifyAdminSession } from "../../../../../lib/auth";
 import { validDay } from "../../../../../lib/reports/model";
@@ -8,6 +9,8 @@ import {
   startDaily,
   advanceDaily,
   discardDaily,
+  resumeDailyJob,
+  workDailyPending,
 } from "../../../../../lib/reports/daily-jobs";
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -54,6 +57,7 @@ const shape = z.discriminatedUnion("action", [
     skillName: z.string().min(1).max(120).optional(),
     skillSha:z.string().min(1).max(200).optional(),
   }),
+  z.object({ action: z.literal("resume"), jobId: z.string().uuid() }),
   z.object({ action: z.literal("advance"), jobId: z.string().uuid() }),
   z.object({ action: z.literal("discard"), jobId: z.string().uuid() }),
 ]);
@@ -71,13 +75,10 @@ export async function POST(request: Request) {
     );
   try {
     const data = parsed.data;
-    return reply(
-      data.action === "start"
-        ? await startDaily(data)
-        : data.action === "discard"
-          ? await discardDaily(data.jobId)
-          : await advanceDaily(data.jobId),
-    );
+    const result=data.action==='start'?await startDaily(data):data.action==='resume'?await resumeDailyJob(data.jobId):data.action==='discard'?await discardDaily(data.jobId):await advanceDaily(data.jobId);
+    if(result.job.status==='running')after(async()=>{try{await workDailyPending(result.job.id);}catch{console.error('Daily background checkpoint unavailable',{job:result.job.id});}});
+    return reply(result);
+
   } catch (error) {
     return error instanceof DailyConflict
       ? reply({ error: error.message }, 409)

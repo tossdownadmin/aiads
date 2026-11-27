@@ -4,7 +4,7 @@ import type { Period, Row, Source, SourceKey, Sources } from './types';
 
 const VERSION = process.env.META_API_VERSION || 'v27.0';
 const BASE = `https://graph.facebook.com/${VERSION}`;
-const FIELDS = 'account_id,account_currency,date_start,date_stop,spend,impressions,reach,frequency,clicks,ctr,cpc,actions,action_values,purchase_roas,video_thruplay_watched_actions';
+const FIELDS = 'account_id,account_currency,date_start,date_stop,spend,impressions,reach,frequency,clicks,ctr,cpc,actions,action_values,purchase_roas,video_thruplay_watched_actions,instagram_profile_visits';
 type Query = {path:string;params:Record<string,string>;single?:boolean};
 
 /** GET-only reader; no tokens, provider messages or paging URLs enter stored evidence. */
@@ -18,6 +18,12 @@ async function read(query: Query, signal: AbortSignal): Promise<Source> {
       const url=new URL(BASE+'/'+query.path);
       for(const [key,value] of Object.entries({...query.params,...(after?{after}:{})}))url.searchParams.set(key,value);
       const response=await fetch(url,{method:'GET',cache:'no-store',signal,headers:{Authorization:`Bearer ${token}`}});
+      if(!response.ok&&response.status===400&&query.params.fields?.split(',').includes('instagram_profile_visits')) {
+        const error=await response.json().catch(()=>null);
+        if(error?.error?.code===100&&/instagram_profile_visits/.test(String(error.error.message))&&/not.*valid|invalid|nonexisting|does not exist|unsupported/i.test(String(error.error.message))) {
+          return read({...query,params:{...query.params,fields:query.params.fields.split(',').filter(f=>f!=='instagram_profile_visits').join(',')}},signal);
+        }
+      }
       if(!response.ok)throw Error(response.status===429?'rate_limit':response.status===403?'permission':'source_request');
       const value=await response.json();
       if(!value||typeof value!=='object'||value.error)throw Error('source_shape');
@@ -65,7 +71,7 @@ export async function collectMonitorSources(account:MetaAccount,period:Period,no
     account:{path:id,params:{fields:'id,name,account_status,currency,timezone_name'},single:true},
     nativeScore:{path:id,params:{fields:'id,opportunity_score'},single:true},
     campaigns:{path:id+'/campaigns',params:{fields:'id,name,status,effective_status,objective,start_time,stop_time',limit:'200'}},
-    adsets:{path:id+'/adsets',params:{fields:'id,name,campaign_id,effective_status,optimization_goal,promoted_object,start_time,end_time',limit:'200'}},
+    adsets:{path:id+'/adsets',params:{fields:'id,name,campaign_id,effective_status,optimization_goal,promoted_object,destination_type,start_time,end_time',limit:'200'}},
     ads:{path:id+'/ads',params:{fields:'id,name,campaign_id,adset_id,status,effective_status,creative{id,name,thumbnail_url}',limit:'200'}},
     currentAccount:insight('account',window),currentCampaigns:insight('campaign',window),currentAds:insight('ad',window),
     previousAccount:insight('account',previous),previousCampaigns:insight('campaign',previous),previousAds:insight('ad',previous),monthAccount:insight('account',month),

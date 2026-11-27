@@ -25,6 +25,11 @@ export const labels: Partial<Record<keyof Metrics, string>> = {
   thruplays: "ThruPlays",
   formLeads: "Instant-form leads",
   conversionLeads: "Converted leads",
+  websitePurchases: "Website purchases",
+  websiteAddsToCart: "Website adds to cart",
+  websiteCheckouts: "Website checkouts initiated",
+  postEngagement: "Post engagements",
+  appInstalls: "App installs",
   websiteLeads: "Website leads",
   onMetaLeads: "On-Meta leads",
 };

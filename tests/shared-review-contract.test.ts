@@ -30,7 +30,7 @@ it('requires source citations for competitor analysis and never accepts invented
 });
 
 it('limits monthly allocations to a current approved profile and binds the approved cap',async()=>{
- const r:Report={...report,periods:[{...report.periods[0],campaigns:[{...report.periods[0].totals!,id:'campaign-a',name:'Lead campaign',objective:'OUTCOME_LEADS',settings:{goals:['LEAD_GENERATION'],bids:[]},status:'ACTIVE',hasInsights:true,start:null,stop:null}]}]};
+ const r:Report={...report,periods:[{...report.periods[0],campaigns:[{...report.periods[0].totals!,id:'campaign-a',name:'Lead campaign',objective:'OUTCOME_LEADS',settings:{goals:['LEAD_GENERATION'],bids:[],primary:{metric:'leads',label:'Leads',scale:'1'}},status:'ACTIVE',hasInsights:true,start:null,stop:null}]}]};
  const skill=getReportingSkills().find(s=>s.reportType==='monthly')!;
  const raw={summary:'Review measured delivery',financialReview:'Approved cap is {{window0:budget:cap}}.',performance:[],competitors:[],event:'No event supplied',allocation:[{campaignId:'campaign-a',percent:100,rationale:'Use only after client approval'}],concepts:[],takeaways:[],gaps:[]};
  api.model.mockResolvedValue(raw);
@@ -44,7 +44,7 @@ it('limits monthly allocations to a current approved profile and binds the appro
 });
 
 it('keeps deterministic source observations when all model commentary fails evidence validation',async()=>{
- const totals=metrics({spend:'100',impressions:'1000',actions:[{action_type:'lead',value:'20'}]});const r:Report={...report,periods:[{...report.periods[0],totals,campaigns:[{...totals,id:'101',name:'Synthetic campaign',objective:'OUTCOME_LEADS',settings:{goals:['LEAD_GENERATION'],bids:[]},status:'ACTIVE',hasInsights:true,start:null,stop:null}]}]};
+ const totals=metrics({spend:'100',impressions:'1000',actions:[{action_type:'lead',value:'20'}]});const r:Report={...report,periods:[{...report.periods[0],totals,campaigns:[{...totals,id:'101',name:'Synthetic campaign',objective:'OUTCOME_LEADS',settings:{goals:['LEAD_GENERATION'],bids:[],primary:{metric:'leads',label:'Leads',scale:'1'}},status:'ACTIVE',hasInsights:true,start:null,stop:null}]}]};
  api.model.mockResolvedValue(answer('This campaign generated 999 purchases.'));
  const result=await analyzeAccountAudit(r,getBuiltinSkills().find(s=>s.name==='meta-account-audit')!);expect(result.status).toBe('unavailable');expect(result.sourceObservations).toHaveLength(1);expect(result.sourceObservations![0].evidence).toContain('20');expect(result.sourceObservations![0].title).not.toContain('999');
 });

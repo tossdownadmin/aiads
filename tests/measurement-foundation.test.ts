@@ -8,7 +8,7 @@ import {readStoredTemplate,type ClientLayout} from '../lib/reports/daily-templat
 const account={id:'act_123',name:'Synthetic account',currency:'CAD',status:1};
 const window={since:'2026-11-16',until:'2026-11-22'};
 const totals=metrics({spend:100,impressions:1000,actions:[{action_type:'onsite_conversion.facebook_profile_visit',value:100},{action_type:'onsite_conversion.instagram_profile_visit',value:10},{action_type:'lead',value:7}]});
-const campaign=(id:string,name='Facebook Profile Visits')=>({...totals,id,name,status:'ACTIVE',objective:'LINK_CLICKS',start:null,stop:null,hasInsights:true,settings:{goals:['PROFILE_VISIT'],bids:[]}});
+const campaign=(id:string,name='Facebook Profile Visits')=>({...totals,id,name,status:'ACTIVE',objective:'LINK_CLICKS',start:null,stop:null,hasInsights:true,settings:{goals:['PROFILE_VISIT'],bids:[],primary:{metric:'facebookVisits',label:'Facebook Page visits',scale:'1'}}});
 const snapshot=()=>({window,totals,campaigns:[campaign('campaign-a')],notes:[]});
 const report=():Report=>({account,generated:'2026-11-23',periods:[snapshot()]});
 const check=(text:string,id='window0:account:leads',r=report())=>validateDailyAnalysis({periods:[{periodId:'window0',findings:[{tone:'ok',category:'observation',title:'Measured outcome',interpretation:text,evidenceIds:[id],action:'Review the evidence.',reason:'Use the measured outcome.'}]}]},dailyEvidence(r));

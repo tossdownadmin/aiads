@@ -389,13 +389,13 @@ export async function readDetails(
     for (const [index, period] of periods.entries()) {
       const range: Record<string, string> =
         typeof period === "string"
-          ? { date_preset: period, use_unified_attribution_setting: "true" }
+          ? { date_preset: period, use_account_attribution_setting: "true", action_report_time: "impression" }
           : {
               time_range: JSON.stringify({
                 since: period.since,
                 until: period.until,
               }),
-              use_unified_attribution_setting: "true",
+              use_account_attribution_setting: "true", action_report_time: "impression",
             };
       const periodNotes: string[] = [];
       async function insights(level: "ad" | "adset", daily = false) {

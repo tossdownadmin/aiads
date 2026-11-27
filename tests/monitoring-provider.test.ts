@@ -20,3 +20,12 @@ it('discards incomplete pagination and never follows an untrusted paging URL',as
 it('keeps access/rate failures explicit and sanitizes provider responses',async()=>{
  const fetch=vi.fn(async()=>new Response(JSON.stringify({error:{message:'never-output-this-token'}}),{status:429}));vi.stubGlobal('fetch',fetch);const result=await collectMonitorSources(account,'7d',now);expect(result.sources.currentAccount).toMatchObject({state:'unavailable',data:null,reason:'rate_limit'});expect(JSON.stringify(result)).not.toContain('never-output-this-token');
 });
+it('falls back only for an explicitly unsupported Instagram field and preserves the actual request metadata',async()=>{
+ const fetch=vi.fn(async(url:URL)=>{
+  if(url.pathname.endsWith('/insights')&&url.searchParams.get('fields')?.includes('instagram_profile_visits'))return Response.json({error:{code:100,message:'instagram_profile_visits is not a valid field'}},{status:400});
+  return Response.json(url.pathname.endsWith('/act_123')?{id:'act_123'}:{data:[]});
+ });vi.stubGlobal('fetch',fetch);
+ const result=await collectMonitorSources(account,'7d',now);
+ expect(result.sources.currentCampaigns.state).toBe('available');expect(result.sources.currentCampaigns.params.fields).not.toContain('instagram_profile_visits');
+ expect(result.sources.adsets.params.fields).toContain('destination_type');
+});

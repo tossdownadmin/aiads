@@ -2,8 +2,8 @@ import type {EvidenceFact,MeasurementEvidence} from './measured-text';
 
 const units:[string[],RegExp][]=[
   [['cost-per-lead','cost-per-purchase','cost-per-thruplay','cost-per-visit','cost-per-result','targetCostPerResult'],/\bcost per result\b/gi],
-  [['cost-per-lead'],/\b(?:cpl|cost per lead)\b/gi],
-  [['cost-per-purchase'],/\b(?:cpa|cpp|cost per purchase|cost per order)\b/gi],
+  [['cost-per-lead'],/\b(?:cpl|cost per (?:website |on-meta )?lead)\b/gi],
+  [['cost-per-purchase'],/\b(?:cpa|cpp|cost per (?:website )?purchase|cost per order)\b/gi],
   [['cost-per-thruplay'],/\bcost per thruplays?\b/gi],
   [['cost-per-visit'],/\b(?:cpv|cost per (?:profile |page )?visit)\b/gi],
   [['purchaseValue'],/\b(?:attributed revenue|purchase value|reported revenue)\b/gi],
@@ -14,7 +14,13 @@ const units:[string[],RegExp][]=[
   [['ctr'],/\b(?:ctr|click.through rate)\b/gi],
   [['cpc'],/\b(?:cpc|cost per click)\b/gi],
   [['spend','cap','previousCap','monthlyBudget'],/\b(?:spend|spent|budget|cap)\b/gi],
-  [['purchases'],/\b(?:purchases?|orders?)\b/gi],
+  [['websitePurchases'],/\bwebsite purchases?\b/gi],
+  [['websiteLeads'],/\bwebsite leads?\b/gi],
+  [['websiteAddsToCart'],/\b(?:website )?adds? to cart\b/gi],
+  [['websiteCheckouts'],/\b(?:website )?checkouts? initiated\b/gi],
+  [['postEngagement'],/\bpost engagements?\b/gi],
+  [['appInstalls'],/\bapp installs?\b/gi],
+  [['purchases','websitePurchases'],/\b(?:purchases?|orders?)\b/gi],
   [['leads','formLeads','conversionLeads','websiteLeads','onMetaLeads'],/\bleads?\b/gi],
   [['conversations'],/\b(?:conversations?|chats?)\b/gi],
   [['landingViews'],/\blanding.page views?\b/gi],
@@ -55,7 +61,7 @@ export function validateMeasurementUnit(prose:string,offset:number,length:number
   const preceding=ranges.filter(r=>r.end<=pos&&/^\s*(?:(?:was|were|is|are|of|at|reached|recorded|generated|reported|remained)\s*)?[:=]?\s*$/i.test(text.slice(r.end,pos))).sort((a,b)=>b.end-a.end)[0];
   const declared=following??preceding;
   if(!following&&preceding&&/\bat\s*$/i.test(text.slice(preceding.end,pos))){
-    const costCounts:Record<string,string[]>={'cost-per-lead':['leads','formLeads','conversionLeads','websiteLeads','onMetaLeads'],'cost-per-purchase':['purchases'],'cost-per-visit':['instagramVisits','facebookVisits'],'cost-per-thruplay':['thruplays']};
+    const costCounts:Record<string,string[]>={'cost-per-lead':['leads','formLeads','conversionLeads','websiteLeads','onMetaLeads'],'cost-per-purchase':['purchases','websitePurchases'],'cost-per-visit':['instagramVisits','facebookVisits'],'cost-per-thruplay':['thruplays']};
     if(costCounts[key]?.some(count=>preceding.keys.includes(count)))return;
   }
   if(declared&&!declared.keys.includes(key)&&!(key==='targetCpa'&&declared.keys.includes('cost-per-purchase'))&&!(key==='targetCpl'&&declared.keys.includes('cost-per-lead')))

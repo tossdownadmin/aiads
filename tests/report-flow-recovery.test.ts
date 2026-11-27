@@ -10,7 +10,7 @@ vi.mock('../lib/ai/bedrock',()=>({invokeReportModel:api.model}));
 vi.mock('@vercel/blob',()=>({put:api.put}));
 const window={since:'2026-11-13',until:'2026-11-19'};
 const account={id:'act_2036318527081035',name:'Victoria Harbor Cafe',currency:'USD',status:1};
-const report:Report={account,generated:'2026-11-20',periods:[{window,notes:[],totals:metrics({spend:'23.04',impressions:'1000'}),campaigns:joinCampaigns([],[{campaign_id:'fb',campaign_name:'VHC - Boost - Facebook - Profile Visits - 29-10-26',objective:'LINK_CLICKS',spend:'23.04',results:[{indicator:'page_visit_view',values:[{value:'90'}]}]}],window)}]};
+const report:Report={account,generated:'2026-11-20',periods:[{window,notes:[],totals:metrics({spend:'23.04',impressions:'1000'}),campaigns:joinCampaigns([],[{campaign_id:'fb',campaign_name:'VHC - Boost - Facebook - Profile Visits - 29-10-26',objective:'LINK_CLICKS',spend:'23.04',results:[{indicator:'page_visit_view',values:[{value:'90'}]}]}],window,new Map([['fb',{goals:['PROFILE_VISIT'],bids:[],primary:{metric:'facebookVisits',label:'Facebook Page visits',scale:'1'}}]]))}]};
 const finding=(interpretation:string,title='Facebook Page visits reported',evidenceIds=['window0:campaign:fb:facebookVisits','window0:campaign:fb:cost-per-result'])=>({periods:[{periodId:'window0',findings:[{tone:'ok',category:'win',title,interpretation,evidenceIds,action:'Review the next creative test',reason:'Compare visit quality with the business goal.'}]}]});
 beforeEach(()=>{vi.clearAllMocks();vi.stubEnv('BEDROCK_MODEL_ID','test-model');api.put.mockResolvedValue({etag:'ok'});});
 afterEach(()=>vi.unstubAllEnvs());

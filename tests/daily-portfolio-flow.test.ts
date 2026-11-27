@@ -7,6 +7,7 @@ vi.mock('../lib/auth',()=>({verifyAdminSession:async()=>true}));
 vi.mock('../lib/ai/bedrock',()=>({invokeReportModel:api.model}));
 vi.mock('@vercel/blob',()=>({get:api.get,head:api.head,put:api.put,list:api.list,BlobNotFoundError:class extends Error{},BlobPreconditionFailedError:class extends Error{}}));
 import {BlobNotFoundError,BlobPreconditionFailedError} from '@vercel/blob';
+vi.mock('next/server',async importOriginal=>({...await importOriginal<typeof import('next/server')>(),after:vi.fn()}));
 import {GET,POST} from '../app/api/meta/reports/daily/route';
 const savedPath='reports/daily/latest-v1.json';
 const blobs=new Map<string,{value:any;version:string}>();let version=0;

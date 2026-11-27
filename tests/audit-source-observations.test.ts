@@ -5,7 +5,7 @@ import {deduplicateFindings,optionalSetupFinding} from '../lib/reports/review-qu
 import {metrics,type Report} from '../lib/reports/model';
 function report():Report {
  const current=metrics({spend:'100',impressions:'2000',actions:[{action_type:'lead',value:'20'}]}),prior=metrics({spend:'200',impressions:'2000',actions:[{action_type:'lead',value:'20'}]});
- const campaign={id:'101',name:'Synthetic lead campaign',objective:'OUTCOME_LEADS',settings:{goals:['LEAD_GENERATION'],bids:[]},status:'ACTIVE',hasInsights:true,start:null,stop:null};
+ const campaign={id:'101',name:'Synthetic lead campaign',objective:'OUTCOME_LEADS',settings:{goals:['LEAD_GENERATION'],bids:[],primary:{metric:'leads',label:'Leads',scale:'1' as string}},status:'ACTIVE',hasInsights:true,start:null,stop:null};
  return {account:{id:'act_123',name:'Synthetic',currency:'CAD',status:1},generated:'2026-11-27',periods:[{window:{since:'2026-11-20',until:'2026-11-26'},totals:current,campaigns:[{...campaign,...current}],notes:[],previous:{window:{since:'2026-11-13',until:'2026-11-19'},totals:prior,campaigns:[{...campaign,...prior}]}}]};
 }
 it('provides source-bound observations and same-outcome comparisons without business targets or AI',()=>{

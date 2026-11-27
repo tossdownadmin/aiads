@@ -111,31 +111,31 @@ export default function Reports() {
     setSelected(custom?saved.accountIds:assigned.accountIds);
     setTemplate(custom?saved.template:activeReportTemplate(saved?.template));
   },[saved,loaded]);
-  async function continueDaily(jobId:string) {
-    while(live.current) {
-      const response=await fetch('/api/meta/reports/daily',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'advance',jobId})});
-      const result=await response.json();
-      if(!response.ok)throw Error(result.error||'The skill-based report update failed.');
-      if(!live.current)return;
-      setJob(result.job);
-      if(result.saved){setSaved(result.saved);setVersion(result.version);setEditing(false);return;}
-      if(result.job?.status==='failed')throw Error(result.job.error||'The skill analysis failed. Resume to retry.');
-      if(result.processing)await new Promise(resolve=>setTimeout(resolve,5000));
-    }
-  }
+  useEffect(()=>{
+    if(job?.status!=='running')return;
+    let current=true;
+    const poll=async()=>{try{
+      const response=await fetch('/api/meta/reports/daily',{cache:'no-store'});
+      if(!response.ok)throw Error('Progress could not be refreshed. The saved update remains queued.');
+      const result=await response.json();if(!current)return;
+      setJob(result.job);if(result.saved?.jobId===job.id){setSaved(result.saved);setVersion(result.version);setEditing(false);}
+      setDailyError('');
+    }catch(error){if(current)setDailyError((error as Error).message);}};
+    const timer=setInterval(()=>void poll(),5000);return()=>{current=false;clearInterval(timer);};
+  },[job?.id,job?.status]);
   async function saveDaily(refresh:boolean) {
     if(locked.current||!dailyReady)return;
     locked.current=true;setBusy(true);setDailyError('');
     try {
       const response=await fetch('/api/meta/reports/daily',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'start',skillName:dailySkill,skillSha:reportSkills.find(s=>s.name===dailySkill)?.sha,...(refresh?{version}:{version,date:end,accountIds:selected,template})})});
       const result=await response.json();if(!response.ok){if(result.error?.includes('skill version'))void loadReportingSkills();throw Error(result.error||'Could not start the update.');}
-      setJob(result.job);await continueDaily(result.job.id);
+      setJob(result.job);
     }catch(e){setDailyError(e instanceof Error?e.message:'Could not update the report.');}
     finally{locked.current=false;if(live.current)setBusy(false);}
   }
   async function resumeDaily() {
     if(!job||locked.current)return;locked.current=true;setBusy(true);setDailyError('');
-    try{await continueDaily(job.id);}catch(e){setDailyError(e instanceof Error?e.message:'Could not resume.');}
+    try{const response=await fetch('/api/meta/reports/daily',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'resume',jobId:job.id})});const result=await response.json();if(!response.ok)throw Error(result.error||'Could not resume.');setJob(result.job);}catch(e){setDailyError(e instanceof Error?e.message:'Could not resume.');}
     finally{locked.current=false;if(live.current)setBusy(false);}
   }
   async function discardPending() {
@@ -250,7 +250,7 @@ export default function Reports() {
     {mode==='daily' && saved && <section className="workspace-card rep-saved"><div><strong>Daily report through {saved.date}</strong><small>{saved.accountIds.length} accounts · Saved {new Date(saved.savedAt).toLocaleString()} · {saved.skill?'Skill '+saved.skill.name+' · v'+saved.skill.sha.slice(0,8):'Earlier report — update to run the reporting skill'}</small></div><button type="button" disabled={busy || !dailyReady || job?.status==='running' || job?.status==='failed' || !reportSkills.some(s=>s.name===dailySkill)} onClick={()=>void saveDaily(true)}>{busy?'Updating…':'Update report'}</button><button type="button" disabled={busy} aria-expanded={editing} onClick={()=>setEditing(!editing)}>{editing?'Close settings':'Report settings'}</button></section>}
     {mode==='daily'&&saved?.skill&&approvedDailySkill&&saved.skill.sha!==approvedDailySkill.sha&&<p className="rep-pending-skill" role="status">This saved report uses an earlier or different review method. Update it to apply the current campaign checks and corrected Meta budget formatting. Use refreshed source settings for a budget decision. The saved report stays available until the replacement finishes.</p>}
     {mode==='daily'&&saved&&(!saved.runs?.length||saved.runs.some(r=>r.validationVersion!=='measurement-v2'))&&<p role="status">This saved report was produced with earlier measurement checks. Update it to apply the current checks and review-coverage indicators.</p>}
-    {mode==='daily' && job && (job.status==='running'||job.status==='failed') && <section className="workspace-card" aria-label="Daily update progress"><p role="status"><strong>{job.done} of {job.total} accounts reviewed</strong> · Skill {job.skill.name} · Through {job.date}</p><p>{busy?'Reviewing evidence and running the skill. Keep this page open to continue the queued accounts.':'The pending update is saved. Resume it to continue.'} Your last saved report remains available.</p>{pendingSkillChanged && <p className="rep-pending-skill" role="status">This pending update uses a different skill version ({job.skill.sha.slice(0,8)}) from the selected approved daily skill ({approvedDailySkill!.sha.slice(0,8)}). Finish it with Resume update, or discard it and start a new update to apply the full upgrade and saved context. Accounts already processed in this pending update stay unchanged.</p>}{job.error&&!busy&&<p role="alert">{job.error}</p>}{job.failure&&!busy&&<div className="rep-job-failure"><p>Stopped during {({accounts:'account access checks',context:'loading saved client targets',evidence:'reading Meta evidence',analysis:'the AI review',saving:'saving the report'} as const)[job.failure.stage]} · Reference {job.failure.reference.slice(0,8)}</p>{job.failure.runId&&<a href={'/api/meta/reports/runs?runId='+job.failure.runId} target="_blank" rel="noreferrer">Open private error details ↗</a>}</div>}{job.currentReview && <p role="status">Current account: {job.currentReview.done} of {job.currentReview.total} evidence review steps saved. The final step combines the findings.</p>}<progress value={job.done} max={job.total} aria-label="Accounts reviewed"/><div className="workspace-actions"><button type="button" disabled={busy} onClick={()=>void resumeDaily()}>Resume update</button><button type="button" disabled={busy} onClick={()=>void discardPending()}>Discard pending update</button></div></section>}
+    {mode==='daily' && job && (job.status==='running'||job.status==='failed') && <section className="workspace-card" aria-label="Daily update progress"><p role="status"><strong>{job.done} of {job.total} accounts reviewed</strong> · Skill {job.skill.name} · Through {job.date}</p><p>{job.status==='running'?(job.background?'Reviewing in the background. You can close this page and return to saved progress.':'The next checkpoint is queued. Background scheduling is unavailable; use Continue update if progress stops.'):'Completed accounts are saved. Retry the failed accounts to finish this update.'} Your last saved report remains available.</p>{pendingSkillChanged && <p className="rep-pending-skill" role="status">This pending update uses a different skill version ({job.skill.sha.slice(0,8)}) from the selected approved daily skill ({approvedDailySkill!.sha.slice(0,8)}). Finish it with Continue now or Retry failed accounts, or discard it and start a new update to apply the full upgrade and saved context. Accounts already processed in this pending update stay unchanged.</p>}{job.status==='failed'&&job.error&&!busy&&<p role="alert">{job.error}</p>}{job.status==='failed'&&job.failure&&!busy&&<div className="rep-job-failure"><p>Stopped during {({accounts:'account access checks',context:'loading saved client targets',evidence:'reading Meta evidence',analysis:'the AI review',saving:'saving the report'} as const)[job.failure.stage]} · Reference {job.failure.reference.slice(0,8)}</p>{job.failure.runId&&<a href={'/api/meta/reports/runs?runId='+job.failure.runId} target="_blank" rel="noreferrer">Open private error details ↗</a>}</div>}{job.currentReview && <p role="status">Current account: {job.currentReview.done} of {job.currentReview.total} evidence review steps saved. The final step combines the findings.</p>}{!!job.blocked?.length&&<div className="rep-job-failure"><h3>Accounts needing attention</h3><p>Other accounts continue. The saved report is replaced only when all selected accounts finish.</p><ul>{job.blocked.map(item=><li key={item.id}><strong>{item.name}</strong>: {item.error}{item.failure.runId&&<> <a href={'/api/meta/reports/runs?runId='+item.failure.runId} target="_blank" rel="noreferrer">Private error details ↗</a></>}</li>)}</ul></div>}<progress value={job.done} max={job.total} aria-label="Accounts reviewed"/><div className="workspace-actions"><button type="button" disabled={busy} onClick={()=>void resumeDaily()}>{job.status==='failed'?'Retry failed accounts':job.background?'Continue now':'Continue update'}</button><button type="button" disabled={busy} onClick={()=>void discardPending()}>Discard pending update</button></div></section>}
     {mode==='daily'&&saved?.runs?.length ? <details className="rep-paste-template"><summary>Skill execution records</summary><p>Each record identifies the actual skill version, model, evidence hash and validated output.</p><ul>{saved.runs.map((r,i)=><li key={r.id}>{accounts.find(a=>a.id===saved.accountIds[i])?.name||saved.accountIds[i]} · <a href={'/api/meta/reports/runs?runId='+r.id} target="_blank" rel="noreferrer">Analysis record ↗</a> · <a href={'/api/meta/reports/runs?runId='+r.id+'&file=evidence'} target="_blank" rel="noreferrer">Evidence ↗</a></li>)}</ul></details>:null}
     {loaded && (mode==='plan'||editing||!saved) && <DailyContextSettings accounts={accounts} initialAccountId={mode==='plan'?monthlyId:typeof window!=='undefined'?new URLSearchParams(window.location.search).get('context')??'':''} onSaved={()=>setProfileRevision(v=>v+1)}/>}
     {(mode==='plan' || editing || !saved) && (!loaded ? <section className="workspace-card"><p>{denied ? 'Use your approved Google account to open reports.' : error || 'Loading Meta accounts…'}</p>{denied ? <button onClick={() => void signIn('google',{callbackUrl:'/reports'})}>Sign in with Google</button> : error && <button onClick={() => void connect()}>Retry</button>}</section> :

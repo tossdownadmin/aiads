@@ -6,6 +6,8 @@ import { accountAccess, assets, inventory } from '../../../../lib/meta/managemen
 import { accountId, objectId, ManagementError } from '../../../../lib/meta/management/types';
 import { execute, prepare, publicDraft } from '../../../../lib/meta/management/service';
 import { ChangeConflict, history, readDraft } from '../../../../lib/meta/management/store';
+import {latestMonitor} from '../../../../lib/monitoring/store';
+import {changeFollowUp} from '../../../../lib/meta/management/follow-up';
 import {monitoringReferenceSchema} from '../../../../lib/monitoring/workflow';
 export const runtime='nodejs';
 export const maxDuration=300;
@@ -24,7 +26,12 @@ export async function GET(request:Request) {
     if(view==='history')return reply(await history(id));
     if(view==='record') {
       const record=await readDraft(id,url.searchParams.get('id')||'');
-      return record?reply(publicDraft(record.draft)):reply({error:'Change record not found.'},404);
+      if(record){
+        const source=record.draft.sourceEvidence;
+        const snapshot=source?await latestMonitor(id,source.reference.period).catch(()=>null):null;
+        return reply({...publicDraft(record.draft),followUp:changeFollowUp(record.draft,snapshot)});
+      }
+      return reply({error:'Change record not found.'},404);
     }
     const kind=z.enum(['campaigns','adsets','ads','creatives']).parse(view);
     const parent=url.searchParams.get('parentId');if(parent)objectId.parse(parent);

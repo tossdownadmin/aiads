@@ -9,6 +9,7 @@ vi.mock('../lib/reports/client-context',()=>({readClientContext:api.context}));
 vi.mock('../lib/skills/report-runner',()=>({selectReportSkill:api.skill}));
 vi.mock('../lib/reports/daily-analysis',async importOriginal=>({...await importOriginal<typeof import('../lib/reports/daily-analysis')>(),analyzeDailyReport:api.analyze}));
 vi.mock('@vercel/blob',()=>({get:api.get,head:api.head,put:api.put,BlobNotFoundError:class extends Error{},BlobPreconditionFailedError:class extends Error{}}));
+vi.mock('next/server',async importOriginal=>({...await importOriginal<typeof import('next/server')>(),after:vi.fn()}));
 import {GET,POST} from '../app/api/meta/reports/daily/route';
 import {BlobNotFoundError,BlobPreconditionFailedError} from '@vercel/blob';
 import {DailyReviewProgress} from '../lib/reports/daily-analysis';
@@ -105,4 +106,37 @@ it('refreshes the assigned portfolio instead of reusing an older account selecti
  expect(blobs.get(pending)!.value.template.clients).toHaveLength(15);
  expect(blobs.get(pending)!.value.template.clients.map((c:any)=>c.name)).not.toContain('Big Apple');
  expect(blobs.get(savedPath)!.value.html).toBe('previous');
+});
+
+it('advances durable background checkpoints without a browser and isolates a failed account',async()=>{
+ const {workDailyPending,resumeDailyJob}=await import('../lib/reports/daily-jobs');
+ api.accounts.mockResolvedValue([account,{...account,id:'act_456',name:'Second'}]);
+ const job=await start({accountIds:['act_123','act_456'],date:'2025-01-10'});
+ api.analyze.mockRejectedValueOnce(Error('model validation failed'));
+ expect((await workDailyPending(job.id)).status).toBe('running');
+ expect(blobs.get(pending)!.value.blocked.map((item:any)=>item.id)).toEqual(['act_123']);
+ expect((await workDailyPending()).status).toBe('failed');
+ expect(blobs.get(pending)!.value.completed.map((item:any)=>item.id)).toEqual(['act_456']);
+ expect(blobs.get(savedPath)!.value.html).toBe('previous');
+ const calls=api.analyze.mock.calls.length;
+ expect((await workDailyPending()).status).toBe('idle');expect(api.analyze).toHaveBeenCalledTimes(calls);
+ await resumeDailyJob(job.id);expect((await workDailyPending()).status).toBe('complete');
+ expect(api.analyze).toHaveBeenCalledTimes(calls+1);
+ expect(blobs.get(savedPath)!.value.accountIds).toEqual(['act_123','act_456']);
+});
+it('does not revive a cancelled job or automatically retry a failed account, and recovers expired leases',async()=>{
+ const {workDailyPending}=await import('../lib/reports/daily-jobs');const job=await start();
+ blobs.get(pending)!.value.lease={token:'dead worker',until:Date.now()-1};
+ expect((await workDailyPending('different')).status).toBe('idle');
+ expect((await workDailyPending(job.id)).status).toBe('complete');
+ expect(api.analyze).toHaveBeenCalledTimes(1);
+});
+it('schedules the acknowledged start after response and authenticates the cron worker',async()=>{
+ const {after}=await import('next/server');const {GET:cron}=await import('../app/api/meta/reports/daily/cron/route');
+ const job=await start();expect(after).toHaveBeenCalled();expect(api.analyze).not.toHaveBeenCalled();
+ vi.stubEnv('CRON_SECRET','test-secret');
+ expect((await cron(new Request('https://example.com/api/meta/reports/daily/cron'))).status).toBe(401);
+ const result=await cron(new Request('https://example.com/api/meta/reports/daily/cron',{headers:{authorization:'Bearer test-secret'}}));
+ expect(result.status).toBe(200);expect((await result.json()).status).toBe('complete');
+ expect((await (await GET()).json()).saved.jobId).toBe(job.id);vi.unstubAllEnvs();
 });

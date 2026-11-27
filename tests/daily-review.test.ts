@@ -13,7 +13,7 @@ import {readDailyReview} from '../lib/reports/read';
 const account={id:'act_123',name:'Test',currency:'CAD',status:1};
 const windows=dailyWindows('2026-11-19','2026-11-20');
 const campaign=(id:string)=>({campaign_id:id,campaign_name:'Campaign '+id,objective:'OUTCOME_LEADS',spend:'100',impressions:'10000',actions:[{action_type:'lead',value:'5'}]});
-const makeReport=(number=1):Report=>({account,generated:'2026-11-20',periods:windows.map(window=>({window,totals:metrics({spend:'100',impressions:'10000'}),campaigns:joinCampaigns([],Array.from({length:number},(_,i)=>campaign(String(i))),window),notes:[]}))});
+const makeReport=(number=1):Report=>({account,generated:'2026-11-20',periods:windows.map(window=>({window,totals:metrics({spend:'100',impressions:'10000'}),campaigns:joinCampaigns([],Array.from({length:number},(_,i)=>campaign(String(i))),window,new Map(Array.from({length:number},(_,i)=>[String(i),{goals:['LEAD_GENERATION'],bids:[],primary:{metric:'leads',label:'Leads',scale:'1'}}]))),notes:[]}))});
 beforeEach(()=>{vi.resetAllMocks();vi.stubEnv('BEDROCK_MODEL_ID','test-model');api.put.mockResolvedValue({etag:'v1'});api.campaigns.mockResolvedValue([]);api.details.mockImplementation(async(_a,_c,_ids,periods)=>periods.map(()=>({})));});
 afterEach(()=>vi.unstubAllEnvs());
 

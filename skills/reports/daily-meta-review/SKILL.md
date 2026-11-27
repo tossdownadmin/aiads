@@ -18,3 +18,5 @@ Every quantitative statement must use a matching metric binding from the supplie
 ## Optional business inputs
 
 Meta objectives and optimization settings drive campaign-level measured observations. A manual business profile, target, monthly cap or approval date is not a prerequisite for a daily review. Do not create an action item solely because these optional inputs are absent. Skip the corresponding target/pacing comparison; keep source gaps and campaign measurement limitations visible. The account owner's SALES/LEADS intent never overrides an awareness, traffic or other configured campaign goal.
+
+Primary campaign result evidence uses reconciled delivering ad-set settings and the shared Meta outcome mapping. Campaign names and broad Sales or Leads objectives never select a metric. An exact website event must use its website-specific fact, and mixed or unsupported goals stay unavailable. Profile destinations must be explicit. A background report preserves pinned input and completed checkpoints; failed accounts are retried only on an operator request.

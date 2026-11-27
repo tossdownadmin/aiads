@@ -21,3 +21,9 @@ it('ignores old non-delivering ad sets but rejects mixed, incomplete and wrong-p
  expect(campaignConfiguration(campaign,[{...sets[0],campaign_id:'wrong'}],ads).state).toBe('unavailable');
  expect(campaignConfiguration(campaign,null,ads).state).toBe('unavailable');
 });
+it('requires an explicit profile destination and recognizes the exact checkout event',()=>{
+ expect(configuredOutcome({optimization_goal:'PROFILE_VISIT',destination_type:'INSTAGRAM_PROFILE'})?.metric).toBe('instagramVisits');
+ expect(configuredOutcome({optimization_goal:'PROFILE_VISIT',destination_type:'FACEBOOK_PAGE'})?.metric).toBe('facebookVisits');
+ expect(configuredOutcome({optimization_goal:'PROFILE_VISIT',destination_type:'INSTAGRAM_PROFILE_AND_FACEBOOK_PAGE'})).toBeNull();
+ expect(configuredOutcome({optimization_goal:'OFFSITE_CONVERSIONS',promoted_object:{pixel_id:'1',custom_event_type:'INITIATE_CHECKOUT'}})?.metric).toBe('websiteCheckouts');
+});

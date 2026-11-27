@@ -1,3 +1,4 @@
+import {configuredOutcome} from '../meta/objectives';
 import type { MetaAccount } from '../meta/read';
 import { money, type CampaignRow, type Metrics, type Snapshot } from './model';
 import type { ClientLayout, ColumnSet, PeriodLayout } from './daily-template';
@@ -24,24 +25,18 @@ const short = (t: string) => t.trim().replace(/_/g,' ');
 const goalText = (c: Pick<CampaignRow,'settings'>) => (c.settings?.goals ?? []).join(' ');
 const combined = (c: CampaignRow) => [c.name,c.objective,goalText(c)].join(' ');
 export const statusText = (s: string) => short(s).toLowerCase().replace(/^./,v=>v.toUpperCase());
-export type ResultKey = 'purchases'|'leads'|'conversations'|'instagramVisits'|'facebookVisits'|'thruplays'|'landingViews'|'linkClicks';
-const resultNames: Record<ResultKey,string> = { purchases:'purchases', leads:'leads', conversations:'chats', instagramVisits:'IG profile visits', facebookVisits:'FB profile visits', thruplays:'ThruPlays', landingViews:'landing page views', linkClicks:'link clicks' };
+export type ResultKey = 'purchases'|'leads'|'conversations'|'instagramVisits'|'facebookVisits'|'thruplays'|'landingViews'|'linkClicks'|'websitePurchases'|'websiteLeads'|'websiteAddsToCart'|'websiteCheckouts'|'onMetaLeads'|'postEngagement'|'appInstalls';
+const resultNames: Record<ResultKey,string> = { purchases:'purchases', leads:'leads', conversations:'chats', instagramVisits:'IG profile visits', facebookVisits:'FB profile visits', thruplays:'ThruPlays', landingViews:'landing page views', linkClicks:'link clicks',websitePurchases:'website purchases',websiteLeads:'website leads',websiteAddsToCart:'website adds to cart',websiteCheckouts:'website checkouts initiated',onMetaLeads:'on-Meta leads',postEngagement:'post engagements',appInstalls:'app installs' };
 export function resultKind(c: Pick<CampaignRow,'name'|'objective'|'settings'|'conversations'|'thruplays'>): ResultKey | undefined {
-  const name = c.name.toLowerCase(), goals=goalText(c), objective=c.objective.toUpperCase();
-  if (/CONVERSATIONS|MESSAGING/.test(goals)) return 'conversations';
-  if (/THRUPLAY|VIDEO_VIEW/.test(goals)) return 'thruplays';
-  if (/LANDING_PAGE_VIEWS/.test(goals)) return 'landingViews';
-  if (/PROFILE_VISIT/.test(goals))return /facebook|\bfb\b/.test(name)?'facebookVisits':'instagramVisits';
-  if (/messag|conversation|whatsapp/.test(name)) return 'conversations';
-  if (/LEAD/.test(objective) || /LEAD_GENERATION|QUALITY_LEAD/.test(goals)) return 'leads';
-  if (/SALES|CONVERSIONS/.test(objective) || /purchase|sales campaign/.test(name)) return 'purchases';
-  if (/(facebook|\bfb\b).*profile|profile.*(facebook|\bfb\b)/.test(name)) return 'facebookVisits';
-  if (c.conversations != null && c.conversations > 0 && /ENGAGEMENT|MESSAGES/.test(objective) && !/profile|follower/.test(name)) return 'conversations';
-  if (/profile|follower|instagram post/.test(name) || /PROFILE_VISIT/.test(goals)) return 'instagramVisits';
-  if (/THRUPLAY|VIDEO_VIEW/.test(goals) || /video view/.test(name)) return 'thruplays';
-  if (/LANDING_PAGE_VIEWS/.test(goals)) return 'landingViews';
-  if (/LINK_CLICKS/.test(goals)) return 'linkClicks';
-  if (c.thruplays != null && c.thruplays > 0 && /AWARENESS|VIDEO/.test(objective)) return 'thruplays';
+  if(c.settings&&'primary' in c.settings) {
+    const key=c.settings.primary?.metric;
+    return key&&key in resultNames?key as ResultKey:undefined;
+  }
+  // Legacy imported snapshots can identify only unambiguous explicit goals.
+  const goals=c.settings?.goals||[];
+  const mapped=goals.map(goal=>configuredOutcome({optimization_goal:goal}));
+  if(!mapped.length||mapped.some(item=>!item)||new Set(mapped.map(item=>item!.metric)).size!==1)return;
+  const key=mapped[0]!.metric;return key in resultNames?key as ResultKey:undefined;
 }
 export const resultLabel = (key: ResultKey) => resultNames[key];
 export const costPer = per;

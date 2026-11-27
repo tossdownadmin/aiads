@@ -1,1 +1,16 @@
-{"crons":[{"path":"/api/skills/sync","schedule":"0 7 * * *"},{"path":"/api/monitoring/cron","schedule":"15 7 * * *"}]}
+{
+  "crons": [
+    {
+      "path": "/api/skills/sync",
+      "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/monitoring/cron",
+      "schedule": "15 7 * * *"
+    },
+    {
+      "path": "/api/meta/reports/daily/cron",
+      "schedule": "* * * * *"
+    }
+  ]
+}

@@ -1,3 +1,4 @@
+import {campaignConfiguration} from '../monitoring/objectives';
 import {hasCurrentApproval} from './client-context';
 import { readDetails, limitation } from '../meta/campaign-detail';
 import { fetchAllPages, getCampaigns, type MetaAccount } from '../meta/read';
@@ -9,8 +10,8 @@ const fields = 'spend,impressions,reach,frequency,clicks,ctr,cpc,actions,convers
 export async function readReportWindows(account: MetaAccount, windows: Window[], dailyReview=false): Promise<Snapshot[]> {
   const [inventory, adsets] = await Promise.all([
     getCampaigns(account.id).catch(() => null),
-    fetchAllPages<{ campaign_id: string; optimization_goal?: string; bid_strategy?: string }>(account.id + '/adsets', {
-      fields: 'campaign_id,optimization_goal,bid_strategy', limit: '500',
+    fetchAllPages<Row & { campaign_id: string; optimization_goal?: string; bid_strategy?: string }>(account.id + '/adsets', {
+      fields: 'id,campaign_id,optimization_goal,bid_strategy,promoted_object,destination_type', limit: '500',
     }).catch(() => null),
   ]);
   const settings = new Map<string,DeliverySettings>();
@@ -21,7 +22,7 @@ export async function readReportWindows(account: MetaAccount, windows: Window[],
     settings.set(set.campaign_id, item);
   }
   const snapshots = await Promise.all(windows.map(async window => {
-    const params = { time_range: JSON.stringify({ since: window.since, until: window.until }), use_unified_attribution_setting: 'true', limit: '200' };
+    const params = { time_range: JSON.stringify({ since: window.since, until: window.until }), use_account_attribution_setting: 'true', action_report_time:'impression', limit: '200' };
     let limited = false;
     const readInsights = async (level: 'campaign' | 'account') => {
       const base = (level === 'campaign' ? 'campaign_id,campaign_name,objective,' : '') + fields;
@@ -50,9 +51,10 @@ export async function readReportWindows(account: MetaAccount, windows: Window[],
     const reported=details[i]?.[c.id]?.sets.filter(set=>set.stats)||[];
     // Page-visit results can be available only at ad-set level. Roll up complete
     // reporting rows once; do not also add the same ads or attribution variants.
-    const filled={...c};
+    const config=campaignConfiguration({...c,campaign_id:c.id},adsets,reported.map(set=>({adset_id:set.id,campaign_id:c.id,spend:set.stats!.spend,impressions:set.stats!.impressions})));
+    const filled={...c,settings:{goals:config.goals,bids:c.settings?.bids||[],primary:config.outcome}};
     for(const key of ['facebookVisits','instagramVisits'] as const) {
-      if(filled[key]===null&&reported.length&&!reported.some(set=>set.stats![key]===null))filled[key]=reported.reduce((total,set)=>total+set.stats![key]!,0);
+      if(config.state!=='unavailable'&&filled[key]===null&&reported.length&&!reported.some(set=>set.stats![key]===null))filled[key]=reported.reduce((total,set)=>total+set.stats![key]!,0);
     }
     return filled;
   })}));
@@ -60,7 +62,7 @@ export async function readReportWindows(account: MetaAccount, windows: Window[],
 
 /** Equal-length, nonoverlapping history; no historical state is inferred from today's switches. */
 async function readPrevious(account:MetaAccount,window:Window):Promise<{value:NonNullable<Snapshot['previous']>;notes:string[]}> {
-  const params={time_range:JSON.stringify(window),use_unified_attribution_setting:'true',limit:'200'};
+  const params={time_range:JSON.stringify(window),use_account_attribution_setting:'true',action_report_time:'impression',limit:'200'};
   const notes:string[]=[];
   async function insights(level:'campaign'|'account') {
     const base=(level==='campaign'?'campaign_id,campaign_name,objective,':'')+fields;
@@ -153,6 +155,6 @@ export async function readTracking(accountId: string): Promise<Tracking> {
 }
 
 export async function readComparison(accountId:string,window:Window) {
-  const rows=await fetchAllPages<Row>(accountId+'/insights',{level:'account',time_range:JSON.stringify(window),use_unified_attribution_setting:'true',fields:'spend,impressions,reach,frequency,clicks,ctr,cpc,actions,action_values,purchase_roas'});
+  const rows=await fetchAllPages<Row>(accountId+'/insights',{level:'account',time_range:JSON.stringify(window),use_account_attribution_setting:'true',action_report_time:'impression',fields:'spend,impressions,reach,frequency,clicks,ctr,cpc,actions,action_values,purchase_roas'});
   return {window,totals:rows[0]?metrics(rows[0]):null};
 }

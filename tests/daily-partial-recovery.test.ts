@@ -76,7 +76,7 @@ it('rejects complex placeholders and unsupported thresholds without dropping the
 });
 
 it('supplies result labels to the model and rejects substituting cost per reach for cost per ThruPlay',async()=>{
- const sample={...report,periods:report.periods.map(p=>({...p,campaigns:joinCampaigns([],[{campaign_id:'video',campaign_name:'Video awareness',objective:'OUTCOME_AWARENESS',spend:'100',reach:'5000',actions:[{action_type:'video_thruplay_watched_actions',value:'1000'}],video_thruplay_watched_actions:[{action_type:'video_view',value:'1000'}]}],p.window)}))};
+ const sample={...report,periods:report.periods.map(p=>({...p,campaigns:joinCampaigns([],[{campaign_id:'video',campaign_name:'Video awareness',objective:'OUTCOME_AWARENESS',spend:'100',reach:'5000',actions:[{action_type:'video_thruplay_watched_actions',value:'1000'}],video_thruplay_watched_actions:[{action_type:'video_view',value:'1000'}]}],p.window,new Map([['video',{goals:['THRUPLAY'],bids:[]}]]))}))};
  const evidence=dailyEvidence(sample),cost=evidence.facts.find(f=>f.id==='window0:campaign:video:cost-per-result')!;
  expect(cost.display).toContain('ThruPlays');
  const response=answer();for(const p of response.periods)p.findings=[{...finding(p.periodId,'Measured cost was {{'+p.periodId+':campaign:video:cost-per-result}} cost per reach.'),evidenceIds:[p.periodId+':campaign:video:cost-per-result']}];
