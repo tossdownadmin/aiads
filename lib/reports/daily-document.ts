@@ -131,10 +131,12 @@ function periodComparison(p:Snapshot,currency:string) {
   if (currentDays<=0 || previousDays<=0) return '';
   const comparable=currentDays===previousDays && previous.window.until<p.window.since;
   const range=(window:Snapshot['window'])=>day(window.since,true)+' – '+day(window.until,true);
-  const labels={spend:'Spend',leads:'Leads',purchases:'Purchases',ctr:'CTR',cpc:'CPC',roas:'ROAS'};
+  const core={spend:'Spend',leads:'Leads',purchases:'Purchases',ctr:'CTR',cpc:'CPC',roas:'ROAS'};
+  const outcomes={websiteAddsToCart:'Website adds to cart',websiteCheckouts:'Website checkouts initiated',websitePurchases:'Website purchases',formLeads:'Instant-form leads',websiteLeads:'Website leads',conversionLeads:'Converted leads',instagramVisits:'Instagram profile visits',facebookVisits:'Facebook Page visits',thruplays:'ThruPlays',conversations:'Conversations'};
+  const labels={...core,...outcomes};
   type Metric = keyof typeof labels;
   const format=(key:Metric,value:number|null|undefined)=>key==='spend'||key==='cpc'?cash(value,currency):key==='ctr'?percent(value):key==='roas'?ratio(value):count(value);
-  const rows=(Object.keys(labels) as Metric[]).map(key=>{
+  const rows=(Object.keys(labels) as Metric[]).filter(key=>key in core || p.totals?.[key]!=null || previous.totals?.[key]!=null).map(key=>{
     const current=p.totals?.[key],prior=previous.totals?.[key];
     let change=dash;
     if (comparable && current!=null && prior!=null) {

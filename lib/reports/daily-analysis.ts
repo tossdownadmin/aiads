@@ -5,7 +5,7 @@ import { runReportSkill } from "../skills/report-runner";
 import type { ReportingSkill } from "../skills/report-packages";
 import {hash,skillVersion} from '../skills/report-packages';
 import type { DailyAnalysis, ReportFinding, SkillRun } from "../skills/report-types";
-import type { Report, Metrics, Window } from "./model";
+import {previousWindow, type Report, type Metrics, type Window} from "./model";
 import {VALIDATION_VERSION,labels,renderMeasuredText as bindMeasuredText,type EvidenceFact} from './measured-text';
 import {
   cash,
@@ -302,9 +302,32 @@ export function validateDailyAnalysis(
     return { periodId: p.periodId, findings };
   });
 }
+// A batch can cover only part of an account. When it supplies a comparable
+// campaign KPI, report that comparison directly without extending its ranking.
+function scopedBatchFinding(finding:ReportFinding, facts:Map<string,EvidenceFact>,window:Window):ReportFinding{
+  const ids=finding.evidenceIds??[];
+  for(const id of ids){
+    const match=id.match(/^(window\d+):campaign:([^:]+):(roas|cost-per-result)$/);
+    if(!match)continue;
+    const [,periodId,campaignId,metric]=match;
+    const priorId=periodId+':previous-campaign:'+campaignId+':'+metric;
+    if(!ids.includes(priorId))continue;
+    const priorWindow=facts.get(periodId+':previous-window')?.value as Window|undefined;
+    const expected=previousWindow(window);
+    if(priorWindow?.since!==expected.since||priorWindow.until!==expected.until)continue;
+    const current=facts.get(id),prior=facts.get(priorId);
+    if(typeof current?.value!=='number'||typeof prior?.value!=='number')continue;
+    const title=current.display.slice(0,current.display.lastIndexOf(': '));
+    const observation=current.display+'. '+prior.display+'.';
+    return {...finding,title,tone:'ok',category:'observation',priority:'monitor',detail:observation,interpretation:observation,
+      action:'Review the campaign’s result volume alongside its period comparison.',
+      reason:'The two measurements cover the same campaign and equal reporting windows.'};
+  }
+  return finding;
+}
 /** Retain strictly verified observations from complete, known window envelopes.
- * Empty or wholly unsupported windows still fail; no invented fallback prose. */
-export function recoverDailyFindings(responses:unknown[],evidence:ReturnType<typeof dailyEvidence>){
+ * Windows with no valid final observation can reuse their verified supporting batch; otherwise they fail. */
+export function recoverDailyFindings(responses:unknown[],evidence:ReturnType<typeof dailyEvidence>,supporting:ReviewedBatch[]=[]){
   const envelope=z.object({periods:z.array(z.object({periodId:text(40),findings:z.array(z.unknown()).min(1).max(100)})).min(1).max(2)});
   const valid=new Map(evidence.periods.map(p=>[p.id,new Map<string,ReportFinding>()]));
   const rejected=new Map<string,{periodId:string;title:string;reason:string}>();
@@ -336,21 +359,57 @@ export function recoverDailyFindings(responses:unknown[],evidence:ReturnType<typ
     }
   }
   const omitted=[...rejected.values()].filter(item=>!valid.get(item.periodId)?.has(key(item.title)));
+  const reused: {periodId:string; runIds:string[]}[]=[];
+  const facts=new Map(evidence.facts.map(f=>[f.id,f]));
+  const coverageOnly:string[]=[];
   const periods=evidence.periods.map(p=>{
+    let note:string|undefined;
     const verified=[...valid.get(p.id)!.values()];
+    if(!verified.length && supporting.length) {
+      // Only server-validated batches from this exact prepared input reach this
+      // path. Check their displayed citations against the final evidence set.
+      const sources=supporting.flatMap(batch=>batch.output.filter(period=>period.periodId===p.id).flatMap(period=>
+        period.findings.filter(f=>f.evidenceIds?.length && f.evidenceIds.length===f.evidence?.length &&
+          f.evidenceIds.every((id,i)=>facts.get(id)?.periodId===p.id && facts.get(id)?.display===f.evidence![i])
+        ).map(finding=>({finding,runId:batch.run.id}))));
+      const rank={now:0,next:1,monitor:2};
+      sources.sort((a,b)=>rank[a.finding.priority??'monitor']-rank[b.finding.priority??'monitor']);
+      const unique=deduplicateFindings(sources.map(row=>row.finding));
+      const selected=unique.slice(0,5);
+      const win=unique.find(f=>f.category==='win');
+      if(win && !selected.includes(win))selected.push(win);
+      if(selected.length) {
+        verified.push(...selected.map(f=>scopedBatchFinding(f,facts,p.window)));
+        note='The combined summary failed verification for this window. The cited findings come from its saved, evidence-checked reviews.';
+        reused.push({periodId:p.id,runIds:[...new Set(sources.filter(row=>selected.includes(row.finding)).map(row=>row.runId))]});
+      }
+    }
+    const coverage=facts.get(p.id+':coverage');
+    if(!verified.length && latestTitles.has(p.id) && !p.campaigns.length &&
+      Array.isArray(coverage?.value) && coverage.value.includes('Meta returned no account-level insight row for this period.') &&
+      facts.get(p.id+':account:spend')?.value===null && facts.get(p.id+':account:impressions')?.value===null){
+      const evidenceIds=[p.id+':account:spend',p.id+':account:impressions'];
+      const measured=evidenceIds.map(id=>facts.get(id)!.display);
+      const interpretation='Meta returned no account-level insight row for these dates. Spend and impressions are unavailable.';
+      verified.push({tone:'warn',priority:'next',category:'data_gap',title:'Account delivery could not be measured',interpretation,
+        detail:measured.join('. ')+'. '+interpretation,action:'Check delivery for these dates in Ads Manager.',
+        reason:'Confirm whether the account was scheduled to run before interpreting the missing figures.',evidence:measured,evidenceIds});
+      coverageOnly.push(p.id);
+      note='The AI findings for this window failed verification. The reporting service supplied this data availability notice.';
+    }
     if(!verified.length)throw Error('No verified AI finding was available for '+p.id+'. The account review remains incomplete.');
     const count=omitted.filter(item=>item.periodId===p.id).length;
-    return {periodId:p.id,findings:verified.sort((a,b)=>({crit:0,warn:1,ok:2})[a.tone]-({crit:0,warn:1,ok:2})[b.tone]).slice(0,6),notes:[count?'AI review with limitations: '+count+' proposed observation'+(count===1?' was':'s were')+' omitted because '+(count===1?'it did':'they did')+' not pass evidence checks. Only verified findings are shown.':'The AI review required correction. Only findings that passed the evidence checks are shown.']};
+    return {periodId:p.id,findings:verified.sort((a,b)=>({crit:0,warn:1,ok:2})[a.tone]-({crit:0,warn:1,ok:2})[b.tone]).slice(0,6),notes:[note??(count?'AI review with limitations: '+count+' proposed observation'+(count===1?' was':'s were')+' omitted because '+(count===1?'it did':'they did')+' not pass evidence checks. Only verified findings are shown.':'The AI review required correction. Only findings that passed the evidence checks are shown.')]};
   });
-  return {periods,rejected:omitted};
+  return {periods,rejected:omitted,reused,coverageOnly};
 }
 
-function executeDailyReview(skill:ReportingSkill,input:unknown,evidence:ReturnType<typeof dailyEvidence>,upstreamNotes=new Map<string,string[]>()){
+function executeDailyReview(skill:ReportingSkill,input:unknown,evidence:ReturnType<typeof dailyEvidence>,upstreamNotes=new Map<string,string[]>(),supporting:ReviewedBatch[]=[]){
   const validationEvidence={...evidence,requireBindings:true};
   const annotate=(periods:DailyAnalysis['periods'])=>periods.map(p=>({...p,findings:deduplicateFindings(p.findings),...((p.notes?.length||upstreamNotes.get(p.periodId)?.length)?{notes:[...new Set([...p.notes??[],...upstreamNotes.get(p.periodId)??[]])]}:{})}));
   return runReportSkill(skill,input,raw=>annotate(validateDailyAnalysis(raw,validationEvidence)),{
     upstreamLimited:[...upstreamNotes.values()].some(notes=>notes.length>0),
-    recover:responses=>{const result=recoverDailyFindings(responses,validationEvidence);return {output:annotate(result.periods),validation:{rejected:result.rejected}};},
+    recover:responses=>{const result=recoverDailyFindings(responses,validationEvidence,supporting);return {output:annotate(result.periods),validation:{rejected:result.rejected,reused:result.reused,coverageOnly:result.coverageOnly}};},
   });
 }
 
@@ -388,7 +447,7 @@ export async function analyzeDailyReport(
   const complete=reviewed as ReviewedBatch[];
   const {input,evidence:synthesis}=boundedSynthesis(evidence,complete);
   const upstreamNotes=new Map(evidence.periods.map(p=>[p.id,complete.some(batch=>batch.output.some(period=>period.periodId===p.id&&period.notes?.length))?['Supporting AI reviews omitted observations that did not pass evidence checks. Only verified findings were used in this summary.']:[]]));
-  const result=await executeDailyReview(skill,input,synthesis,upstreamNotes);
+  const result=await executeDailyReview(skill,input,synthesis,upstreamNotes,complete);
   return {run:result.run,periods:result.output,supportingRuns:complete.map(r=>r.run)};
 }
 

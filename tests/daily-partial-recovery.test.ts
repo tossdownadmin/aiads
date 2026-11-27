@@ -106,3 +106,15 @@ it.runIf(!!process.env.AIADS_FAILED_OUTPUT_FIXTURE)('replays both attached produ
  expect(result.rejected.some(r=>r.reason.includes('ThruPlay'))).toBe(true);
  expect(result.periods.every(p=>p.notes?.length)).toBe(true);
 });
+
+it('reports an explicit missing account row separately from measured zero or incomplete window coverage',()=>{
+ const source={...report,periods:report.periods.map((p,i)=>i===0?{...p,totals:null,notes:['Meta returned no account-level insight row for this period.']}:p)};
+ const evidence=dailyEvidence(source),draft=answer();
+ draft.periods[0].findings=[finding('window0','Zero spend occurred.')];
+ const result=recoverDailyFindings([draft],evidence);
+ expect(result.coverageOnly).toEqual(['window0']);
+ expect(result.periods[0].findings).toMatchObject([{category:'data_gap',title:'Account delivery could not be measured',evidence:['Account — Spend: Not reported','Account — Impressions: Not reported']}]);
+ expect(result.periods[1].findings[0].title).toBe('Measured delivery');
+ expect(()=>recoverDailyFindings([],evidence)).toThrow();
+ expect(()=>recoverDailyFindings([draft],dailyEvidence(report))).toThrow();
+});

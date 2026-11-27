@@ -131,6 +131,16 @@ describe('daily report client presentation',()=>{
     expect(section(panel(unequal),'comparison-section')).not.toContain('+$20.00');
   });
 
+  it('compares named website outcomes and preserves the distinction between a missing count and a reported zero',()=>{
+    const totals={...metrics({}),websiteCheckouts:23,websiteAddsToCart:141,websitePurchases:null};
+    const previous={window:{since:'2026-11-05',until:'2026-11-11'},campaigns:[],totals:{...metrics({}),websiteCheckouts:0,websiteAddsToCart:133,websitePurchases:5}};
+    const table=section(panel(renderDailyDocument([entry([],{period:{totals,previous}})],end)),'comparison-section');
+    expect(table).toContain('Website purchases</th><td>—</td><td>5</td><td>—</td>');
+    expect(table).toContain('Website checkouts initiated</th><td>23</td><td>0</td><td>+23</td>');
+    expect(table).toContain('Website adds to cart</th><td>141</td><td>133</td><td>+8</td>');
+    expect(table).not.toContain('Instagram profile visits');
+  });
+
   it('uses the supplied pacing values and keeps the gallery last',()=>{
     const doc=renderDailyDocument([entry([finding()],{period:{pacing:{month:'2026-11',budget:3000,spent:1010,elapsedDays:18,monthDays:30,expectedSpend:1799,projectedSpend:1688}}})],end);
     const accountPanel=panel(doc),pacing=section(accountPanel,'pacing-section');

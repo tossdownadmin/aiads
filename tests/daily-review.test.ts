@@ -168,3 +168,21 @@ it('bounds final synthesis for hundreds of fully dated ads and retains campaign-
  expect(final.stage).toBe('final-synthesis');expect(JSON.stringify(final).length).toBeLessThanOrEqual(220000);
  for(const p of final.periods)if(final.facts.some((f:any)=>f.id===p.id+':campaign:0:spend'))expect(final.facts.some((f:any)=>f.id===p.id+':campaign:0:impressions')).toBe(true);
 });
+
+it('retains a verified final window and reuses only cited supporting reviews for a rejected synthesis window',async()=>{
+  api.model.mockImplementation(async(_system,encoded)=>{
+    const data=JSON.parse(encoded), final=data.stage==='final-synthesis';
+    return {periods:data.periods.map((p:{id:string})=>({
+      periodId:p.id,findings:[{tone:'ok',category:'observation',title:final?'Final delivery review':'Supporting spend review',
+        interpretation:final&&p.id==='window1'?'Delivery exceeded the 999 purchase threshold.':'Spend was {{'+p.id+':account:spend}}.',
+        evidenceIds:[p.id+':account:spend'],action:'Check dated delivery',reason:'Confirm the scheduled flight.'}]
+    }))};
+  });
+  const result=await analyzeDailyReport(makeReport(150),getReportingSkills()[0]);
+  expect(result.run.reviewStatus).toBe('limited');
+  expect(result.periods.map(p=>p.findings.map(f=>f.title))).toEqual([['Final delivery review'],['Supporting spend review']]);
+  expect(result.periods[1].findings[0].interpretation).toBe('Spend was CAD $100.00.');
+  const details=JSON.parse(api.put.mock.calls.at(-2)![1]).validation.details;
+  expect(details.reused).toEqual([{periodId:'window1',runIds:[expect.any(String)]}]);
+  expect(result.supportingRuns?.some(r=>r.id===details.reused[0].runIds[0])).toBe(true);
+});
