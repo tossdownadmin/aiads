@@ -97,7 +97,8 @@ export default function CompetitorResearch() {
           (item: Skill) => item.categories?.includes("competitor_intel"),
         ) as Skill[];
         setSkills(competitorSkills);
-        setSkillName(competitorSkills[0]?.name || "");
+        const requested = new URLSearchParams(window.location.search).get("method");
+        setSkillName(competitorSkills.find(item => item.name === requested)?.name || competitorSkills[0]?.name || "");
       })
       .catch(() => setSources({}));
   }, []);

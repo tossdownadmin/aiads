@@ -1,6 +1,6 @@
 # Meta operations monitor
 
-Read-only deterministic method v1.1.0. Monitoring requires no business profile, manual objective, budget, target or approval dates. The account owner's SALES/LEADS classification is business intent only; it never overrides a Meta campaign objective or ad-set optimization event.
+Read-only deterministic method. Monitoring requires no business profile, manual objective, budget, target or approval dates. The account owner's SALES/LEADS classification is business intent only; it never overrides a Meta campaign objective or ad-set optimization event.
 
 The source and delivery score covers exact spend reconciliation (40), current account availability (30), and ad approval status (30). Pass earns full weight, review half, fail zero. Exclude non-applicable checks. Withhold this score for missing scored evidence or unreconciled spend. This is not a profitability, efficiency, or overall business-performance grade. Meta's native Opportunity Score remains separate. Report performance-check coverage independently; a missing performance action is not a passing performance result.
 

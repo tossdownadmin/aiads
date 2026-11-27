@@ -34,7 +34,8 @@ it('uses skill findings while keeping measured KPI values and template structure
  const supplied=JSON.parse(api.model.mock.calls[0][1]);expect(supplied.facts).toEqual(dailyEvidence(report).facts.map(({id,value,display})=>({id,value,label:display.split(' — ').at(-1)!.split(': ')[0]})));
  const updated={...report,periods:report.periods.map((p,i)=>({...p,analysis:{findings:analysis.periods[i].findings}}))};
  const original=renderDailyDocument([{account,report}],'2026-11-18'),html=renderDailyDocument([{account,report:updated}],'2026-11-18',{skill:analysis.run.skill});
- const kpis=(value:string)=>Array.from(value.matchAll(/class="kpi-label">([^<]*)<\/div><div class="kpi-value[^"]*">([^<]*)/g),m=>[m[1],m[2]]).filter(([label])=>!['Critical Flags','Warnings','Status'].includes(label));
+ const kpis=(html:string)=>Array.from(html.matchAll(/<table class="report-table metrics"[^>]*>([\s\S]*?)<\/table>/g),table=>Array.from(table[1].matchAll(/<th scope="row">([^<]*)<\/th><td>([^<]*)<\/td>/g),row=>[row[1],row[2]]).filter(([label])=>label!=='Status')).flat();
+ expect(kpis(html).length).toBeGreaterThan(0);
  expect(kpis(html)).toEqual(kpis(original));expect(html).toContain('Measured account review');expect(html).toContain('Daily Report');expect(html).toContain('daily-meta-review');expect((html.match(/class="tab-panel"/g)||[]).length).toBe((original.match(/class="tab-panel"/g)||[]).length);
 
 });

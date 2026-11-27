@@ -5,7 +5,7 @@ export const dailyStyles = portableFontStyles + `:root{
   --bg:#fafbfc;--surface:#fff;--surface2:#f0f2f5;--border:#dce1e8;
   --fg:#131922;--fg2:#626c7a;--fg3:#626c7a;
   --accent:#bd1241;--accent-bg:#fff0f4;
-  --good:#3d5877;--good-bg:#edf2f8;
+  --good:#176b50;--good-bg:#edf8f2;
   --warn:#d97706;--warn-bg:#fffbeb;
   --crit:#dc2626;--crit-bg:#fef2f2;
   --font-body:'Inter',ui-sans-serif,system-ui,sans-serif;
@@ -19,7 +19,7 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--fg);margin:0;
 .logo-area{display:flex;align-items:center;gap:10px}
 .logo-mark{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden}
 .logo-mark img{display:block;width:32px;height:32px;object-fit:contain}
-.header-title{font-size:15px;font-weight:700;letter-spacing:-.01em}
+.header-title{margin:0;font-size:20px;font-weight:700;letter-spacing:-.01em}
 .header-subtitle{font-size:12px;color:var(--fg3);font-family:var(--font-mono)}
 .header-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .badge{padding:3px 10px;border-radius:100px;font-size:11px;font-weight:600;letter-spacing:.03em;white-space:nowrap}
@@ -30,7 +30,7 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--fg);margin:0;
 .period button{border:0;background:none;padding:5px 12px;border-radius:6px;font:inherit;font-size:12px;font-weight:600;color:var(--fg2);cursor:pointer}
 .period button.on{background:var(--surface);color:var(--accent);box-shadow:0 1px 2px rgba(0,0,0,.08)}
 
-.tabs-bar{background:var(--surface);border-bottom:1px solid var(--border);overflow-x:auto;scrollbar-width:none;position:sticky;top:61px;z-index:99}
+.tabs-bar{background:var(--surface);border-bottom:1px solid var(--border);overflow-x:auto;scrollbar-width:none;position:sticky;top:66px;z-index:99}
 .tabs-bar::-webkit-scrollbar{display:none}
 .tabs{max-width:1200px;margin:0 auto;padding:0 16px;display:flex}
 .tab{padding:11px 18px;font:inherit;font-size:13px;font-weight:500;color:var(--fg2);cursor:pointer;border:0;background:none;border-bottom:2px solid transparent;white-space:nowrap;display:flex;align-items:center;gap:6px}
@@ -40,7 +40,7 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--fg);margin:0;
 .flag-dot.crit{background:var(--crit)}
 
 .main{max-width:1200px;margin:0 auto;padding:24px 16px}
-.section-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--fg3);margin:0 0 10px}
+.section-label{font-size:17px;font-weight:650;letter-spacing:-.02em;color:var(--fg);margin:0 0 12px}
 
 .kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:24px}
 .kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px}
@@ -140,6 +140,29 @@ td.mono{font-family:var(--font-mono)}
 
 .cmp td:first-child{font-weight:600}
 .footer{border-top:1px solid var(--border);padding:16px;text-align:center;font-size:11px;color:var(--fg3);font-family:var(--font-mono)}
+.cmp th,.report-table thead th,.period-comparison thead th{background:#f8f9fb;font-size:12px;letter-spacing:0;text-transform:none;padding:12px 16px}
+.cmp td,.report-table td,.report-table tbody th{padding:12px 16px}
+.cmp td:not(:first-child),.cmp thead th:not(:first-child){text-align:right}
+.cmp .group-heading{text-align:left;background:#f3f5f7;color:var(--fg2)}
+.report-table{min-width:480px}
+.report-table tbody th,.report-table td{font-size:13px;text-transform:none;letter-spacing:0;background:transparent;white-space:normal;overflow-wrap:anywhere;vertical-align:top;border-bottom:1px solid var(--border)}
+.report-table tbody th{font-weight:550}
+.report-table tbody tr:last-child>*{border-bottom:0}
+.report-table.metrics td:nth-child(2){font-weight:650}
+.report-table.metrics td:last-child{color:var(--fg2)}
+.report-table .metric-source{margin-top:4px}
+.report-table .metric-source summary,.account-breakdowns summary{cursor:pointer}
+.report-table :is(.rec-title,.rec-body){margin:0}
+.report-table .rec-title{margin-bottom:4px}
+.report-table .finding-evidence{font-size:12px;border:0;padding:0;margin:0}
+.report-table .evidence-label{display:none}
+.report-table.actions,.report-table.portfolio-actions{min-width:620px}
+.report-table .issue-chip{display:inline-block;white-space:normal}
+.report-table.actions td,.report-table.portfolio-actions td{max-width:38ch}
+.account-breakdowns{margin:-8px 0 24px;color:var(--fg2);font-size:13px}
+.account-breakdowns>summary{font-weight:550}
+.account-breakdowns[open]>summary{margin-bottom:12px}
+.coverage-ledger p{color:var(--fg2)}
 @media (max-width:800px){.findings-columns,.action-list{grid-template-columns:1fr}.findings-columns{gap:0}}
 @media (max-width:640px){.tabs-bar{top:0;position:relative}.header{position:relative}}
 [hidden]{display:none!important}
@@ -150,5 +173,5 @@ button.account-card{font:inherit;text-align:left;color:inherit;width:100%}
 .kpi-value.long{font-size:16px}.ac-m-value.long{font-size:13px}
 .empty{color:var(--fg2);font-size:13px;margin:0 0 20px}
 .issue-chip{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.print-only{display:none}
-@media print{.main>[data-period],.main [data-panel]{display:block!important}.main [data-panel]:not([data-panel="overview"]),.main>[data-period="1"]{break-before:page}body{background:white}.header,.tabs-bar{position:static}.tabs-bar,.period{display:none}.main{padding:12px 0}.account-card,.kpi-card,.issue-row,.rec-card,tr{break-inside:avoid}.main>.tab-panel:not([hidden]){display:block}table,.period-comparison{font-size:8.5pt;min-width:0}th,td{white-space:normal;padding:4px}.table-wrap{overflow:visible}.print-only{display:block}.footer{margin-top:12px}.findings-columns,.action-list{display:block}.action-list .rec-card{margin-bottom:10px}.priority-heading,.section-label{break-after:avoid}.evidence-more::details-content{content-visibility:visible}.evidence-more>ul{display:block!important}.evidence-more>summary{display:none}.finding-evidence{font-size:9pt}.coverage-note,.review-notes{font-size:9pt}}
+@media print{.main>[data-period],.main [data-panel]{display:block!important}.main [data-panel]:not([data-panel="overview"]),.main>[data-period="1"]{break-before:page}body{background:white}.header,.tabs-bar{position:static}.tabs-bar,.period{display:none}.main{padding:12px 0}.account-card,.kpi-card,.issue-row,.rec-card,tr{break-inside:avoid}.main>.tab-panel:not([hidden]){display:block}table,.period-comparison,table.report-table{font-size:8.5pt;min-width:0}.report-table :is(th,td),.cmp :is(th,td){padding:4px 6px;font-size:9pt}.account-breakdowns::details-content{content-visibility:visible}.account-breakdowns>.all-accounts-grid{display:grid!important}th,td{white-space:normal;padding:4px}.table-wrap{overflow:visible}.print-only{display:block}.footer{margin-top:12px}.findings-columns,.action-list{display:block}.action-list .rec-card{margin-bottom:10px}.priority-heading,.section-label{break-after:avoid}.evidence-more::details-content{content-visibility:visible}.evidence-more>ul{display:block!important}.evidence-more>summary{display:none}.finding-evidence{font-size:9pt}.coverage-note,.review-notes{font-size:9pt}}
 `;

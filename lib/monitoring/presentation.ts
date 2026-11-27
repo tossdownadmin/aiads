@@ -4,6 +4,20 @@ import type {Evidence,IssueNote,MonitorSummary,PortfolioEntry,WorkflowState} fro
 export function accountFact(snapshot:MonitorSummary,metric:string,period='current') {return snapshot.evidence.find(f=>f.id===`${period}:account:${snapshot.account.id}:${metric}`);}
 export function evidenceValue(fact:Evidence|undefined) {if(!fact)return '—';return fact.unit==='currency'?formatMoney(fact.value,fact.currency!):formatDecimal(fact.value,fact.unit==='percent'||fact.unit==='ratio'?2:undefined)+(fact.value!==null?(fact.unit==='percent'?'%':fact.unit==='ratio'&&fact.metric==='roas'?'×':''):'');}
 export function staleSnapshot(snapshot:MonitorSummary,now=new Date()) {return Date.parse(snapshot.completedAt)<now.getTime()-26*3600000||snapshot.window.until!==shiftDay(accountToday(snapshot.account.timezone,now),-1);}
+// Board display bands only. Neither source score is recalculated here.
+export function scoreIndicator(snapshot: MonitorSummary | null, kind: 'meta' | 'delivery', now = new Date()) {
+  if (!snapshot) return { text: '—', band: 'neutral', value: null, reason: 'No snapshot' } as const;
+  if (staleSnapshot(snapshot, now) || (kind === 'delivery' && snapshot.scoreBasis !== 'source-and-delivery')) {
+    return { text: '—', band: 'neutral', value: null, reason: 'Needs refresh' } as const;
+  }
+  const raw = kind === 'meta' ? snapshot.nativeScore : snapshot.score;
+  const value = raw == null || String(raw).trim() === '' ? NaN : Number(raw);
+  if (!Number.isFinite(value) || value < 0 || value > 100) {
+    return { text: '—', band: 'neutral', value: null, reason: 'Unavailable' } as const;
+  }
+  const band = value >= 80 ? 'green' : value >= 60 ? 'amber' : 'red';
+  return { text: String(raw), band, value, reason: band } as const;
+}
 export function issueState(note:IssueNote|null|undefined,now=new Date()):WorkflowState {return note?.state==='snoozed'&&(!note.snoozedUntil||Date.parse(note.snoozedUntil)<=now.getTime())?'open':note?.state||'open';}
 export function spendGroups(entries:PortfolioEntry[],now=new Date()) {
   const groups=new Map<string,{currency:string;since:string;until:string;accountIds:string[];values:string[]}>();

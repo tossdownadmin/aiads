@@ -10,6 +10,6 @@ export function monitoringSkill() {
   const manifest=schema.parse(config),body=readFileSync(resolve(process.cwd(),'skills/monitoring/meta-operations/SKILL.md'),'utf8');
   return {...manifest,hash:createHash('sha256').update(JSON.stringify({manifest,body})).digest('hex'),body};
 }
-export function getMonitoringSkill():SkillRecord&{body:string;original:string;files:string[];fetchedAt:string} {
-  const method=monitoringSkill();return {name:method.name,description:method.description,source:'tossdown-aiads',path:'skills/monitoring/meta-operations/SKILL.md',sha:method.hash,license:'Proprietary',categories:['monitoring','alerts','optimization'],platforms:['meta'],status:'approved',risk:'low',findings:[],writeActions:false,adaptationStatus:'native',body:method.body,original:method.body,files:['manifest.json','SKILL.md'],fetchedAt:'built-in',contract:method.contract,requirements:['meta-account-insights','meta-ad-insights','meta-adset-settings']};
+export function getMonitoringSkill():SkillRecord&{body:string;original:string;files:string[];fetchedAt:string;version:string} {
+  const method=monitoringSkill();return {version:method.version,name:method.name,description:method.description,source:'tossdown-aiads',path:'skills/monitoring/meta-operations/SKILL.md',sha:method.hash,license:'Proprietary',categories:['monitoring','alerts','optimization'],platforms:['meta'],status:'approved',risk:'low',findings:[],writeActions:false,adaptationStatus:'native',body:method.body,original:method.body,files:['manifest.json','SKILL.md'],fetchedAt:'built-in',contract:method.contract,requirements:['meta-account-insights','meta-ad-insights','meta-adset-settings']};
 }

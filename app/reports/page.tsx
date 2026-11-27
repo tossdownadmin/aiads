@@ -13,8 +13,7 @@ import type { SavedDaily } from '../../lib/reports/saved-daily';
 import './reports.css';
 import DailyContextEditor from '../profile-editor';
 import { activeClients, activePortfolio, activePortfolioId, activeReportTemplate } from '../../config/active-clients';
-import { dailyStyles } from '../../lib/reports/daily-style';
-import { detailStyles } from '../../lib/reports/detail-view';
+import { dailySavedView } from '../../lib/reports/daily-saved-view';
 import { portableFontStyles } from '../../lib/ui/report-font';
 import {BRAND_ICON_DATA_URI} from '../../lib/ui/brand-icon';
 import type { DailyClientContext, DailyClientContextInput } from '../../lib/reports/client-context';
@@ -73,28 +72,7 @@ export default function Reports() {
   const [dailySkill,setDailySkill]=useState('daily-meta-review'),[monthlySkill,setMonthlySkill]=useState('monthly-meta-plan');
   const live=useRef(true);
   useEffect(()=>{live.current=true;return()=>{live.current=false;};},[]);
-  const dailyHtml=useMemo(()=>{
-    const html=saved?.html;
-    if(!html)return '';
-    // Apply the current reading order to saved snapshots and their downloads.
-    const doc=new DOMParser().parseFromString(html,'text/html');
-    let changed=false;
-    const favicon=doc.createElement('link');favicon.rel='icon';favicon.type='image/png';favicon.href=BRAND_ICON_DATA_URI;
-    doc.head.querySelectorAll('link[rel="icon"]').forEach(icon=>icon.remove());doc.head.append(favicon);
-    const mark=doc.querySelector('.logo-mark');
-    if(mark){const icon=doc.createElement('img');icon.src=BRAND_ICON_DATA_URI;icon.width=32;icon.height=32;icon.alt='Tossdown';mark.replaceChildren(icon);}
-    for(const panel of Array.from(doc.querySelectorAll('.tab-panel[data-panel]'))) {
-      const gallery=Array.from(panel.children).find(el=>el.classList.contains('cg-campaigns'));
-      const heading=gallery?.previousElementSibling;
-      if(!gallery||gallery===panel.lastElementChild||!heading?.classList.contains('section-label')||!heading.textContent?.startsWith('Campaign Performance'))continue;
-      panel.append(heading,gallery);changed=true;
-    }
-    const theme=doc.createElement('style');
-    theme.setAttribute('data-tossdown-brand','agency-inter-v1');
-    theme.textContent=dailyStyles+detailStyles;
-    doc.head.append(theme);changed=true;
-    return changed?'<!doctype html>\n'+doc.documentElement.outerHTML:html;
-  },[saved?.html]);
+  const dailyHtml=useMemo(()=>dailySavedView(saved?.html || ''),[saved?.html]);
   async function openDaily() {
     setDailyError('');
     try {

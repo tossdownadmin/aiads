@@ -2,6 +2,7 @@ import {reviewQuality,deliveryNotices,deduplicateFindings} from './review-qualit
 import { campaignCards, detailStyles, galleryScript } from './detail-view';
 import type { MetaAccount } from '../meta/read';
 import { dailyWindows, shiftDay, validDay, type Report, type Snapshot } from './model';
+import { dailyTable } from './daily-tables';
 import { dailyStyles } from './daily-style';
 import { BRAND_ICON_DATA_URI } from '../ui/brand-icon';
 import type { ReportFinding as PresentedFinding } from '../skills/report-types';
@@ -29,8 +30,16 @@ const compareFindings = (a:PresentedFinding,b:PresentedFinding) => priorityRank[
 const coverage = '<p class="coverage-note">Coverage: reported Meta metrics, current settings and supplied ad copy. Images and videos are available for your review; this skill does not visually analyse them.</p>';
 const categoryOf=(f:PresentedFinding)=>f.category??(f.tone==='ok'?'win':'concern');
 
-function tile(item: Fact, style='') {
-  return '<div class="kpi-card '+style+'"><div class="kpi-label">'+escape(item.label)+'</div><div class="kpi-value'+(item.value.length>15?' long':'')+'">'+escape(item.value)+'</div><div class="kpi-sub">'+escape(item.detail)+(item.source?'<details class="metric-source"><summary>Metric source</summary>'+escape((item.source.calculation==='cost_per_result'?'spend / ':'')+item.source.metric+' · '+item.source.scope+' · '+item.source.entityIds.join(', ')+' · '+item.source.window.since+' to '+item.source.window.until+' · '+item.source.currency)+'</details>':'')+'</div></div>';
+function metricSource(item:Fact) {
+  const source=item.source;
+  if (!source) return escape(item.detail);
+  return escape(item.detail)+'<details class="metric-source"><summary>Metric source</summary>'+escape((source.calculation==='cost_per_result'?'spend / ':'')+source.metric+' · '+source.scope+' · '+source.entityIds.join(', ')+' · '+source.window.since+' to '+source.window.until+' · '+source.currency)+'</details>';
+}
+function metricTable(items:Fact[]) {
+  return dailyTable('metrics',items.map(item=>[escape(item.label),escape(item.value),metricSource(item)]));
+}
+function tile(item:Fact,style='') {
+  return '<div class="kpi-card '+style+'"><div class="kpi-label">'+escape(item.label)+'</div><div class="kpi-value">'+escape(item.value)+'</div><div class="kpi-sub">'+metricSource(item)+'</div></div>';
 }
 function issue(tone: Tone,heading:string,detail:string) {
   return '<div class="issue-row '+tone+'"><div class="issue-icon" aria-hidden="true">'+icon[tone]+'</div><div><div class="issue-title">'+escape(heading)+'</div><div class="issue-detail">'+escape(detail)+'</div></div></div>';
@@ -102,10 +111,16 @@ function prioritizedActions(views:View[],portfolio=false) {
     (portfolio&&fullQueue.length>queue.length?'<p class="section-intro">Showing '+queue.length+' of '+fullQueue.length+' proposed actions. Open an account for its complete action list.</p>':'')+(queue.length?priorities.map(priority=>{
       const group=queue.filter(item=>priorityOf(item.finding)===priority);
       if (!group.length) return '';
-      return '<div class="priority-group priority-'+priority+'"><h3 class="priority-heading">'+escape(priorityLabels[priority])+'</h3><div class="action-list">'+group.map(({view,finding:f,accountIndex})=>
-        '<article class="rec-card" data-priority="'+priority+'" data-tone="'+f.tone+'"><div class="rec-meta">'+(portfolio?'<button type="button" class="row-link action-account" data-open="'+accountIndex+'">'+escape(view.name)+'</button>':'')+
-        '<span class="issue-chip chip-'+f.tone+'">'+escape({crit:'Critical concern',warn:'Review concern',ok:'Follow-up'}[f.tone])+'</span></div><h4 class="rec-title">'+escape(f.action)+'</h4><p class="rec-body">'+escape(f.reason)+'</p>'+supportingEvidence(f)+'</article>'
-      ).join('')+'</div></div>';
+      const rows=group.map(({view,finding:f,accountIndex})=>{
+        const cells=[
+          '<span class="issue-chip chip-'+f.tone+'">'+escape({crit:'Critical concern',warn:'Review concern',ok:'Follow-up'}[f.tone])+'</span>',
+          '<h4 class="rec-title">'+escape(f.action)+'</h4><p class="rec-body">'+escape(f.reason)+'</p>',
+          supportingEvidence(f)||'—',
+        ];
+        if (portfolio) cells.unshift('<button type="button" class="row-link action-account" data-open="'+accountIndex+'">'+escape(view.name)+'</button>');
+        return cells;
+      });
+      return '<div class="priority-group priority-'+priority+'"><h3 class="priority-heading">'+escape(priorityLabels[priority])+'</h3>'+dailyTable(portfolio?'portfolio-actions':'actions',rows)+'</div>';
     }).join(''):empty('No actions were supplied for this period.'))+'</section>';
 }
 function periodComparison(p:Snapshot,currency:string) {
@@ -136,12 +151,12 @@ function budgetPacing(p:Snapshot,currency:string) {
   const pacing=p.pacing;
   if (!pacing) return '';
   return '<section class="pacing-section" aria-label="Monthly budget pacing">'+title('Monthly budget pacing — '+pacing.month)+
-    '<p class="section-intro">Month-to-date coverage: '+escape(pacing.elapsedDays)+' of '+escape(pacing.monthDays)+' days. The month-end projection is an estimate.</p><div class="kpi-grid">'+[
+    '<p class="section-intro">Month-to-date coverage: '+escape(pacing.elapsedDays)+' of '+escape(pacing.monthDays)+' days. The month-end projection is an estimate.</p>'+metricTable([
       {label:'Monthly budget',value:cash(pacing.budget,currency),detail:'Supplied budget'},
       {label:'Spent to date',value:cash(pacing.spent,currency),detail:'Month-to-date spend'},
       {label:'Expected spend to date',value:cash(pacing.expectedSpend,currency),detail:'Supplied pacing benchmark'},
       {label:'Projected month-end spend',value:cash(pacing.projectedSpend,currency),detail:'Estimated full-month spend'},
-    ].map(f=>tile(f)).join('')+'</div></section>';
+    ])+'</section>';
 }
 function clientCard(v:View,index:number) {
   return '<button type="button" class="account-card" data-open="'+index+'"><span class="ac-header"><span><span class="ac-name" style="display:block">'+escape(v.name)+'</span><span class="ac-currency">'+escape([v.account.currency,v.market].filter(Boolean).join(' · '))+'</span></span>'+badge(v.type)+'</span><span class="ac-metrics">'+v.spec.cards.map(label=>{
@@ -156,7 +171,7 @@ function detail(v:View,periodName:string) {
     (v.p.analysis?.notes?.length?'<div class="review-limited" role="note">'+issue('warn','AI review with limitations',v.p.analysis.notes.join(' '))+'</div>':'')+
     '<section class="coverage-ledger" aria-label="Review coverage">'+title('Review coverage — '+v.quality.status)+'<p>Processing completion and performance assessment are separate. '+escape(v.quality.performanceFindings)+' performance findings retained.</p><ul>'+v.quality.checks.map(c=>'<li>'+escape(c.label)+': '+escape(c.status.replace('_',' '))+'</li>').join('')+'</ul></section>'+
     (v.notices.length?'<section aria-label="Current delivery notices">'+title('Current delivery notices')+v.notices.map(n=>issue('warn',n.title,n.detail)).join('')+'</section>':'')+
-    title(periodName+' — KPIs')+'<div class="kpi-grid">'+v.spec.kpis.map((label,i)=>tile(v.fact(label),i===0?'highlight':label==='Status'&&v.tone==='crit'?'crit':'')).join('')+'</div>'+
+    title(periodName+' — KPIs')+metricTable(v.spec.kpis.map(label=>v.fact(label)))+
     '<div class="findings-columns">'+findingSection('Wins',wins,'No positive findings were supplied for this period.')+findingSection('Concerns',concerns,'No performance concerns were flagged in the supplied findings.')+'</div>'+
     prioritizedActions([v])+periodComparison(v.p,v.account.currency)+budgetPacing(v.p,v.account.currency)+availability(v.p,v.findings)+
     title('Campaign Performance — '+periodName)+campaignPreview(v.p,v.account.currency,v.account.id+'-'+v.p.window.since+'-'+v.p.window.until);
@@ -184,10 +199,11 @@ function overview(views:View[],exclusions:Exclusion[],periodName:string) {
   const groupedNotes=new Map<string,string[]>();
   for(const v of views)for(const note of dataNotes(v.p))groupedNotes.set(note,[...groupedNotes.get(note)??[],v.name]);
   const notes=[...groupedNotes].map(([note,names])=>'<li>'+escape(note)+' <strong>'+escape(names.length===views.length?'All accounts':names.join(', '))+'</strong></li>');
-  return title('All Accounts — '+periodName)+'<section class="coverage-ledger" aria-label="Portfolio review coverage"><p>'+views.length+' accounts processed · '+views.filter(v=>v.quality.status==='reviewed').length+' assessed with complete checks · '+views.filter(v=>v.quality.status==='limited').length+' limited · '+views.filter(v=>v.quality.status==='unavailable').length+' without dated delivery/spend evidence.</p></section>'+'<div class="all-accounts-grid">'+views.map(clientCard).join('')+'</div><div class="kpi-grid">'+groups.map(g=>g.kpi).join('')+
+  return title('All Accounts — '+periodName)+'<section class="coverage-ledger" aria-label="Portfolio review coverage"><p>'+views.length+' accounts processed · '+views.filter(v=>v.quality.status==='reviewed').length+' assessed with complete checks · '+views.filter(v=>v.quality.status==='limited').length+' limited · '+views.filter(v=>v.quality.status==='unavailable').length+' without dated delivery/spend evidence.</p></section>'+'<div class="kpi-grid">'+groups.map(g=>g.kpi).join('')+
     tile({label:'Critical Flags',value:String(flags.length),detail:'Across all accounts'},'crit')+tile({label:'Warnings',value:String(warnings),detail:'Across all accounts'})+
-    tile({label:'Accounts',value:String(views.length),detail:exclusions.length+' outside this report'})+'</div><hr class="divider">'+title('Side-by-side — '+periodName+' (click a row to open the account)')+
-    '<div class="table-wrap"><table class="cmp"><thead><tr>'+['Account','Spend','Results','Cost / Result','ROAS','CTR','Frequency'].map(v=>'<th>'+v+'</th>').join('')+'</tr></thead><tbody>'+groups.map(g=>g.rows).join('')+'</tbody></table></div>'+
+    tile({label:'Accounts',value:String(views.length),detail:exclusions.length+' outside this report'})+'</div><hr class="divider">'+title('Account performance — '+periodName)+
+    '<div class="table-wrap"><table class="cmp" aria-label="Account performance"><thead><tr>'+['Account','Spend','Results','Cost / Result','ROAS','CTR','Frequency'].map(v=>'<th scope="col">'+v+'</th>').join('')+'</tr></thead><tbody>'+groups.map(g=>g.rows).join('')+'</tbody></table></div>'+
+    (views.length?'<details class="account-breakdowns"><summary>Account highlights and custom KPIs</summary><div class="all-accounts-grid">'+views.map(clientCard).join('')+'</div></details>':'')+
     prioritizedActions(views,true)+'<div class="findings-columns">'+summarySection('Wins',true)+summarySection('Concerns',false)+'</div>'+
     '<section class="availability-section" aria-label="Data availability and review limits">'+title('Data availability & review limits')+coverage+(notes.length?'<ul class="review-notes">'+notes.join('')+'</ul>':empty('No additional data-availability notes were supplied.'))+'</section>'+
     title('Not in this report ('+exclusions.length+' brands)')+'<div class="issues-grid">'+(exclusions.map(e=>issue('warn',e.name,e.reason)).join('')||empty('All expected accounts are included.'))+'</div>';
@@ -269,8 +285,8 @@ export function renderDailyDocument(entries:Entry[],end:string,presentation:Dail
   const valid=entries.filter(e=>e.report?.periods.length===2);
   const periods=windows.map((_,i)=>valid.map(e=>accountView(e,e.report!.periods[i],presentation.layouts?.[e.account.id],i)));
   const both=(fn:(i:number)=>string)=>periods.map((_,i)=>'<div data-period="'+i+'"'+(i?' hidden':'')+'>'+fn(i)+'</div>').join('');
-  return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" type="image/png" href="'+escape(BRAND_ICON_DATA_URI)+'"><title>Meta Ads — Daily Report</title><style>'+dailyStyles+detailStyles+'.group-heading{background:var(--surface2);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}</style></head><body>'+
-    '<header class="header"><div class="header-inner"><div class="logo-area">'+headerLogo+'<div><div class="header-title">Meta Ads — Daily Report</div><div class="header-subtitle">'+both(i=>escape(names[i]+' · '+ranges[i]))+'</div></div></div><div class="header-meta"><div class="period" role="group" aria-label="Date range"><button data-window="0" class="on" aria-pressed="true">Last 7 days</button><button data-window="1" aria-pressed="false">Last 30 days</button></div>'+badge(valid.length+' Accounts')+badge('Generated '+day(generated,true),'green')+'</div></div></header>'+
+  return '<!doctype html><html lang="en" data-report-layout="tables-v1"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" type="image/png" href="'+escape(BRAND_ICON_DATA_URI)+'"><title>Meta Ads — Daily Report</title><style>'+dailyStyles+detailStyles+'.group-heading{background:var(--surface2);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}</style></head><body>'+
+    '<header class="header"><div class="header-inner"><div class="logo-area">'+headerLogo+'<div><h1 class="header-title">Meta Ads — Daily Report</h1><div class="header-subtitle">'+both(i=>escape(names[i]+' · '+ranges[i]))+'</div></div></div><div class="header-meta"><div class="period" role="group" aria-label="Date range"><button data-window="0" class="on" aria-pressed="true">Last 7 days</button><button data-window="1" aria-pressed="false">Last 30 days</button></div>'+badge(valid.length+' Accounts')+badge('Generated '+day(generated,true),'green')+'</div></div></header>'+
     '<div class="tabs-bar">'+both(i=>'<nav class="tabs" aria-label="Report accounts"><button class="tab active" data-key="overview" data-open="overview">Overview</button>'+periods[i].map((v,n)=>'<button class="tab" data-key="'+escape(v.account.id)+'" data-open="'+n+'">'+escape(v.name)+(v.tone==='ok'?'':'<span class="flag-dot '+v.tone+'"></span>')+'</button>').join('')+'</nav>')+'</div>'+
     '<main class="main">'+both(i=>'<h2 class="print-only">'+escape(names[i]+' · '+ranges[i])+'</h2><section class="tab-panel" data-panel="overview">'+overview(periods[i],exclusions,names[i])+'</section>'+periods[i].map((v,n)=>'<section class="tab-panel" data-panel="'+n+'" hidden>'+detail(v,names[i])+'</section>').join(''))+'</main>'+
     '<footer class="footer">'+both(i=>escape('Generated by Tossdown · '+day(generated,true)+' · Meta Ads API'+(presentation.skill?' · Skill '+presentation.skill.name+' '+presentation.skill.sha.slice(0,8):'')+' · '+names[i]+' ('+ranges[i]+') · Spend grouped by currency. Status and bid settings at retrieval. A dash marks an unreported metric.'))+'</footer>'+embeddedTemplate+'<script>'+controls+'\n'+galleryScript+'</script></body></html>';

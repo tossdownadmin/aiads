@@ -54,6 +54,16 @@ describe('daily report client presentation',()=>{
     expect(accountPanel.slice(campaignPosition)).not.toContain('class="actions-section"');
   });
 
+  it('puts the account comparison before the optional highlights and gives KPI and action rows real column headings',()=>{
+    const doc=renderDailyDocument([entry([finding()])],end);
+    const overview=panel(doc,'overview'),detail=panel(doc);
+    expect(overview.indexOf('<table class="cmp"')).toBeLessThan(overview.indexOf('<details class="account-breakdowns">'));
+    expect(detail).toContain('<table class="report-table metrics"');
+    expect(detail).toContain('<th scope="col">Source or scope</th>');
+    expect(section(overview,'actions-section')).toContain('<table class="report-table portfolio-actions"');
+    expect(section(detail,'actions-section')).toContain('<table class="report-table actions"');
+  });
+
   it('orders the portfolio work queue by priority, severity and stable account identity',()=>{
     const alpha=entry([
       finding({tone:'warn',priority:'now',action:'Alpha now'}),
